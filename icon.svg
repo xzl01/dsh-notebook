@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Notebook">
+  <defs>
+    <linearGradient id="nb-cover" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f7cff"/>
+      <stop offset="1" stop-color="#2b4fd8"/>
+    </linearGradient>
+  </defs>
+  <rect x="9" y="5" width="30" height="38" rx="5" fill="url(#nb-cover)"/>
+  <rect x="13" y="9" width="22" height="30" rx="2.5" fill="#f7f9ff"/>
+  <path d="M17 15h12M17 20h14M17 25h10M17 30h8" stroke="#2b4fd8" stroke-width="2" stroke-linecap="round" opacity=".75"/>
+  <path d="M9 13h-2.5a1.5 1.5 0 0 0 0 3H9M9 22.5h-2.5a1.5 1.5 0 0 0 0 3H9M9 32h-2.5a1.5 1.5 0 0 0 0 3H9" stroke="#dbe3ff" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="34" cy="34" r="7.5" fill="#ffcb45"/>
+  <path d="M31 34.2l2.1 2.2 4-4.6" stroke="#4a3500" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

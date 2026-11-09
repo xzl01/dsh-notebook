@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "笔记本",
+    "description": "在 Harness Web UI 内直接浏览、编辑、搜索本地 Obsidian 仓库里的 Markdown 笔记；对话中的 Agent 也能读写同一批笔记。"
+  }
+}

@@ -1,0 +1,8 @@
+# Notebook bundle: one Host row. The Host half owns the vault on disk, the
+# HTTP API the Web UI reads, and the agent tools; client.js is the workbench UI.
+- insert:
+    - id: dsh-notebook
+      name: '@local/dsh-notebook'
+      config:
+        # Empty = detect the open vault from ~/.config/obsidian/obsidian.json.
+        vaultPath: ''

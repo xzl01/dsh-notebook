@@ -1,0 +1,10 @@
+# Dependencies
+node_modules/
+
+# Test scratch vaults and sidecar files
+test/.tmp-vault/
+test/.tmp-outside-secret.md
+
+# Local logs and OS noise
+*.log
+.DS_Store

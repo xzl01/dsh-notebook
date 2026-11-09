@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Notebook",
+    "description": "A Markdown notebook inside the Harness Web UI: browse, edit and search notes from a local Obsidian vault folder, and let the agent read and write the same notes."
+  }
+}
