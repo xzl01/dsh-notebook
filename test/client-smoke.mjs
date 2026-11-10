@@ -1978,6 +1978,12 @@ check('obsidian-columns callout parses into a columns block', () => {
   const nestedRound = parseBlocks(serializeBlocks(nested))
   assert(nestedRound.length === 1 && nestedRound[0].type === 'columns', JSON.stringify(nestedRound.map((b) => b.type)))
   assert(nestedRound[0].columns.length === 2, JSON.stringify(nestedRound[0].columns))
+  const weighted = parseBlocks('> [!col]\n>> [!col-md-2]\n>> ### 宽\n>\n>> [!col-md]\n>> ### 窄\n')
+  assert(weighted[0].columns.length === 2, JSON.stringify(weighted[0].columns))
+  assert(JSON.stringify(weighted[0].widths) === JSON.stringify([2, 1]), JSON.stringify(weighted[0].widths))
+  const weightedRound = parseBlocks(serializeBlocks(weighted))
+  assert(JSON.stringify(weightedRound[0].widths) === JSON.stringify([2, 1]), JSON.stringify(weightedRound[0].widths))
+  assert(serializeBlocks(weighted).includes('[!col-md-2]'), serializeBlocks(weighted))
   return 'columns round-trip'
 })
 

@@ -2267,15 +2267,29 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         if (colCallout !== null) {
           flushParagraph()
           const columns = []
+          const widths = []
+          const marker = /^\s*\[!col-md(?:-([0-9.]+))?\]/i
           let current = []
+          let currentWidth = 1
+          let pending = false
+          const flushColumn = (force) => {
+            if (current.length === 0 && force !== true) return
+            columns.push(current.join('\n'))
+            widths.push(currentWidth)
+            current = []
+            currentWidth = 1
+            pending = false
+          }
+          const startColumn = (inner) => {
+            if (current.length > 0) flushColumn(true)
+            const match = marker.exec(String(inner ?? ''))
+            const weight = match !== null && match[1] !== undefined ? Number(match[1]) : 1
+            currentWidth = Number.isFinite(weight) && weight > 0 ? weight : 1
+            pending = true
+          }
           const firstText = String(colCallout[2] ?? '').trim()
           if (firstText.length > 0) current.push(firstText)
           let scan = index + 1
-          const flushColumn = () => {
-            if (current.length === 0) return
-            columns.push(current.join('\n'))
-            current = []
-          }
           while (scan < lines.length) {
             const quoted = /^\s*>\s?(.*)$/.exec(lines[scan])
             if (quoted === null) break
@@ -2283,36 +2297,42 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
             const nested = /^\s*>\s?(.*)$/.exec(content)
             if (nested !== null) {
               const inner = String(nested[1] ?? '')
-              if (/^\s*\[!col-md(?:-[0-9.]+)?\]/i.test(inner.trim())) {
-                flushColumn()
+              if (marker.test(inner.trim())) {
+                startColumn(inner)
                 scan += 1
                 continue
               }
               if (inner.trim().length === 0) {
-                flushColumn()
+                flushColumn(false)
                 scan += 1
                 continue
               }
               current.push(inner.trim())
+              pending = false
               scan += 1
               continue
             }
             if (content.trim().length === 0) {
-              flushColumn()
+              flushColumn(false)
               scan += 1
               continue
             }
-            if (/^\s*\[!col-md(?:-[0-9.]+)?\]/i.test(content.trim())) {
-              flushColumn()
+            if (marker.test(content.trim())) {
+              startColumn(content)
               scan += 1
               continue
             }
             current.push(content.trim())
+            pending = false
             scan += 1
           }
-          if (current.length > 0) columns.push(current.join('\n'))
-          if (columns.length === 0) columns.push('')
-          blocks.push({ id: makeId(), type: 'columns', columns, text: columns.join('\n'), indent })
+          if (current.length > 0) flushColumn(true)
+          if (pending) flushColumn(true)
+          if (columns.length === 0) {
+            columns.push('')
+            widths.push(1)
+          }
+          blocks.push({ id: makeId(), type: 'columns', columns, widths, text: columns.join('\n'), indent })
           index = scan - 1
           continue
         }
@@ -3393,12 +3413,15 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           break
         case 'columns': {
           const columns = Array.isArray(block.columns) && block.columns.length > 0 ? block.columns : ['']
-          const groups = columns.map((column) => {
+          const widths = Array.isArray(block.widths) ? block.widths : []
+          const groups = columns.map((column, columnIndex) => {
+            const width = Number(widths[columnIndex] ?? 1)
+            const marker = Number.isFinite(width) && width > 0 && width !== 1 ? `>> [!col-md-${width}]` : '>> [!col-md]'
             const quoted = String(column ?? '')
               .split('\n')
               .map((value) => `>> ${value}`)
               .join('\n')
-            return `>> [!col-md]\n${quoted}`
+            return `${marker}\n${quoted}`
           })
           line = ['> [!col]', ...groups].join('\n>\n')
           break
@@ -6760,6 +6783,36 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       return views.length > 0 ? { views } : null
     }
 
+    // Every Bases view needs the same full-vault rows; share one load for a
+    // short window so opening several views (or re-rendering) is not repeated work.
+    let basesSourceCache = { at: 0, promise: null }
+    const BASES_SOURCE_TTL_MS = 2000
+
+    function loadBasesSource() {
+      const now = Date.now()
+      if (basesSourceCache.promise !== null && now - basesSourceCache.at < BASES_SOURCE_TTL_MS) {
+        return basesSourceCache.promise
+      }
+      const entry = {
+        at: now,
+        promise: Promise.all([apiGet('/list?folder='), apiGet('/fields?folder=')]).then(
+          ([listResult, fieldsResult]) => {
+            const fieldMap = new Map()
+            for (const row of Array.isArray(fieldsResult?.rows) ? fieldsResult.rows : []) {
+              fieldMap.set(row.path, row.fields ?? {})
+            }
+            const notes = Array.isArray(listResult?.notes) ? listResult.notes : []
+            return notes.map((note) => makeBaseRow(note, fieldMap.get(note.path) ?? {}))
+          },
+        ),
+      }
+      basesSourceCache = entry
+      entry.promise.catch(() => {
+        if (basesSourceCache === entry) basesSourceCache = { at: 0, promise: null }
+      })
+      return entry.promise
+    }
+
     /** Render an Obsidian `base` code block from the vault's own data. */
     function BasesView({ text, t, onOpen }) {
       const config = React.useMemo(() => parseBasesConfig(text), [text])
@@ -6768,15 +6821,10 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         let disposed = false
         const view = config.views[0] ?? null
         const viewValue = view !== null && typeof view === 'object' ? view : {}
-        Promise.all([apiGet('/list?folder='), apiGet('/fields?folder=')])
-          .then(([listResult, fieldsResult]) => {
+        loadBasesSource()
+          .then((allRows) => {
             if (disposed) return
-            const fieldMap = new Map()
-            for (const row of Array.isArray(fieldsResult?.rows) ? fieldsResult.rows : []) {
-              fieldMap.set(row.path, row.fields ?? {})
-            }
-            const notes = Array.isArray(listResult?.notes) ? listResult.notes : []
-            let rows = notes.map((note) => makeBaseRow(note, fieldMap.get(note.path) ?? {}))
+            let rows = allRows
             const filters = viewValue.filters ?? config.filters
             const now = Date.now()
             rows = rows.filter((row) => evalBaseFilter(filters, row, now))
@@ -7471,7 +7519,14 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
             key: 'columns',
             ref: renderRef,
             className: 'nb-columns',
-            style: { gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` },
+            style: {
+              gridTemplateColumns: columns
+                .map((column, columnIndex) => {
+                  const weight = Number(Array.isArray(block.widths) ? block.widths[columnIndex] : 1)
+                  return `${Number.isFinite(weight) && weight > 0 ? weight : 1}fr`
+                })
+                .join(' '),
+            },
             onClick: beginEditing,
             onDoubleClick: beginEditing,
           },
