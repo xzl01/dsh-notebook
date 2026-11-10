@@ -1417,8 +1417,14 @@ window.__ModuleLoader__.load({
 .nb-footnotes-title { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--nb-text-3); margin-bottom: 6px; }
 .nb-footnote { display: flex; gap: 8px; font-size: 12px; line-height: 1.65; color: var(--nb-text-2); padding: 2px 0; }
 .nb-footnote-ref { color: var(--nb-accent); font-weight: 600; min-width: 16px; }
-.nb-mermaid-render { padding: 10px 12px; border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-m); background: var(--nb-card); overflow: auto; text-align: center; }
-.nb-mermaid-render svg { max-width: 100%; height: auto; }
+.nb-mermaid-render { display: flex; justify-content: center; padding: 18px 16px; border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-m); background: var(--nb-panel); overflow: auto; }
+.nb-mermaid-render svg { max-width: 100%; height: auto; background: transparent; }
+.nb-mermaid-render .node rect { rx: 8px; ry: 8px; }
+.nb-mermaid-render .node rect, .nb-mermaid-render .node circle, .nb-mermaid-render .node polygon, .nb-mermaid-render .node path { stroke-width: 1.4px; }
+.nb-mermaid-render .nodeLabel { font-size: 12.5px; font-weight: 500; }
+.nb-mermaid-render .edgePath path { stroke-width: 1.3px; }
+.nb-mermaid-render .edgeLabel { border-radius: 6px; padding: 1px 4px; }
+.nb-mermaid-render .label { font-weight: 500; }
 .nb-mermaid-loading { padding: 4px 0; font-size: 12px; color: var(--nb-text-3); }
 .nb-mermaid-card { border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-m); background: var(--nb-panel); padding: 12px 14px; }
 .nb-mermaid-head { display: flex; align-items: center; gap: 8px; }
@@ -3972,6 +3978,108 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       return String(text ?? '').replace(/[&<>"]/g, (match) => ESCAPES[match])
     }
 
+    /** Whether a resolved CSS colour is dark, for the Mermaid theme. */
+    function mermaidColorIsDark(color) {
+      const value = String(color ?? '').trim()
+      const rgb = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(value)
+      if (rgb !== null) {
+        const r = Number(rgb[1])
+        const g = Number(rgb[2])
+        const b = Number(rgb[3])
+        return (r * 299 + g * 587 + b * 114) / 1000 < 128
+      }
+      const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value)
+      if (hex !== null) {
+        const raw = hex[1].length === 3 ? hex[1].split('').map((c) => c + c).join('') : hex[1]
+        const r = parseInt(raw.slice(0, 2), 16)
+        const g = parseInt(raw.slice(2, 4), 16)
+        const b = parseInt(raw.slice(4, 6), 16)
+        return (r * 299 + g * 587 + b * 114) / 1000 < 128
+      }
+      return true
+    }
+
+    /** Mermaid theme variables derived from the DSH theme tokens. */
+    function mermaidThemeVariables(styles) {
+      const read = (name, fallback) => {
+        try {
+          const value = styles !== undefined && styles !== null ? String(styles.getPropertyValue(name) ?? '').trim() : ''
+          return value.length > 0 ? value : fallback
+        } catch {
+          return fallback
+        }
+      }
+      const paper = read('--dsw-alias-bg-base', '#1b1e27')
+      const card = read('--dsw-alias-button-floating-fill', '#252934')
+      const panel = read('--dsw-alias-bg-module-platform', '#20232d')
+      const text = read('--dsw-alias-label-primary', '#e9ebf2')
+      const muted = read('--dsw-alias-label-tertiary', '#8b93a7')
+      const line = read('--dsw-alias-border-l2', '#3a3f4b')
+      const accent = read('--dsw-alias-link', '#6b93f2')
+      return {
+        darkMode: mermaidColorIsDark(paper),
+        fontFamily: "'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif",
+        fontSize: '13px',
+        background: 'transparent',
+        primaryColor: card,
+        primaryTextColor: text,
+        primaryBorderColor: accent,
+        secondaryColor: panel,
+        secondaryTextColor: text,
+        secondaryBorderColor: line,
+        tertiaryColor: panel,
+        tertiaryTextColor: muted,
+        tertiaryBorderColor: line,
+        lineColor: line,
+        textColor: text,
+        edgeLabelBackground: paper,
+        labelBkg: paper,
+        clusterBkg: 'transparent',
+        clusterBorder: line,
+        titleColor: text,
+        actorBkg: card,
+        actorBorder: accent,
+        actorTextColor: text,
+        actorLineColor: line,
+        signalColor: line,
+        signalTextColor: text,
+        noteBkgColor: panel,
+        noteTextColor: text,
+        noteBorderColor: line,
+        pie1: accent,
+        pie2: '#e9973f',
+        pie3: '#44cf6e',
+        pie4: '#a882ff',
+        git0: accent,
+        git1: '#e9973f',
+        git2: '#44cf6e',
+        git3: '#a882ff',
+        cScale0: accent,
+        cScale1: '#e9973f',
+        cScale2: '#44cf6e',
+        cScale3: '#a882ff',
+      }
+    }
+
+    function applyMermaidTheme(mermaid) {
+      if (mermaid === undefined || mermaid === null) return
+      let styles = null
+      try {
+        styles = window.getComputedStyle(document.documentElement)
+      } catch {
+        styles = null
+      }
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'strict',
+        theme: 'base',
+        themeVariables: mermaidThemeVariables(styles),
+        flowchart: { curve: 'basis', nodeSpacing: 40, rankSpacing: 56, padding: 14, htmlLabels: false },
+        sequence: { mirrorActors: false, messageAlign: 'center', wrap: true },
+        er: { useMaxWidth: true },
+      })
+    }
+
     // ---- Mermaid rendering (runtime script served by the Host) ----
     let mermaidRuntimePromise = null
 
@@ -3992,7 +4100,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
             return
           }
           try {
-            window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'default' })
+            applyMermaidTheme(window.mermaid)
           } catch {
             /* keep the runtime defaults */
           }
@@ -4010,7 +4118,10 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         let disposed = false
         const renderId = `nb-mermaid-${Math.random().toString(36).slice(2, 10)}`
         loadMermaidRuntime()
-          .then((mermaid) => mermaid.render(renderId, String(code ?? '')))
+          .then((mermaid) => {
+            applyMermaidTheme(mermaid)
+            return mermaid.render(renderId, String(code ?? ''))
+          })
           .then((result) => {
             if (!disposed) setState({ status: 'ready', svg: String(result?.svg ?? ''), error: '' })
           })
