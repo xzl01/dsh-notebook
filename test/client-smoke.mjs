@@ -611,6 +611,73 @@ check('frontmatter type: folder pins the page and can point at another folder', 
   return 'pinned + override + link body'
 })
 
+check('collection filters parse and apply conditions', () => {
+  const { parseCollectionFilter, applyCollectionFilter, parseCollectionSort } = captured.module.__internal
+  const rows = [
+    { name: 'A', path: 'a.md', fields: { status: 'done', points: '3', tags: 'infra,linux' } },
+    { name: 'B', path: 'b.md', fields: { status: 'doing', points: '12', tags: 'ui' } },
+  ]
+  assert(parseCollectionFilter('status = done and points > 2').length === 2, 'two conditions parsed')
+  const filtered = applyCollectionFilter(rows, 'status = done and points > 2')
+  assert(filtered.length === 1 && filtered[0].name === 'A', JSON.stringify(filtered))
+  assert(applyCollectionFilter(rows, 'status != done').length === 1, '!=')
+  assert(applyCollectionFilter(rows, 'tags ~ LINUX').length === 1, '~ must be case-insensitive contains')
+  assert(applyCollectionFilter(rows, 'points >= 10').length === 1, 'numeric >=')
+  assert(applyCollectionFilter(rows, '').length === 2, 'empty filter shows all')
+  assert(applyCollectionFilter(rows, 'nonsense').length === 2, 'unparsable filter shows all')
+  const sort = parseCollectionSort('points:desc')
+  assert(sort.key === 'points' && sort.dir === 'desc', JSON.stringify(sort))
+  assert(parseCollectionSort('').key === '', 'an empty sort has no key')
+  return 'equals / contains / numeric / fallback / sort'
+})
+
+check('the command palette lists matching commands before notes', () => {
+  const { paletteRows } = captured.module.__internal
+  const actions = [
+    { id: 'new', label: '新建笔记', icon: '＋' },
+    { id: 'ask', label: '问 AI', icon: '✨' },
+    { id: 'zen', label: '禅模式', icon: '◨' },
+  ]
+  const notes = [
+    { path: '笔记/工作.md', name: '工作', dir: '笔记' },
+    { path: '笔记/生活.md', name: '生活', dir: '笔记' },
+  ]
+  const empty = paletteRows(actions, notes, '')
+  assert(empty[0].kind === 'action' && empty[0].id === 'new', JSON.stringify(empty[0]))
+  assert(empty.some((row) => row.kind === 'note' && row.name === '工作'), 'notes must follow commands')
+
+  const commands = paletteRows(actions, notes, '问')
+  assert(commands.length === 1 && commands[0].kind === 'action' && commands[0].id === 'ask', JSON.stringify(commands))
+
+  const byNote = paletteRows(actions, notes, '生活')
+  assert(byNote.length === 1 && byNote[0].kind === 'note' && byNote[0].name === '生活', JSON.stringify(byNote))
+  return 'empty / command query / note query'
+})
+
+check('an embed shows one anchored block or one heading section', () => {
+  const { embedBlocksFor, parseBlocks } = captured.module.__internal
+  const parsed = parseBlocks(
+    '# 总标题\n\n## 第一节\n\n段一 ^abc\n\n### 子节\n\n子段\n\n## 第二节\n\n段二',
+  )
+  const whole = embedBlocksFor(parsed, '')
+  assert(whole.blocks.length === parsed.length && whole.missing === false, 'no anchor shows the note')
+
+  const block = embedBlocksFor(parsed, '^abc')
+  assert(block.blocks.length === 1, `block anchor returned ${block.blocks.length}`)
+  assert(block.blocks[0].text === '段一', JSON.stringify(block.blocks[0]))
+  assert(embedBlocksFor(parsed, '^nope').missing === true, 'a missing block must be reported')
+
+  const section = embedBlocksFor(parsed, '第一节')
+  const types = section.blocks.map((item) => item.type).join(',')
+  assert(section.missing === false, 'a heading section must resolve')
+  assert(types === 'heading2,paragraph,heading3,paragraph', `section was ${types}`)
+  assert(!section.blocks.some((item) => item.text === '第二节'), 'the next same-rank heading ends the section')
+
+  const fallback = embedBlocksFor(parsed, '不存在的标题')
+  assert(fallback.blocks.length === parsed.length, 'an unknown heading falls back to the note')
+  return 'whole / block / missing / section'
+})
+
 check('a folder page lists direct notes and subfolders, excluding itself', () => {
   const { folderEntriesFor, sortFolderNotes, FolderView } = captured.module.__internal
   const notes = [

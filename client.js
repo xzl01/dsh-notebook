@@ -220,7 +220,7 @@ window.__ModuleLoader__.load({
     const SHORTCUTS = [
       ['Ctrl/Cmd + S', 'scSave'],
       ['Ctrl/Cmd + Shift + F', 'scZen'],
-      ['Ctrl/Cmd + P', 'scQuickOpen'],
+      ['Ctrl/Cmd + P / K', 'scQuickOpen'],
       ['Ctrl/Cmd + Alt + J', 'scAsk'],
       ['Ctrl/Cmd + Z', 'scUndo'],
       ['Ctrl/Cmd + Shift + Z', 'scRedo'],
@@ -367,6 +367,7 @@ window.__ModuleLoader__.load({
       extractPage: '转为子页面',
       extractPageDone: '已创建子页面：{name}',
       copyBlockLink: '复制块链接',
+      copyBlockEmbed: '复制块嵌入',
       copyLinkDone: '已复制：{link}',
       moveUp: '上移',
       moveDown: '下移',
@@ -408,6 +409,7 @@ window.__ModuleLoader__.load({
       noBacklinks: '还没有笔记链接到这里',
       noOutlinks: '这篇笔记还没有链接到其他笔记',
       embedTag: '嵌入',
+      embedAnchorMissing: '（找不到被引用的块）',
       mentions: '提及',
       collectionTable: '表格',
       collectionBoard: '看板',
@@ -428,6 +430,9 @@ window.__ModuleLoader__.load({
       addFavorite: '收藏',
       removeFavorite: '取消收藏',
       quickOpenPlaceholder: '快速打开笔记…',
+      palettePlaceholder: '搜索笔记或命令…',
+      paletteNewNote: '新建笔记',
+      scPalette: '命令面板（搜索 + 动作）',
       linkIt: '加链接',
       graphTitle: '关系图谱',
       aiTitle: 'AI 写作助手',
@@ -668,6 +673,7 @@ window.__ModuleLoader__.load({
       extractPage: 'Turn into page',
       extractPageDone: 'Sub-page created: {name}',
       copyBlockLink: 'Copy block link',
+      copyBlockEmbed: 'Copy block embed',
       copyLinkDone: 'Copied: {link}',
       moveUp: 'Move up',
       moveDown: 'Move down',
@@ -709,6 +715,7 @@ window.__ModuleLoader__.load({
       noBacklinks: 'No note links here yet',
       noOutlinks: 'This note links nowhere yet',
       embedTag: 'embed',
+      embedAnchorMissing: '(referenced block not found)',
       mentions: 'Mentions',
       collectionTable: 'Table',
       collectionBoard: 'Board',
@@ -729,6 +736,9 @@ window.__ModuleLoader__.load({
       addFavorite: 'Add to favorites',
       removeFavorite: 'Remove from favorites',
       quickOpenPlaceholder: 'Quick open a note…',
+      palettePlaceholder: 'Search notes or commands…',
+      paletteNewNote: 'New note',
+      scPalette: 'Command palette (search + actions)',
       linkIt: 'Link',
       graphTitle: 'Graph',
       aiTitle: 'AI writing assistant',
@@ -1231,6 +1241,9 @@ window.__ModuleLoader__.load({
 .nb-collection-filter { width: 180px; height: 28px; }
 .nb-collection-count { color: var(--nb-text-3); font-size: 11.5px; }
 .nb-collection-refresh { margin-left: auto; }
+.nb-collection-filterbtn.on { color: var(--nb-accent); border-color: var(--nb-accent); }
+.nb-collection-filterbar { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--nb-line); }
+.nb-collection-filterinput { flex: 1 1 auto; height: 28px; }
 .nb-collection-table-wrap { overflow: auto; margin-top: 8px; border: 1px solid var(--nb-line); border-radius: var(--nb-radius-m); }
 .nb-collection-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .nb-collection-table th { position: sticky; top: 0; background: var(--nb-panel); text-align: left; font-weight: 600; color: var(--nb-text-2); padding: 7px 10px; border-bottom: 1px solid var(--nb-line); white-space: nowrap; }
@@ -1796,6 +1809,8 @@ window.__ModuleLoader__.load({
         view: view === 'board' ? 'board' : 'table',
         groupBy: frontmatterValue(frontmatter, 'groupBy').trim() || 'status',
         columns: parseListValue(frontmatterValue(frontmatter, 'columns')),
+        filter: frontmatterValue(frontmatter, 'filter').trim(),
+        sort: frontmatterValue(frontmatter, 'sort').trim(),
       }
     }
 
@@ -1837,6 +1852,84 @@ window.__ModuleLoader__.load({
         const values = [row.name, row.path, ...Object.values(row.fields ?? {})]
         return values.some((value) => String(value ?? '').toLowerCase().includes(needle))
       })
+    }
+
+    /**
+     * Parse a saved filter like `status = done and tags ~ infra` (conditions are
+     * joined with `and`; ~ means contains; quoting is optional).
+     */
+    function parseCollectionFilter(text) {
+      const source = String(text ?? '').trim()
+      if (source.length === 0) return []
+      const conditions = []
+      for (const part of source.split(/\s+and\s+/i)) {
+        const match = /^([A-Za-z0-9_-]+)\s*(!=|>=|<=|=|~|>|<)\s*(.+)$/.exec(part.trim())
+        if (match === null) continue
+        let value = match[3].trim()
+        if (value.length >= 2 && ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))) {
+          value = value.slice(1, -1)
+        }
+        conditions.push({ field: match[1], op: match[2], value })
+      }
+      return conditions
+    }
+
+    /** Does one row satisfy every condition of a parsed filter? */
+    function matchCollectionFilter(row, conditions) {
+      for (const condition of conditions) {
+        const left = collectionValue(row, condition.field)
+        const right = condition.value
+        const leftNumber = Number(left)
+        const rightNumber = Number(right)
+        const numeric =
+          left.trim().length > 0 &&
+          right.trim().length > 0 &&
+          Number.isFinite(leftNumber) &&
+          Number.isFinite(rightNumber)
+        const lowerLeft = left.toLowerCase()
+        const lowerRight = right.toLowerCase()
+        switch (condition.op) {
+          case '=':
+            if (numeric ? leftNumber !== rightNumber : lowerLeft !== lowerRight) return false
+            break
+          case '!=':
+            if (numeric ? leftNumber === rightNumber : lowerLeft === lowerRight) return false
+            break
+          case '~':
+            if (!lowerLeft.includes(lowerRight)) return false
+            break
+          case '>':
+            if (!(numeric ? leftNumber > rightNumber : lowerLeft > lowerRight)) return false
+            break
+          case '<':
+            if (!(numeric ? leftNumber < rightNumber : lowerLeft < lowerRight)) return false
+            break
+          case '>=':
+            if (!(numeric ? leftNumber >= rightNumber : lowerLeft >= lowerRight)) return false
+            break
+          case '<=':
+            if (!(numeric ? leftNumber <= rightNumber : lowerLeft <= lowerRight)) return false
+            break
+          default:
+            return false
+        }
+      }
+      return true
+    }
+
+    /** Apply a saved filter expression to rows; an unparsable filter shows all. */
+    function applyCollectionFilter(rows, text) {
+      const conditions = parseCollectionFilter(text)
+      const list = Array.isArray(rows) ? rows : []
+      if (conditions.length === 0) return list.slice()
+      return list.filter((row) => matchCollectionFilter(row, conditions))
+    }
+
+    /** Read a saved `sort` value (`field:asc|desc`). */
+    function parseCollectionSort(text) {
+      const match = /^([A-Za-z0-9_-]+)(?::(asc|desc))?$/.exec(String(text ?? '').trim())
+      if (match === null) return { key: '', dir: 'asc' }
+      return { key: match[1], dir: match[2] === 'desc' ? 'desc' : 'asc' }
     }
 
     /** Sort rows by `name` / `path` / an arbitrary field key. */
@@ -2129,18 +2222,27 @@ window.__ModuleLoader__.load({
     }
 
     /** Table / board view over a folder's notes and their frontmatter fields. */
-    function CollectionView({ t, config, rows, loading, folder, onOpen, onReload, onFieldChange, onCreate }) {
+    function CollectionView({ t, config, rows, loading, folder, onOpen, onReload, onFieldChange, onCreate, onSaveConfig }) {
+      const initialSort = parseCollectionSort(config.sort)
+      const initialFilter = String(config.filter ?? '').trim()
       const [view, setView] = React.useState(null)
-      const [sortKey, setSortKey] = React.useState('')
-      const [sortDir, setSortDir] = React.useState('asc')
+      const [sortKey, setSortKey] = React.useState(initialSort.key)
+      const [sortDir, setSortDir] = React.useState(initialSort.dir)
       const [query, setQuery] = React.useState('')
+      const [filterText, setFilterText] = React.useState(initialFilter)
+      const [filterDraft, setFilterDraft] = React.useState(initialFilter)
+      const [filterOpen, setFilterOpen] = React.useState(initialFilter.length > 0)
       const [editingCell, setEditingCell] = React.useState(null)
       const [draft, setDraft] = React.useState('')
       const [dragRow, setDragRow] = React.useState(null)
       const [dragColumn, setDragColumn] = React.useState(null)
       const activeView = view === null ? config.view : view
       const columns = collectionColumns(rows, config.columns)
-      const visible = sortCollectionRows(filterCollectionRows(rows, query), sortKey, sortDir)
+      const visible = sortCollectionRows(
+        applyCollectionFilter(filterCollectionRows(rows, query), filterText),
+        sortKey,
+        sortDir,
+      )
       const groups = groupCollectionRows(visible, config.groupBy)
 
       function toggleSort(key) {
@@ -2191,6 +2293,32 @@ window.__ModuleLoader__.load({
           'aria-label': t('collectionFilter'),
           onChange: (event) => setQuery(event.target.value),
         }),
+        h(
+          'button',
+          {
+            className: `nb-btn nb-collection-filterbtn${filterText.length > 0 ? ' on' : ''}`,
+            onClick: () => setFilterOpen((open) => !open),
+            title: t('collectionFilterAdvanced'),
+          },
+          filterText.length > 0 ? `${t('collectionFilterAdvanced')} •` : t('collectionFilterAdvanced'),
+        ),
+        typeof onSaveConfig === 'function'
+          ? h(
+              'button',
+              {
+                className: 'nb-btn nb-collection-save',
+                title: t('collectionSaveHint'),
+                onClick: () =>
+                  onSaveConfig({
+                    view: activeView,
+                    filter: filterText,
+                    sort: sortKey.length > 0 ? `${sortKey}:${sortDir}` : '',
+                    groupBy: config.groupBy,
+                  }),
+              },
+              t('collectionSaveView'),
+            )
+          : null,
         h('span', { className: 'nb-collection-count' }, `${visible.length} ${t('collectionRows')}`),
         h(
           'button',
@@ -2356,6 +2484,44 @@ window.__ModuleLoader__.load({
         'div',
         { className: 'nb-collection' },
         bar,
+        filterOpen
+          ? h(
+              'div',
+              { className: 'nb-collection-filterbar' },
+              h('input', {
+                className: 'nb-input nb-collection-filterinput',
+                value: filterDraft,
+                placeholder: t('collectionFilterHint'),
+                'aria-label': t('collectionFilterHint'),
+                onChange: (event) => setFilterDraft(event.target.value),
+                onKeyDown: (event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    setFilterText(filterDraft.trim())
+                  }
+                },
+              }),
+              h(
+                'button',
+                {
+                  className: 'nb-btn',
+                  onClick: () => setFilterText(filterDraft.trim()),
+                },
+                t('collectionApplyFilter'),
+              ),
+              h(
+                'button',
+                {
+                  className: 'nb-btn',
+                  onClick: () => {
+                    setFilterDraft('')
+                    setFilterText('')
+                  },
+                },
+                t('collectionClearFilter'),
+              ),
+            )
+          : null,
         body,
         h(
           'div',
@@ -2743,6 +2909,12 @@ window.__ModuleLoader__.load({
       return `[[${name}${anchor}]]`
     }
 
+    /** The embed form of a block link: `![[note#^id]]` renders that block. */
+    function blockEmbedFor(notePath, block) {
+      const link = blockLinkFor(notePath, block)
+      return link.startsWith('![') ? link : `!${link}`
+    }
+
     /** Path of a page created from a block: same folder, title from the block text. */
     function pagePathFor(notePath, title) {
       const source = String(notePath ?? '')
@@ -2961,14 +3133,47 @@ window.__ModuleLoader__.load({
       return nodes
     }
 
+    /**
+     * Pick the blocks an embed shows: the whole note, one `^id` block, or the
+     * section under one heading. Pure so the anchor rules are testable.
+     */
+    function embedBlocksFor(parsed, anchor) {
+      const list = Array.isArray(parsed) ? parsed : []
+      if (anchor.startsWith('^')) {
+        const found = list.find((block) => block.blockId === anchor.slice(1))
+        return { blocks: found === undefined ? [] : [found], missing: found === undefined }
+      }
+      const levelOf = (block) => {
+        const match = /^heading([1-3])$/.exec(String(block.type))
+        return match === null ? 0 : Number(match[1])
+      }
+      if (anchor.length > 0) {
+        const start = list.findIndex(
+          (block) => levelOf(block) > 0 && String(block.text ?? '').trim() === anchor,
+        )
+        if (start >= 0) {
+          const rank = levelOf(list[start])
+          const section = [list[start]]
+          for (let index = start + 1; index < list.length; index += 1) {
+            const level = levelOf(list[index])
+            if (level > 0 && level <= rank) break
+            section.push(list[index])
+          }
+          return { blocks: section.slice(0, 40), missing: false }
+        }
+      }
+      return { blocks: list.slice(0, 40), missing: false }
+    }
+
     /** Read-only embed of another note inside a block, like Obsidian's `![[note]]`. */
     function EmbeddedNote({ name, notes, onOpen, t, depth }) {
       const labels = t ?? ((key) => key)
+      const link = parseWikiLink(name)
       const [expanded, setExpanded] = React.useState(false)
       const [state, setState] = React.useState({ loading: true, content: '', error: '' })
       React.useEffect(() => {
         let cancelled = false
-        const target = findWikiTarget(notes, parseWikiLink(name).name)
+        const target = findWikiTarget(notes, link.name)
         if (target === null) {
           setState({ loading: false, content: '', error: 'missing' })
           return () => {
@@ -2989,10 +3194,11 @@ window.__ModuleLoader__.load({
         }
       }, [name, notes])
 
-      const blocks = React.useMemo(() => {
-        if (state.content === '') return []
-        return parseBlocks(splitFrontmatter(state.content).body).slice(0, 40)
-      }, [state.content])
+      const [blocks, missingAnchor] = React.useMemo(() => {
+        if (state.content === '') return [[], false]
+        const selection = embedBlocksFor(parseBlocks(splitFrontmatter(state.content).body), link.anchor)
+        return [selection.blocks, selection.missing]
+      }, [state.content, link.anchor])
 
       if (state.loading) return h('span', { className: 'nb-embed-loading' }, '…')
       if (state.error !== '') {
@@ -3002,7 +3208,15 @@ window.__ModuleLoader__.load({
           `![[${name}]]`,
         )
       }
-      const visible = expanded ? blocks : blocks.slice(0, 12)
+      if (missingAnchor) {
+        return h(
+          'span',
+          { className: 'nb-embed-error' },
+          `![[${name}]] ${labels('embedAnchorMissing')}`,
+        )
+      }
+      const anchored = link.anchor.length > 0
+      const visible = anchored ? blocks : expanded ? blocks : blocks.slice(0, 12)
       return h(
         'div',
         { className: 'nb-embed' },
@@ -3024,7 +3238,9 @@ window.__ModuleLoader__.load({
             h(EmbeddedBlock, { key: block.id, block, notes, onOpen, t: labels, depth }),
           ),
         ),
-        blocks.length > visible.length
+        anchored
+          ? null
+          : blocks.length > visible.length
           ? h(
               'button',
               {
@@ -3622,6 +3838,23 @@ window.__ModuleLoader__.load({
       if (typeof selectedPath !== 'string' || selectedPath.length === 0) return ''
       const cut = selectedPath.lastIndexOf('/')
       return cut < 0 ? '' : selectedPath.slice(0, cut + 1)
+    }
+
+    /**
+     * Rows of the Cmd/Ctrl+K palette: matching commands first, then matching
+     * notes (the same filter quick open uses). Pure so the order is testable.
+     */
+    function paletteRows(actions, notes, query) {
+      const needle = String(query ?? '').trim().toLowerCase()
+      const matched = (Array.isArray(actions) ? actions : [])
+        .filter((action) => needle.length === 0 || String(action.label ?? '').toLowerCase().includes(needle))
+        .slice(0, needle.length === 0 ? 6 : 10)
+      return [
+        ...matched.map((action) => ({ kind: 'action', key: `action:${action.id}`, ...action })),
+        ...filterQuickNotes(notes, query)
+          .slice(0, 12)
+          .map((note) => ({ kind: 'note', key: `note:${note.path}`, ...note })),
+      ]
     }
 
     /** A note title from a model answer's first meaningful line. */
@@ -5259,6 +5492,16 @@ window.__ModuleLoader__.load({
                     ),
                     h(
                       'button',
+                      {
+                        key: 'embed',
+                        className: 'nb-menu-item',
+                        onClick: () => onCopyLink(block.id, true),
+                      },
+                      h('span', { className: 'nb-menu-icon' }, '⧉'),
+                      h('span', null, t('copyBlockEmbed')),
+                    ),
+                    h(
+                      'button',
                       { key: 'ai', className: 'nb-menu-item', onClick: () => onAi(block.id) },
                       h('span', { className: 'nb-menu-icon' }, '✦'),
                       h('span', null, t('aiTitle')),
@@ -5981,7 +6224,25 @@ window.__ModuleLoader__.load({
           .slice(0, 8)
       }, [notes, wikiSuggest, selected])
 
-      const quickItems = React.useMemo(() => filterQuickNotes(notes, quickQuery).slice(0, 12), [notes, quickQuery])
+      // Cmd/Ctrl+K palette rows: commands first, then matching notes. Commands
+      // close the palette before running so their dialogs own the focus.
+      const quickActions = [
+        { id: 'new', label: t('paletteNewNote'), icon: '＋', run: () => openTemplates() },
+        { id: 'ask', label: t('askAi'), icon: '✨', run: () => setAskOpen(true) },
+        { id: 'zen', label: zen ? t('exitZen') : t('zenMode'), icon: '◨', run: () => setZenMode(!zen) },
+        { id: 'reading', label: reading ? t('exitReading') : t('readingMode'), icon: '◐', run: () => setReading(!reading) },
+        { id: 'wide', label: wide ? t('narrowMode') : t('wideMode'), icon: '⇔', run: () => setWide(!wide) },
+        { id: 'props', label: t('propsTitle'), icon: '≡', run: () => openProps() },
+        { id: 'history', label: t('historyTitle'), icon: '⟲', run: () => openHistory() },
+        { id: 'graph', label: t('graphTitle'), icon: '◌', run: () => setDialog({ kind: 'graph' }) },
+        { id: 'shortcuts', label: t('shortcutsTitle'), icon: '⌘', run: () => setDialog({ kind: 'shortcuts' }) },
+        { id: 'export', label: t('exportMarkdown'), icon: '⇩', run: () => exportMarkdown() },
+      ].filter((action) => selected !== null || !['props', 'history', 'graph', 'export'].includes(action.id))
+
+      const quickRows = React.useMemo(
+        () => paletteRows(quickActions, notes, quickQuery),
+        [quickActions, notes, quickQuery],
+      )
 
       const notePickerItems = React.useMemo(() => {
         const query = notePicker === null ? '' : String(notePicker.query ?? '').trim().toLowerCase()
@@ -6345,7 +6606,7 @@ window.__ModuleLoader__.load({
           }
           if (!(event.metaKey || event.ctrlKey)) return
           const key = String(event.key).toLowerCase()
-          if (key === 'p') {
+          if (key === 'p' || key === 'k') {
             event.preventDefault()
             openQuick()
             return
@@ -6786,6 +7047,19 @@ window.__ModuleLoader__.load({
             attempt += 1
           }
         }
+      }
+
+      /** Persist the collection's view/filter/sort into the page frontmatter. */
+      function saveCollectionView(next) {
+        let fm = frontmatterRef.current
+        fm = withFrontmatterValue(fm, 'view', next.view)
+        fm = withFrontmatterValue(fm, 'filter', next.filter)
+        fm = withFrontmatterValue(fm, 'sort', next.sort)
+        fm = withFrontmatterValue(fm, 'groupBy', next.groupBy)
+        updateFrontmatter(fm)
+        setCollection((current) =>
+          current === null ? current : { ...current, config: { ...current.config, ...next } },
+        )
       }
 
       async function reloadCollection() {
@@ -7489,7 +7763,7 @@ window.__ModuleLoader__.load({
         }
       }
 
-      async function copyBlockLink(blockId) {
+      async function copyBlockLink(blockId, embed) {
         const block = blocksRef.current.find((item) => item.id === blockId)
         setMenuFor(null)
         if (block === undefined || selectedRef.current === null) return
@@ -7501,7 +7775,10 @@ window.__ModuleLoader__.load({
           )
           target = { ...block, blockId: anchorId }
         }
-        const link = blockLinkFor(selectedRef.current, target)
+        const link =
+          embed === true
+            ? blockEmbedFor(selectedRef.current, target)
+            : blockLinkFor(selectedRef.current, target)
         try {
           await navigator.clipboard.writeText(link)
           setNotice({ kind: 'ok', text: t('copyLinkDone').replace('{link}', link) })
@@ -9123,6 +9400,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                 }),
                 collection !== null
                   ? h(CollectionView, {
+                      key: `collection:${selected ?? ''}:${collection.folder ?? ''}`,
                       t,
                       config: collection.config,
                       rows: collection.rows,
@@ -9132,6 +9410,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                       onReload: reloadCollection,
                       onFieldChange: updateCollectionField,
                       onCreate: createCollectionRow,
+                      onSaveConfig: saveCollectionView,
                     })
                   : null,
                 folderEntries !== null
@@ -9795,9 +10074,9 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                 h('input', {
                   className: 'nb-input nb-quick-input',
                   value: quickQuery,
-                  placeholder: t('quickOpenPlaceholder'),
+                  placeholder: t('palettePlaceholder'),
                   autoFocus: true,
-                  'aria-label': t('quickOpenPlaceholder'),
+                  'aria-label': t('palettePlaceholder'),
                   onChange: (event) => {
                     setQuickQuery(event.target.value)
                     setQuickIndex(0)
@@ -9805,14 +10084,17 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                   onKeyDown: (event) => {
                     if (event.key === 'ArrowDown') {
                       event.preventDefault()
-                      setQuickIndex((index) => Math.min(index + 1, quickItems.length - 1))
+                      setQuickIndex((index) => Math.min(index + 1, quickRows.length - 1))
                     } else if (event.key === 'ArrowUp') {
                       event.preventDefault()
                       setQuickIndex((index) => Math.max(0, index - 1))
                     } else if (event.key === 'Enter') {
                       event.preventDefault()
-                      const note = quickItems[quickIndex]
-                      if (note !== undefined) pickQuick(note.path)
+                      const row = quickRows[quickIndex]
+                      if (row === undefined) return
+                      setQuickOpen(false)
+                      if (row.kind === 'action') row.run()
+                      else pickQuick(row.path)
                     } else if (event.key === 'Escape') {
                       event.preventDefault()
                       setQuickOpen(false)
@@ -9822,21 +10104,32 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                 h(
                   'div',
                   { className: 'nb-quick-list' },
-                  quickItems.length === 0
+                  quickRows.length === 0
                     ? h('div', { className: 'nb-side-empty' }, t('noResults'))
-                    : quickItems.map((note, index) =>
+                    : quickRows.map((row, index) =>
                         h(
                           'button',
                           {
-                            key: note.path,
-                            className: `nb-quick-row${index === quickIndex ? ' on' : ''}`,
+                            key: row.key,
+                            className: `nb-quick-row${index === quickIndex ? ' on' : ''}${
+                              row.kind === 'action' ? ' nb-quick-action' : ''
+                            }`,
                             onMouseDown: (event) => {
                               event.preventDefault()
-                              pickQuick(note.path)
+                              setQuickOpen(false)
+                              if (row.kind === 'action') row.run()
+                              else pickQuick(row.path)
                             },
                           },
-                          h('span', { className: 'nb-quick-row-name' }, note.name),
-                          h('span', { className: 'nb-quick-row-path' }, note.dir),
+                          row.kind === 'action'
+                            ? [
+                                h('span', { key: 'icon', className: 'nb-quick-row-icon' }, row.icon),
+                                h('span', { key: 'label', className: 'nb-quick-row-name' }, row.label),
+                              ]
+                            : [
+                                h('span', { key: 'name', className: 'nb-quick-row-name' }, row.name),
+                                h('span', { key: 'path', className: 'nb-quick-row-path' }, row.dir),
+                              ],
                         ),
                       ),
                 ),
@@ -11023,10 +11316,15 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         rememberAskThread,
         citationNoteName,
         noteDirFor,
+        paletteRows,
         askAnswerTitle,
         ASK_THREADS,
         collectionColumns,
         filterCollectionRows,
+        parseCollectionFilter,
+        matchCollectionFilter,
+        applyCollectionFilter,
+        parseCollectionSort,
         sortCollectionRows,
         groupCollectionRows,
         isTemplateHref,
@@ -11047,6 +11345,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         parseListValue,
         formatListValue,
         EmbeddedNote,
+        embedBlocksFor,
         moveTableColumn,
         NOTE_TEMPLATES,
         FONT_PRESETS,
