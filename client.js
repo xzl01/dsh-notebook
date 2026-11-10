@@ -249,6 +249,72 @@ window.__ModuleLoader__.load({
       panelTitle: '笔记本',
       newNote: '新建笔记',
       searchPlaceholder: '搜索…',
+      homeMorning: '早上好',
+      homeNoon: '中午好',
+      homeAfternoon: '下午好',
+      homeEvening: '晚上好',
+      homeNight: '夜深了',
+      homeSubtitle: '今天想写点什么？',
+      homeStatNotes: '篇笔记',
+      homeStatFlash: '条闪念待整理',
+      homeStatFavorites: '篇收藏',
+      homeActionNew: '新建笔记',
+      homeActionNewHint: '从模板开始',
+      homeActionFlash: '记闪念',
+      homeActionFlashHint: '快速捕捉想法',
+      homeActionQuick: '快速打开',
+      homeActionQuickHint: 'Ctrl/Cmd + P',
+      homeActionSync: '同步',
+      homeActionSyncOff: '未开启',
+      homeActionSyncBusy: '同步中…',
+      homeActionSyncWebdav: 'WebDAV',
+      homeActionSyncGit: 'Git',
+      homeRecent: '最近编辑',
+      homeRecentAll: '全部笔记',
+      homeFlashCard: '闪念收件箱',
+      homeFlashOpen: '打开收件箱',
+      homeFlashEmpty: '收件箱是空的，随手记一条？',
+      homeFavorites: '收藏',
+      homeFolders: '目录',
+      homeFolderRoot: '根目录',
+      homeEmptyHint: '还没有笔记，点上面的「新建笔记」开始。',
+      timeJustNow: '刚刚',
+      timeMinutesAgo: '{n} 分钟前',
+      timeHoursAgo: '{n} 小时前',
+      timeDaysAgo: '{n} 天前',
+      homeMorning: 'Good morning',
+      homeNoon: 'Good afternoon',
+      homeAfternoon: 'Good afternoon',
+      homeEvening: 'Good evening',
+      homeNight: 'Late night',
+      homeSubtitle: 'What do you want to write today?',
+      homeStatNotes: 'notes',
+      homeStatFlash: 'flashes to triage',
+      homeStatFavorites: 'favorites',
+      homeActionNew: 'New note',
+      homeActionNewHint: 'Start from a template',
+      homeActionFlash: 'Capture flash',
+      homeActionFlashHint: 'Grab a quick thought',
+      homeActionQuick: 'Quick open',
+      homeActionQuickHint: 'Ctrl/Cmd + P',
+      homeActionSync: 'Sync',
+      homeActionSyncOff: 'Off',
+      homeActionSyncBusy: 'Syncing…',
+      homeActionSyncWebdav: 'WebDAV',
+      homeActionSyncGit: 'Git',
+      homeRecent: 'Recently edited',
+      homeRecentAll: 'All notes',
+      homeFlashCard: 'Flash inbox',
+      homeFlashOpen: 'Open inbox',
+      homeFlashEmpty: 'The inbox is empty. Capture one?',
+      homeFavorites: 'Favorites',
+      homeFolders: 'Folders',
+      homeFolderRoot: 'Vault root',
+      homeEmptyHint: 'No notes yet — start with “New note” above.',
+      timeJustNow: 'just now',
+      timeMinutesAgo: '{n} min ago',
+      timeHoursAgo: '{n} h ago',
+      timeDaysAgo: '{n} d ago',
       emptyTitle: '写点什么',
       emptyHint: '从左侧选择一篇笔记，或者新建一页。',
       vaultEmptyTitle: '还没有找到笔记库',
@@ -1560,6 +1626,53 @@ window.__ModuleLoader__.load({
 .nb-btn-danger:hover { background: var(--dsw-alias-state-error-secondary); border-color: var(--dsw-alias-state-error-secondary); }
 
 /* empty state & loading */
+/* ── Home dashboard ────────────────────────────────────── */
+.nb-home { max-width: 880px; margin: 0 auto; padding: 56px 48px 88px; }
+.nb-home-hero { padding: 0 2px; }
+.nb-home-greet { font-size: 34px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; color: var(--nb-text); }
+.nb-home-sub { margin-top: 6px; font-size: 14px; color: var(--nb-text-2); }
+.nb-home-date { margin-top: 10px; font-size: 12px; color: var(--nb-text-3); letter-spacing: .02em; }
+.nb-home-stats { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 18px; font-size: 12.5px; color: var(--nb-text-2); }
+.nb-home-stats b { color: var(--nb-text); font-weight: 650; }
+.nb-home-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 26px; }
+.nb-home-action { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; padding: 14px 14px 13px; border: 1px solid var(--nb-line-2); border-radius: 12px; background: var(--nb-card); cursor: pointer; text-align: left; box-shadow: var(--nb-shadow-1); transition: transform .16s ease, border-color .16s, box-shadow .16s; }
+.nb-home-action:hover { transform: translateY(-2px); border-color: var(--nb-accent); box-shadow: var(--nb-shadow-2); }
+.nb-home-action:active { transform: translateY(0); }
+.nb-home-action-icon { font-size: 18px; line-height: 1; }
+.nb-home-action-label { font-size: 13px; font-weight: 600; color: var(--nb-text); }
+.nb-home-action-hint { font-size: 11px; color: var(--nb-text-3); }
+.nb-home-grid { display: grid; grid-template-columns: 1.45fr 1fr; gap: 12px; margin-top: 14px; }
+.nb-home-card { border: 1px solid var(--nb-line-2); border-radius: 12px; background: var(--nb-card); padding: 16px 18px; box-shadow: var(--nb-shadow-1); }
+.nb-home-wide { margin-top: 12px; }
+.nb-home-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--nb-text-3); }
+.nb-home-link { border: 0; background: transparent; color: var(--nb-link); font-size: 11.5px; font-weight: 500; letter-spacing: 0; text-transform: none; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+.nb-home-link:hover { background: var(--nb-hover); }
+.nb-home-rows { display: flex; flex-direction: column; gap: 2px; }
+.nb-home-row { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 0; background: transparent; border-radius: 8px; cursor: pointer; text-align: left; transition: background .12s; }
+.nb-home-row:hover { background: var(--nb-hover); }
+.nb-home-row-title { font-size: 13.5px; font-weight: 500; color: var(--nb-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-home-row-meta { font-size: 11px; color: var(--nb-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-home-flash-card { display: flex; flex-direction: column; align-items: flex-start; }
+.nb-home-flash-count { font-size: 40px; font-weight: 700; letter-spacing: -.03em; line-height: 1.1; color: var(--nb-text); }
+.nb-home-flash-label { margin-top: 2px; font-size: 12px; color: var(--nb-text-3); }
+.nb-home-flash-btn { margin-top: 14px; border: 1px solid var(--nb-line-2); background: var(--nb-panel); color: var(--nb-text); font-size: 12px; font-weight: 500; padding: 6px 12px; border-radius: 8px; cursor: pointer; transition: border-color .14s, background .14s; }
+.nb-home-flash-btn:hover { border-color: var(--nb-accent); background: var(--nb-hover); }
+.nb-home-muted { margin-top: 10px; font-size: 11.5px; color: var(--nb-text-3); }
+.nb-home-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.nb-home-chip { border: 1px solid var(--nb-line-2); background: var(--nb-panel); color: var(--nb-text-2); font-size: 12px; padding: 6px 11px; border-radius: 999px; cursor: pointer; transition: border-color .14s, color .14s; }
+.nb-home-chip:hover { border-color: var(--nb-accent); color: var(--nb-text); }
+.nb-home-folders { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.nb-home-folder { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border: 1px solid var(--nb-line-2); border-radius: 10px; background: var(--nb-panel); cursor: pointer; transition: border-color .14s, background .14s, transform .14s; }
+.nb-home-folder:hover { border-color: var(--nb-accent); background: var(--nb-card); transform: translateY(-1px); }
+.nb-home-folder-name { font-size: 13px; font-weight: 500; color: var(--nb-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-home-folder-count { font-size: 11px; color: var(--nb-text-3); }
+@media (max-width: 860px) {
+  .nb-home { padding: 36px 22px 64px; }
+  .nb-home-greet { font-size: 28px; }
+  .nb-home-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nb-home-grid { grid-template-columns: 1fr; }
+}
+/* ── End home dashboard ────────────────────────────────── */
 .nb-empty { max-width: 760px; margin: 0 auto; padding: 16vh 64px 0; }
 .nb-empty-title { font-size: 40px; font-weight: 700; letter-spacing: -.025em; line-height: 1.15; }
 .nb-empty-text { margin-top: 12px; font-size: 14.5px; color: var(--nb-text-2); line-height: 1.7; }
@@ -10217,6 +10330,226 @@ window.__ModuleLoader__.load({
         )
       }
 
+      /** "刚刚 / N 分钟前" for the home dashboard. */
+      function relativeTime(ms) {
+        const value = Number(ms ?? 0)
+        if (!Number.isFinite(value) || value <= 0) return ''
+        const delta = Math.max(0, Date.now() - value)
+        const minutes = Math.floor(delta / 60000)
+        if (minutes < 1) return t('timeJustNow')
+        if (minutes < 60) return t('timeMinutesAgo', { n: minutes })
+        const hours = Math.floor(minutes / 60)
+        if (hours < 24) return t('timeHoursAgo', { n: hours })
+        const days = Math.floor(hours / 24)
+        if (days < 7) return t('timeDaysAgo', { n: days })
+        return new Intl.DateTimeFormat(String(locale ?? '').startsWith('en') ? 'en-US' : 'zh-CN', {
+          month: 'short',
+          day: 'numeric',
+        }).format(new Date(value))
+      }
+
+      /** Greeting for the dashboard, Notion's "good morning" style. */
+      function homeGreeting() {
+        const hour = new Date().getHours()
+        if (hour < 5) return t('homeNight')
+        if (hour < 11) return t('homeMorning')
+        if (hour < 13) return t('homeNoon')
+        if (hour < 18) return t('homeAfternoon')
+        return t('homeEvening')
+      }
+
+      function homeDateLine() {
+        return new Intl.DateTimeFormat(String(locale ?? '').startsWith('en') ? 'en-US' : 'zh-CN', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          weekday: 'long',
+        }).format(new Date())
+      }
+
+      function renderHome() {
+        const allNotes = Array.isArray(notes) ? notes : []
+        const recentRows = [...allNotes]
+          .filter((note) => typeof note?.path === 'string')
+          .sort((a, b) => Number(b.mtimeMs ?? 0) - Number(a.mtimeMs ?? 0))
+          .slice(0, 6)
+        const folderCounts = new Map()
+        for (const note of allNotes) {
+          const path = String(note?.path ?? '')
+          if (path.length === 0) continue
+          const parts = path.split('/')
+          const top = parts.length > 1 ? parts[0] : ''
+          folderCounts.set(top, (folderCounts.get(top) ?? 0) + 1)
+        }
+        const folders = [...folderCounts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 8)
+        const inbox = flashCounts !== null && Number.isFinite(Number(flashCounts.inbox)) ? Number(flashCounts.inbox) : 0
+        const favoriteNotes = (Array.isArray(favorites) ? favorites : [])
+          .filter((path) => typeof path === 'string')
+          .slice(0, 8)
+        const syncLabel =
+          syncStatus === null
+            ? t('syncTitle')
+            : syncStatus.busy === true
+              ? t('homeActionSyncBusy')
+              : syncStatus.provider === 'git'
+                ? t('homeActionSyncGit')
+                : syncStatus.provider === 'webdav'
+                  ? t('homeActionSyncWebdav')
+                  : t('homeActionSyncOff')
+
+        const action = (key, icon, label, hint, onClick) =>
+          h(
+            'button',
+            { key, className: 'nb-home-action', onClick, type: 'button' },
+            h('span', { className: 'nb-home-action-icon', 'aria-hidden': 'true' }, icon),
+            h('span', { className: 'nb-home-action-label' }, label),
+            h('span', { className: 'nb-home-action-hint' }, hint),
+          )
+
+        return h(
+          'div',
+          { className: 'nb-home' },
+          h(
+            'div',
+            { className: 'nb-home-hero' },
+            h('div', { className: 'nb-home-greet' }, homeGreeting()),
+            h('div', { className: 'nb-home-sub' }, t('homeSubtitle')),
+            h('div', { className: 'nb-home-date' }, homeDateLine()),
+            h(
+              'div',
+              { className: 'nb-home-stats' },
+              h('span', null, h('b', null, String(allNotes.length)), ` ${t('homeStatNotes')}`),
+              h('span', null, h('b', null, String(inbox)), ` ${t('homeStatFlash')}`),
+              h('span', null, h('b', null, String(favoriteNotes.length)), ` ${t('homeStatFavorites')}`),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'nb-home-actions' },
+            action('new', '✏️', t('homeActionNew'), t('homeActionNewHint'), () => openTemplates()),
+            action('flash', '⚡', t('homeActionFlash'), t('homeActionFlashHint'), () => setFlashCapture(true)),
+            action('quick', '🔍', t('homeActionQuick'), t('homeActionQuickHint'), () => openQuick()),
+            action('sync', '🔄', t('homeActionSync'), syncLabel, () => setSyncOpen(true)),
+          ),
+          h(
+            'div',
+            { className: 'nb-home-grid' },
+            h(
+              'section',
+              { className: 'nb-home-card' },
+              h(
+                'div',
+                { className: 'nb-home-card-head' },
+                h('span', null, t('homeRecent')),
+                h(
+                  'button',
+                  { className: 'nb-home-link', onClick: () => revealFolder('') },
+                  t('homeRecentAll'),
+                ),
+              ),
+              recentRows.length === 0
+                ? h('div', { className: 'nb-home-muted' }, t('homeEmptyHint'))
+                : h(
+                    'div',
+                    { className: 'nb-home-rows' },
+                    recentRows.map((note) =>
+                      h(
+                        'button',
+                        {
+                          key: note.path,
+                          className: 'nb-home-row',
+                          onClick: () => void openNote(note.path),
+                        },
+                        h('span', { className: 'nb-home-row-title' }, note.name ?? note.path),
+                        h(
+                          'span',
+                          { className: 'nb-home-row-meta' },
+                          [note.dir, relativeTime(note.mtimeMs)].filter(Boolean).join(' · '),
+                        ),
+                      ),
+                    ),
+                  ),
+            ),
+            h(
+              'section',
+              { className: 'nb-home-card nb-home-flash-card' },
+              h(
+                'div',
+                { className: 'nb-home-card-head' },
+                h('span', null, t('homeFlashCard')),
+                h(
+                  'button',
+                  {
+                    className: 'nb-home-link',
+                    onClick: () => {
+                      setFlashTabOpen(true)
+                      setFlashOpen(true)
+                    },
+                  },
+                  t('homeFlashOpen'),
+                ),
+              ),
+              h('div', { className: 'nb-home-flash-count' }, String(inbox)),
+              h('div', { className: 'nb-home-flash-label' }, t('homeStatFlash')),
+              h(
+                'button',
+                { className: 'nb-home-flash-btn', onClick: () => setFlashCapture(true) },
+                t('homeActionFlash'),
+              ),
+              inbox === 0 ? h('div', { className: 'nb-home-muted' }, t('homeFlashEmpty')) : null,
+            ),
+          ),
+          favoriteNotes.length > 0
+            ? h(
+                'section',
+                { className: 'nb-home-card nb-home-wide' },
+                h('div', { className: 'nb-home-card-head' }, h('span', null, t('homeFavorites'))),
+                h(
+                  'div',
+                  { className: 'nb-home-chips' },
+                  favoriteNotes.map((path) =>
+                    h(
+                      'button',
+                      {
+                        key: path,
+                        className: 'nb-home-chip',
+                        title: path,
+                        onClick: () => void openNote(path),
+                      },
+                      path.split('/').pop().replace(/\.md$/i, ''),
+                    ),
+                  ),
+                ),
+              )
+            : null,
+          folders.length > 0
+            ? h(
+                'section',
+                { className: 'nb-home-card nb-home-wide' },
+                h('div', { className: 'nb-home-card-head' }, h('span', null, t('homeFolders'))),
+                h(
+                  'div',
+                  { className: 'nb-home-folders' },
+                  folders.map(([dir, count]) =>
+                    h(
+                      'button',
+                      {
+                        key: dir === '' ? '(root)' : dir,
+                        className: 'nb-home-folder',
+                        onClick: () => revealFolder(dir),
+                      },
+                      h('span', { className: 'nb-home-folder-name' }, dir === '' ? t('homeFolderRoot') : dir),
+                      h('span', { className: 'nb-home-folder-count' }, String(count)),
+                    ),
+                  ),
+                ),
+              )
+            : null,
+        )
+      }
+
       function openQuick() {
         setQuickQuery('')
         setQuickIndex(0)
@@ -11399,17 +11732,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                       t('vaultEmptyError', { message: vaultError }),
                     ),
                   )
-                : h(
-                    'div',
-                    { className: 'nb-empty' },
-                    h('div', { className: 'nb-empty-title' }, t('emptyTitle')),
-                    h('div', { className: 'nb-empty-text' }, t('emptyHint')),
-                    h(
-                      'button',
-                      { className: 'nb-empty-btn', onClick: () => openTemplates() },
-                      t('newNote'),
-                    ),
-                  ),
+                : renderHome(),
             )
           : h(
               'div',

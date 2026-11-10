@@ -1944,6 +1944,81 @@ check('blank blocks treat newline-only text as empty', () => {
   return '6 blank-text cases'
 })
 
+check('home dashboard renders greeting, quick actions, recents and folders', () => {
+  const locale = { register: () => () => {}, bind: () => (key) => key, subscribe: () => () => {} }
+  const blocks = [{ id: 'b1' }]
+  const homePresets = [
+    { name: 'Vault', path: '/tmp/vault' },
+    [{ path: '笔记/01 工作/a.md', name: 'a', dir: '笔记/01 工作', size: 10, mtimeMs: 0 }],
+    null,
+    blocks,
+    null,
+    null,
+    null,
+    '',
+    null,
+    'saved',
+    null,
+    null,
+    false,
+    { '笔记/01 工作': true },
+    false,
+    null,
+    false,
+    { id: blocks[0].id, overId: null, before: true, moved: true },
+    { blockId: 'unknown', top: 120, left: 240 },
+    false,
+    '',
+    '',
+    false,
+    false,
+    '',
+    null,
+    {},
+    0,
+    null,
+    null,
+    ['笔记/01 工作/a.md'],
+    { blockId: blocks[0].id, href: 'https://example.com', x: 100, y: 100 },
+    '',
+    null,
+    false,
+    true,
+    '',
+    0,
+  ]
+  resetState(homePresets)
+  const element = captured.main.component()
+  assert(element !== null && typeof element.type === 'function', 'main panel did not wrap the workbench')
+  resetState(homePresets)
+  const tree = element.type(element.props)
+  const classes = []
+  const buttons = []
+  const walk = (node) => {
+    if (node === null || node === undefined) return
+    if (Array.isArray(node)) {
+      for (const child of node) walk(child)
+      return
+    }
+    if (typeof node !== 'object') return
+    if (node.props !== null && node.props !== undefined && typeof node.props.className === 'string') {
+      classes.push(node.props.className)
+    }
+    if (node.type === 'button') buttons.push(node)
+    walk(node.children)
+    if (node.props !== null && node.props !== undefined) walk(node.props.children)
+  }
+  walk(tree)
+  assert(classes.includes('nb-home'), 'home dashboard missing: ' + classes.slice(0, 20).join('|'))
+  assert(classes.includes('nb-home-greet'), 'greeting missing')
+  assert(classes.includes('nb-home-actions'), 'quick actions missing')
+  assert(classes.filter((name) => name === 'nb-home-action').length === 4, 'expected four quick actions')
+  assert(classes.includes('nb-home-row'), 'recent notes missing')
+  assert(classes.includes('nb-home-folder'), 'folder cards missing')
+  assert(classes.includes('nb-home-flash-count'), 'flash inbox card missing')
+  return 'home dashboard structure'
+})
+
 check('Workbench renders a selected note with one block view per block', () => {
   const { parseBlocks, BlockView } = captured.module.__internal
   const blocks = parseBlocks('# 标题\n\n正文\n\n- 列表 A\n- 列表 B\n\n- [ ] 待办\n\n> 引用\n')
