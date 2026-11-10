@@ -205,6 +205,19 @@ const ctx = {
     if (name === 'agentDefaultModel') {
       return { currentSelection: () => ({ provider: 'mock', model: 'mock-model' }) }
     }
+    if (name === 'subagents') {
+      return {
+        list: () => ['fork'],
+        startActivation: async (spec) => {
+          subagentCalls.push(spec)
+          return {
+            childId: 'child-test',
+            result: Promise.resolve({}),
+            dispose: async () => {},
+          }
+        },
+      }
+    }
     if (name === 'sessions') {
       return {
         get: () => ({
@@ -220,6 +233,7 @@ const ctx = {
 }
 
 const aiCalls = []
+const subagentCalls = []
 
 let plugin = null
 let server = null
@@ -566,6 +580,49 @@ async function main() {
     assert.equal(result.kind, 'success', JSON.stringify(result))
     const stat = await fsp.stat(join(VAULT, '命令新建.md'))
     assert.equal(stat.isFile(), true)
+  })
+
+  await check('/note agent starts a native Harness sub Agent', async () => {
+    subagentCalls.length = 0
+    const definition = commandDefs.get('note')
+    const result = await definition.handler({
+      rawInput: 'agent 把当前笔记整理成小节',
+      agent: { id: 'parent-agent' },
+    })
+    assert.equal(result.kind, 'success', JSON.stringify(result))
+    assert.equal(subagentCalls.length, 1, 'startActivation must be called once')
+    const spec = subagentCalls[0]
+    assert.equal(spec.provider, 'fork', JSON.stringify(spec.provider))
+    assert.equal(spec.delivery, 'parent', JSON.stringify(spec.delivery))
+    assert.deepEqual(spec.request.parent, { id: 'parent-agent' }, JSON.stringify(spec.request.parent))
+    assert.equal(spec.request.prompt[0].text, '把当前笔记整理成小节')
+  })
+
+  await check('/note agent without a task is rejected', async () => {
+    const definition = commandDefs.get('note')
+    const result = await definition.handler({ rawInput: 'agent', agent: { id: 'parent-agent' } })
+    assert.equal(result.kind, 'error', JSON.stringify(result))
+  })
+
+  await check('AI prompts expand @note references', async () => {
+    expectOk(
+      await post('/notebook/api/create', {
+        path: '引用/被引用.md',
+        content: '# 被引用\n\n这是被引用的笔记正文。\n',
+      }),
+      'create referenced note',
+    )
+    aiCalls.length = 0
+    expectOk(
+      await post('/notebook/api/ai', { task: 'rewrite', text: '总结一下 @被引用 的要点', locale: 'zh' }),
+      'ai with reference',
+    )
+    assert.equal(aiCalls.length, 1)
+    const prompt = aiCalls[0].messages[0].content[0].text
+    assert(prompt.includes('引用笔记'), JSON.stringify(prompt))
+    assert(prompt.includes('被引用.md'), JSON.stringify(prompt))
+    assert(prompt.includes('这是被引用的笔记正文'), JSON.stringify(prompt))
+    aiCalls.length = 0
   })
 
   await check('POST /api/ai/agent runs a tool loop through the Harness model', async () => {

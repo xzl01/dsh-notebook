@@ -1086,6 +1086,36 @@ export function apply(ctx, rawConfig) {
     return null
   }
 
+  /** Expand `@笔记名` mentions in an AI prompt into a short read-only excerpt. */
+  async function expandNoteReferences(text) {
+    const source = String(text ?? '')
+    const names = new Set()
+    for (const match of source.matchAll(/@([^\s@，。；、""()（）]+)/g)) {
+      const name = String(match[1] ?? '').replace(/\.md$/i, '').trim()
+      if (name.length > 0 && name.length <= 60) names.add(name)
+    }
+    if (names.size === 0) return { text: source, notes: 0 }
+    let listed = []
+    try {
+      listed = (await vault.list('')).notes
+    } catch {
+      return { text: source, notes: 0 }
+    }
+    const excerpts = []
+    for (const name of [...names].slice(0, 5)) {
+      const needle = name.toLowerCase()
+      const note =
+        listed.find((item) => item.name.toLowerCase() === needle) ??
+        listed.find((item) => item.name.toLowerCase().includes(needle))
+      if (note === undefined) continue
+      const content = await vault.read(note.path).catch(() => null)
+      if (content === null) continue
+      excerpts.push(`【引用笔记：${note.path}】\n${String(content.content ?? '').slice(0, 2000)}`)
+    }
+    if (excerpts.length === 0) return { text: source, notes: 0 }
+    return { text: `${source}\n\n${excerpts.join('\n\n')}`, notes: excerpts.length }
+  }
+
   async function aiGenerate(input) {
     const task = typeof input === 'object' && input !== null ? String(input.task ?? '') : ''
     const spec = AI_TASKS[task]
@@ -1096,6 +1126,7 @@ export function apply(ctx, rawConfig) {
       throw new NotebookError(`The text is longer than ${AI_MAX_INPUT} characters.`, 'text_too_long')
     }
     const locale = input.locale === 'en' ? 'en' : 'zh'
+    const expanded = await expandNoteReferences(text)
     const route = await resolveModelRoute()
     if (route === null) {
       throw new NotebookError('This Harness has no model configured yet.', 'no_model')
@@ -1106,7 +1137,7 @@ export function apply(ctx, rawConfig) {
     let failure = null
     try {
       const system = locale === 'en' ? spec.systemEn : spec.systemZh
-      const messages = [{ role: 'user', content: [{ type: 'text', text }] }]
+      const messages = [{ role: 'user', content: [{ type: 'text', text: expanded.text }] }]
       for await (const chunk of ctx.llm.stream({
         provider: route.provider,
         model: route.model,
@@ -1261,6 +1292,50 @@ export function apply(ctx, rawConfig) {
     return { kind: 'error', text: '同名笔记太多了，换一个标题再试。' }
   }
 
+  /**
+   * `/note agent <task>`: hand the task to a native Harness sub Agent (the same
+   * fork provider the Agent tool uses). It inherits the parent's tools — so the
+   * notebook tools are available — and its result is delivered to the parent
+   * conversation via `delivery: 'parent'`.
+   */
+  async function runNotebookSubagent(invocation, task) {
+    const subagents = optionalService('subagents')
+    if (subagents === undefined || typeof subagents.startActivation !== 'function') {
+      return { kind: 'error', text: '当前 Harness 没有可用的子 Agent 服务。' }
+    }
+    let providers = []
+    try {
+      providers = subagents.list()
+    } catch {
+      providers = []
+    }
+    if (!Array.isArray(providers) || providers.length === 0) {
+      return { kind: 'error', text: '没有已注册的子 Agent provider，暂时无法启动子 Agent。' }
+    }
+    const provider =
+      providers.find((name) => typeof name === 'string' && /fork|agent/i.test(name)) ?? providers[0]
+    const controller = new AbortController()
+    try {
+      const activation = await subagents.startActivation({
+        provider,
+        label: `notebook: ${task.slice(0, 40)}`,
+        request: {
+          prompt: [{ type: 'text', text: task }],
+          parent: invocation.agent,
+          signal: controller.signal,
+        },
+        signal: controller.signal,
+        delivery: 'parent',
+      })
+      return {
+        kind: 'success',
+        text: `已启动子 Agent（provider: ${provider}）。它会用 notebook 工具处理任务，结果会发回当前对话。`,
+      }
+    } catch (error) {
+      return { kind: 'error', text: `子 Agent 启动失败：${error.message}` }
+    }
+  }
+
   if (ctx.commands !== undefined && typeof ctx.commands.register === 'function') {
     ctx.effect(
       () =>
@@ -1285,6 +1360,12 @@ export function apply(ctx, rawConfig) {
             const rest = restWords.join(' ').trim()
             if (verb === 'save') return saveConversationNote(invocation, rest)
             if (verb === 'new') return createNoteFromCommand(rest)
+            if (verb === 'agent') {
+              if (rest.length === 0) {
+                return { kind: 'error', text: '用法：/note agent <要做的事>，例如 /note agent 把当前笔记整理成小节' }
+              }
+              return runNotebookSubagent(invocation, rest)
+            }
             if (verb === 'open') {
               return currentNote === null
                 ? { kind: 'error', text: '笔记本还没有打开任何笔记。' }
@@ -1412,6 +1493,8 @@ export function apply(ctx, rawConfig) {
   }
 
   async function runAiAgentLoop(text, route) {
+    const expanded = await expandNoteReferences(text)
+    const taskText = expanded.text
     const steps = []
     const writes = []
     const history = []
@@ -1421,9 +1504,9 @@ export function apply(ctx, rawConfig) {
       // accepted here. The transcript is folded into the prompt instead.
       const prompt =
         step === 0
-          ? text
+          ? taskText
           : [
-              `原始任务：${text}`,
+              `原始任务：${taskText}`,
               '已执行步骤：',
               ...history.map((entry, index) => `${index + 1}. ${entry.tool} → ${entry.result}`),
               '请继续：输出下一个 JSON 动作，或 {"done":"给用户的最终说明"} 结束。',

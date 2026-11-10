@@ -137,6 +137,10 @@ Host 通过 `ctx.llm` 与 `agentDefaultModel` 解析当前默认模型（没有�
 - **写前快照**：任何写入（含 AI Agent 改写）前都会在 `.dsh-notebook-history/` 留一份旧内容快照；
   Agent 结果面板会提示这一点，并提供「查看版本历史」直接回滚。
 - **上下文增强**：注入给模型的不只是路径，还有笔记标题与最多 12 条大纲；`/api/current` 也返回这些信息。
+- **`/note agent <任务>`**：用 Harness 原生 fork provider 启动一个**子 Agent**（继承父会话工具，含 notebook
+  工具），它完成后把结果作为消息投回当前对话——这是"AI 结果进会话"的原生实现。
+- **`@笔记名` 引用**：在 AI 面板的指令里写 `@会议纪要`，Host 会把该笔记内容（最多 2000 字）附加到提示，
+  单次 AI 与 Agent 模式都支持。
 - 输入上限 8000 字符、单次 60 秒超时、任务白名单校验；未配置模型或调用失败会以错误提示返回。
 
 ## 集合视图（L3：文件级数据库）
@@ -223,7 +227,7 @@ Host 通过 `ctx.llm` 与 `agentDefaultModel` 解析当前默认模型（没有�
 
 ```bash
 node test/client-smoke.mjs        # Client：工厂、slot 注册、Markdown/HTML/diff/表格等纯函数，67 项
-node test/host-smoke.mjs          # Host：mock ctx + 真实 HTTP server + 临时笔记库，53 项
+node test/host-smoke.mjs          # Host：mock ctx + 真实 HTTP server + 临时笔记库，56 项
 node test/host-attachments.mjs    # Host：图片上传 / 读取 / 配置 / 安全拒绝，10 项
 node test/host-history.mjs        # Host：版本快照 / 恢复 / 拒绝，8 项
 ```
