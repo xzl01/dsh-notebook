@@ -134,7 +134,28 @@ Marp 的模板 class、`<!-- fit -->`、导出 PPTX 尚未实现——需要的�
   加/移除封面；其他 frontmatter 字段保存时原样保留。
 - `⋯` →「快捷键」查看全部快捷键。
 
-## AI 能力（用 DSH 自己的模型）
+## Obsidian Canvas（.canvas）
+
+- 侧栏里 `.canvas` 文件与笔记并列显示，点击打开
+- 只读画布渲染：文本卡片、文件卡片（点击打开对应笔记）、链接卡片、分组框（虚线 + 标签）、
+  节点颜色（颜色 1–6）、节点间连线（SVG）
+- 支持缩放（+ / − 按钮）；只读预览，编辑仍在 Obsidian 中进行
+- Host 接口：`GET /api/canvases`（列出画布）、`GET /api/canvas?path=`（读取并归一化节点/连线）
+
+## Obsidian 语法兼容
+
+面板里的渲染器对齐 Obsidian 阅读模式的核心语法：
+
+- **内联 HTML**：白名单标签（div/span/table/details/kbd/iframe/img/video/audio/figure/mark/u 等）直接渲染，
+  `script`、`on*=`、`javascript:` 一律转义
+- **数学公式**：`$...$` 行内与 `$$...$$` 块级（内置精简 LaTeX：上下标、`\frac`、`\sqrt`、希腊字母与常用符号）
+- **高亮** `==文字==`、**注释** `%%文字%%`（隐藏）、**标签** `#标签`（chip）、**脚注** `[^1]` + `[^1]: …`（收拢到文末）
+- **Bases 视图**：`.base` YAML 子集在面板里直接渲染成表格/卡片/列表/看板（详见集合视图一节）
+- **Mermaid**：```mermaid 代码块在面板里直接渲染成 SVG 图表——Host 首次按需下载
+  mermaid 运行库（固定版本，缓存到 `.dsh-notebook/vendor/`，隐藏目录不参与同步），之后离线可用；
+  渲染失败时回退为卡片 + 源码
+
+## 主页（仪表盘）
 
 插件不自带 API key、不新增 provider 配置——所有 AI 调用都走 Harness 自己的模型服务：
 Host 通过 `ctx.llm` 与 `agentDefaultModel` 解析当前默认模型（没有默认时回退到第一个可用 provider），
@@ -422,8 +443,8 @@ Agent 也能用 `notebook_sync` 查看状态、测试连接、触发一次同步
 ## 开发与测试
 
 ```bash
-node test/client-smoke.mjs        # Client：工厂、slot 注册、对话笔记卡片、目录页、聚焦/同步判定、问 AI、命令面板、保存视图/条件过滤、嵌入锚点、写作热力网格、Markdown/HTML/diff 等纯函数，96 项
-node test/host-smoke.mjs          # Host：mock ctx + 真实 HTTP server + 临时笔记库 + configEditor mock，69 项（含引用摘要与语义检索）
+node test/client-smoke.mjs        # Client：工厂、slot 注册、对话笔记卡片、目录页、聚焦/同步判定、问 AI、命令面板、保存视图/条件过滤、嵌入锚点、写作热力网格、Markdown/HTML/diff 等纯函数，103 项
+node test/host-smoke.mjs          # Host：mock ctx + 真实 HTTP server + 临时笔记库 + configEditor mock，70 项（含引用摘要与语义检索）
 node test/host-attachments.mjs    # Host：图片上传 / 读取 / 配置 / 安全拒绝，10 项
 node test/host-history.mjs        # Host：版本快照 / 恢复 / 拒绝，8 项
 node test/host-vault-detect.mjs   # Host：macOS / Windows / Linux 笔记库自动发现，4 项

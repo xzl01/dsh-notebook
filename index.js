@@ -309,7 +309,7 @@ function parseDate(value) {
  * write goes through this function, so `..`, absolute paths, vault-internal
  * folders and non-Markdown files are refused before touching the filesystem.
  */
-function resolveNotePath(root, input) {
+function resolveNotePath(root, input, options = {}) {
   const raw = typeof input === 'string' ? input.trim() : ''
   if (raw.length === 0) throw new NotebookError('A note path is required.', 'missing_path')
   if (raw.includes('\0')) throw new NotebookError('The note path contains an invalid character.', 'invalid_path')
@@ -333,8 +333,12 @@ function resolveNotePath(root, input) {
       throw new NotebookError(`Hidden files and folders are not notes: ${segment}`, 'excluded_path')
     }
   }
-  if (!isMarkdownFile(rel)) {
-    throw new NotebookError('Only Markdown notes (.md) are supported.', 'not_markdown')
+  const canvasAllowed = options !== null && typeof options === 'object' && options.allowCanvas === true
+  if (!isMarkdownFile(rel) && !(canvasAllowed && rel.toLowerCase().endsWith('.canvas'))) {
+    throw new NotebookError(
+      canvasAllowed ? 'Only Markdown notes (.md) and canvases (.canvas) are supported.' : 'Only Markdown notes (.md) are supported.',
+      canvasAllowed ? 'not_note_or_canvas' : 'not_markdown',
+    )
   }
   return { abs, rel: slashPath(rel) }
 }
@@ -684,6 +688,93 @@ function createVault(config, hooks = {}) {
       best,
       recordedSince: entries.length > 0 ? entries[0][0] : null,
     }
+  }
+
+  // ---- Obsidian Canvas (.canvas) files ----------------------------------
+  const CANVAS_EXTENSION = '.canvas'
+  const CANVAS_MAX_BYTES = 4 * 1024 * 1024
+
+  function isCanvasFile(path) {
+    return String(path ?? '').toLowerCase().endsWith(CANVAS_EXTENSION)
+  }
+
+  async function listCanvases(folder) {
+    const base = requireRoot()
+    const target = resolveFolder(base, folder)
+    await assertInsideVault(target.abs, target.rel.length > 0 ? target.rel : '(vault root)')
+    const files = []
+    const walk = async (dir) => {
+      if (files.length >= config.maxIndexFiles) return
+      const entries = await fsp.readdir(dir, { withFileTypes: true }).catch(() => [])
+      entries.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
+      for (const entry of entries) {
+        if (files.length >= config.maxIndexFiles) return
+        if (entry.name.startsWith('.') || EXCLUDED_SEGMENTS.has(entry.name)) continue
+        const abs = join(dir, entry.name)
+        if (entry.isDirectory()) {
+          await walk(abs)
+          continue
+        }
+        if (!entry.isFile() || !isCanvasFile(entry.name)) continue
+        const stats = await statOrNull(abs).catch(() => null)
+        if (stats === null) continue
+        files.push({
+          path: slashPath(relative(base, abs)),
+          name: entry.name.slice(0, entry.name.length - CANVAS_EXTENSION.length),
+          dir: slashPath(relative(base, dir)),
+          size: stats.size,
+          mtimeMs: Math.round(stats.mtimeMs),
+          kind: 'canvas',
+        })
+      }
+    }
+    await walk(target.abs)
+    return { folder: target.rel, files, limit: config.maxIndexFiles }
+  }
+
+  async function readCanvas(path) {
+    const base = requireRoot()
+    const { abs, rel } = resolveNotePath(base, path, { allowCanvas: true })
+    await assertInsideVault(abs, rel)
+    const stats = await statOrNull(abs)
+    if (stats === null || !stats.isFile()) throw new NotebookError(`The canvas does not exist: ${rel}`, 'missing_canvas')
+    if (stats.size > CANVAS_MAX_BYTES) {
+      throw new NotebookError(`The canvas is ${formatBytes(stats.size)}, larger than the ${formatBytes(CANVAS_MAX_BYTES)} limit.`, 'canvas_too_large')
+    }
+    let parsed = null
+    try {
+      parsed = JSON.parse(await fsp.readFile(abs, 'utf8'))
+    } catch {
+      throw new NotebookError('The canvas file is not valid JSON.', 'invalid_canvas')
+    }
+    const source = parsed !== null && typeof parsed === 'object' ? parsed : {}
+    const nodes = (Array.isArray(source.nodes) ? source.nodes : [])
+      .filter((node) => node !== null && typeof node === 'object' && typeof node.id === 'string')
+      .map((node) => ({
+        id: String(node.id),
+        type: String(node.type ?? 'text'),
+        x: Number(node.x) || 0,
+        y: Number(node.y) || 0,
+        width: Number(node.width) || 220,
+        height: Number(node.height) || 80,
+        ...(typeof node.text === 'string' ? { text: node.text } : {}),
+        ...(typeof node.file === 'string' ? { file: node.file } : {}),
+        ...(typeof node.label === 'string' ? { label: node.label } : {}),
+        ...(typeof node.url === 'string' ? { url: node.url } : {}),
+        ...(typeof node.color === 'string' ? { color: node.color } : {}),
+      }))
+    const edges = (Array.isArray(source.edges) ? source.edges : [])
+      .filter((edge) => edge !== null && typeof edge === 'object' && typeof edge.fromNode === 'string' && typeof edge.toNode === 'string')
+      .map((edge) => ({
+        id: typeof edge.id === 'string' ? edge.id : `${edge.fromNode}-${edge.toNode}`,
+        fromNode: String(edge.fromNode),
+        toNode: String(edge.toNode),
+        ...(typeof edge.fromSide === 'string' ? { fromSide: edge.fromSide } : {}),
+        ...(typeof edge.toSide === 'string' ? { toSide: edge.toSide } : {}),
+        ...(typeof edge.label === 'string' ? { label: edge.label } : {}),
+        ...(typeof edge.color === 'string' ? { color: edge.color } : {}),
+      }))
+    return { path: rel, nodes, edges, size: stats.size, mtimeMs: Math.round(stats.mtimeMs) }
   }
 
   async function read(path) {
@@ -1143,6 +1234,44 @@ function createVault(config, hooks = {}) {
     }
   }
 
+  // ---- Mermaid runtime: downloaded once into the vault's hidden vendor dir ----
+  const MERMAID_VERSION = '11.4.1'
+  const MERMAID_URL = `https://cdn.jsdelivr.net/npm/mermaid@${MERMAID_VERSION}/dist/mermaid.min.js`
+  let mermaidCache = null
+  async function mermaidAsset() {
+    if (mermaidCache !== null) return mermaidCache
+    const dir = join(root, '.dsh-notebook', 'vendor')
+    const file = join(dir, 'mermaid.min.js')
+    try {
+      const stats = await fsp.stat(file)
+      if (stats.isFile() && stats.size > 100000) {
+        mermaidCache = await fsp.readFile(file)
+        return mermaidCache
+      }
+    } catch {
+      /* download below */
+    }
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 30000)
+    let response = null
+    try {
+      response = await fetch(MERMAID_URL, { signal: controller.signal })
+    } catch (error) {
+      throw new NotebookError(`Downloading Mermaid failed: ${error.message}`, 'mermaid_download_failed')
+    } finally {
+      clearTimeout(timer)
+    }
+    if (response === null || response.ok !== true) {
+      throw new NotebookError(`Downloading Mermaid failed: HTTP ${response === null ? '?' : response.status}`, 'mermaid_download_failed')
+    }
+    const buffer = Buffer.from(await response.arrayBuffer())
+    if (buffer.length < 100000) throw new NotebookError('The downloaded Mermaid bundle looks incomplete.', 'mermaid_download_failed')
+    await fsp.mkdir(dir, { recursive: true })
+    await fsp.writeFile(file, buffer)
+    mermaidCache = buffer
+    return buffer
+  }
+
   return {
     root,
     head,
@@ -1150,6 +1279,9 @@ function createVault(config, hooks = {}) {
     status,
     list,
     read,
+    readCanvas,
+    listCanvases,
+    mermaidAsset,
     stat,
     write,
     rename,
@@ -2671,6 +2803,27 @@ export function apply(ctx, rawConfig) {
             }
             if (req.method === 'GET' && path === '/api/list') {
               sendJson(res, 200, { ok: true, ...(await vault.list(url.searchParams.get('folder') ?? '')) })
+              return
+            }
+            if (req.method === 'GET' && path === '/vendor/mermaid.js') {
+              try {
+                const asset = await vault.mermaidAsset()
+                res.writeHead(200, {
+                  'content-type': 'application/javascript; charset=utf-8',
+                  'cache-control': 'private, max-age=86400',
+                })
+                res.end(asset)
+              } catch (error) {
+                failure(res, error)
+              }
+              return
+            }
+            if (req.method === 'GET' && path === '/api/canvases') {
+              sendJson(res, 200, { ok: true, ...(await vault.listCanvases(url.searchParams.get('folder') ?? '')) })
+              return
+            }
+            if (req.method === 'GET' && path === '/api/canvas') {
+              sendJson(res, 200, { ok: true, ...(await vault.readCanvas(url.searchParams.get('path') ?? '')) })
               return
             }
             if (req.method === 'GET' && path === '/api/read') {

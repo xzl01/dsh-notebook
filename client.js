@@ -249,6 +249,54 @@ window.__ModuleLoader__.load({
       panelTitle: '笔记本',
       newNote: '新建笔记',
       searchPlaceholder: '搜索…',
+      basesRows: '{n} 条',
+      basesLoading: '载入视图…',
+      basesEmpty: '没有匹配的笔记',
+      basesError: '无法加载视图',
+      basesUncategorized: '未分类',
+      footnotesTitle: '脚注',
+      mermaidTitle: 'Mermaid 图表',
+      mermaidSource: '查看源码',
+      mermaidHint: '在 Obsidian 里打开这篇笔记即可渲染图表（插件暂未内置 Mermaid 引擎）。',
+      mermaidLoading: '渲染图表…',
+      mermaidError: '图表渲染失败',
+      canvasLoading: '载入画布…',
+      canvasEmpty: '这个画布是空的，在 Obsidian 里添加卡片。',
+      canvasNodes: '节点',
+      canvasEdges: '连线',
+      canvasHint: '只读预览：在 Obsidian 里编辑画布。',
+      basesView: 'Bases 视图',
+      basesTag: 'Obsidian',
+      basesViews: '个视图',
+      basesInObsidian: '这个视图由 Obsidian Bases 渲染；在 Obsidian 里打开这篇笔记即可看到动态表格。',
+      basesRows: '{n} items',
+      basesLoading: 'Loading view…',
+      basesEmpty: 'No matching notes',
+      basesError: 'Could not load the view',
+      basesUncategorized: 'Uncategorized',
+      footnotesTitle: 'Footnotes',
+      mermaidTitle: 'Mermaid diagram',
+      mermaidSource: 'Show source',
+      mermaidHint: 'Open this note in Obsidian to render the diagram (the Mermaid engine is not bundled yet).',
+      mermaidLoading: 'Rendering diagram…',
+      mermaidError: 'Diagram rendering failed',
+      canvasLoading: 'Loading canvas…',
+      canvasEmpty: 'This canvas is empty — add cards in Obsidian.',
+      canvasNodes: 'nodes',
+      canvasEdges: 'edges',
+      canvasHint: 'Read-only preview: edit the canvas in Obsidian.',
+      basesView: 'Bases view',
+      basesTag: 'Obsidian',
+      basesViews: 'views',
+      basesInObsidian: 'This view is rendered by Obsidian Bases; open the note in Obsidian to see the live table.',
+      timeJustNow: '刚刚',
+      timeMinutesAgo: '{n} 分钟前',
+      timeHoursAgo: '{n} 小时前',
+      timeDaysAgo: '{n} 天前',
+      timeJustNow: 'just now',
+      timeMinutesAgo: '{n} min ago',
+      timeHoursAgo: '{n} h ago',
+      timeDaysAgo: '{n} d ago',
       emptyTitle: '写点什么',
       emptyHint: '从左侧选择一篇笔记，或者新建一页。',
       vaultEmptyTitle: '还没有找到笔记库',
@@ -1337,6 +1385,63 @@ window.__ModuleLoader__.load({
 .nb-b a:hover { text-decoration: underline; }
 .nb-b strong { font-weight: 650; }
 .nb-b img, .nb-b .nb-img { max-width: 100%; height: auto; border-radius: var(--nb-radius-m); display: block; margin: 10px 0; box-shadow: var(--nb-shadow-1); }
+.nb-wikitext, .nb-wiki { color: var(--nb-accent); text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
+/* Obsidian Canvas */
+.nb-canvas-shell { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.nb-canvas-head { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--nb-line); }
+.nb-canvas-icon { font-size: 15px; }
+.nb-canvas-name { font-size: 13.5px; font-weight: 600; color: var(--nb-text); }
+.nb-canvas-count { font-size: 11px; color: var(--nb-text-3); }
+.nb-canvas-badge { margin-left: auto; font-size: 10px; font-weight: 600; letter-spacing: .04em; color: var(--nb-text-3); border: 1px solid var(--nb-line-2); border-radius: 999px; padding: 1px 8px; }
+.nb-canvas-close { border: none; background: transparent; color: var(--nb-text-3); font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.nb-canvas-close:hover { background: var(--nb-hover); color: var(--nb-text); }
+.nb-canvas-body { flex: 1 1 auto; overflow: auto; padding: 28px; background: var(--nb-panel); }
+.nb-canvas-stage { position: relative; }
+.nb-canvas-edges { position: absolute; left: 0; top: 0; pointer-events: none; }
+.nb-canvas-edge { stroke: var(--nb-line-2); stroke-width: 2; }
+.nb-canvas-node { position: absolute; box-sizing: border-box; border: 1.5px solid var(--nb-line-2); border-radius: 10px; background: var(--nb-card); box-shadow: var(--nb-shadow-1); padding: 10px 12px; overflow: hidden; font-size: 12px; line-height: 1.55; color: var(--nb-text-2); white-space: pre-wrap; word-break: break-word; }
+.nb-canvas-node-file { border-color: color-mix(in srgb, var(--nb-accent) 40%, var(--nb-line-2)); }
+.nb-canvas-file { border: none; background: transparent; color: var(--nb-accent); font-size: 12.5px; font-weight: 500; cursor: pointer; padding: 0; text-align: left; }
+.nb-canvas-node-group { background: color-mix(in srgb, var(--nb-accent-soft) 70%, transparent); border-style: dashed; border-radius: 12px; }
+.nb-canvas-group-label { position: absolute; top: 6px; left: 10px; font-size: 10.5px; font-weight: 600; color: var(--nb-text-3); letter-spacing: .04em; }
+.nb-canvas-text { display: block; }
+.nb-canvas-link-text { color: var(--nb-accent); }
+.nb-canvas-loading { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; color: var(--nb-text-3); font-size: 13px; padding: 40px; }
+.nb-canvas-empty { padding: 40px; text-align: center; color: var(--nb-text-3); font-size: 12.5px; }
+.nb-canvas-tools { display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-top: 1px solid var(--nb-line); }
+.nb-canvas-tool { border: 1px solid var(--nb-line-2); background: var(--nb-card); color: var(--nb-text-2); width: 26px; height: 26px; border-radius: 6px; cursor: pointer; font-size: 14px; line-height: 1; }
+.nb-canvas-tool:hover { border-color: var(--nb-accent); color: var(--nb-text); }
+.nb-canvas-zoom { font-size: 11px; color: var(--nb-text-3); min-width: 38px; text-align: center; }
+.nb-canvas-hint { margin-left: auto; font-size: 10.5px; color: var(--nb-text-3); }
+.nb-footnotes { margin-top: 22px; padding-top: 12px; border-top: 1px solid var(--nb-line); }
+.nb-footnotes-title { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--nb-text-3); margin-bottom: 6px; }
+.nb-footnote { display: flex; gap: 8px; font-size: 12px; line-height: 1.65; color: var(--nb-text-2); padding: 2px 0; }
+.nb-footnote-ref { color: var(--nb-accent); font-weight: 600; min-width: 16px; }
+.nb-mermaid-render { padding: 10px 12px; border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-m); background: var(--nb-card); overflow: auto; text-align: center; }
+.nb-mermaid-render svg { max-width: 100%; height: auto; }
+.nb-mermaid-loading { padding: 4px 0; font-size: 12px; color: var(--nb-text-3); }
+.nb-mermaid-card { border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-m); background: var(--nb-panel); padding: 12px 14px; }
+.nb-mermaid-head { display: flex; align-items: center; gap: 8px; }
+.nb-mermaid-icon { font-size: 14px; }
+.nb-mermaid-title { font-size: 12.5px; font-weight: 600; color: var(--nb-text); }
+.nb-mermaid-src { margin-top: 8px; font-size: 11px; color: var(--nb-text-3); }
+.nb-mermaid-src summary { cursor: pointer; }
+.nb-mermaid-code { margin: 8px 0 0; padding: 10px; background: var(--nb-card); border: 1px solid var(--nb-line); border-radius: var(--nb-radius-s); font-size: 11.5px; overflow: auto; color: var(--nb-text-2); }
+.nb-mermaid-hint { margin-top: 8px; font-size: 11px; color: var(--nb-text-3); }
+.nb-html-block { line-height: 1.7; }
+.nb-html-block iframe, .nb-html-block video { max-width: 100%; border-radius: var(--nb-radius-s); }
+.nb-math { font-family: 'Latin Modern Math', 'STIX Two Math', 'Cambria Math', serif; font-size: 1.02em; }
+.nb-math-block-wrap { padding: 6px 0; text-align: center; }
+.nb-math-block { display: inline-block; font-size: 1.16em; }
+.nb-math-frac { display: inline-flex; flex-direction: column; vertical-align: -0.55em; margin: 0 .18em; text-align: center; }
+.nb-math-num { border-bottom: 1px solid currentColor; padding: 0 .18em; line-height: 1.25; }
+.nb-math-den { padding: 0 .18em; line-height: 1.25; }
+.nb-math-sqrt { white-space: nowrap; }
+.nb-math-radicand { border-top: 1px solid currentColor; padding-top: 1px; }
+.nb-math sup, .nb-math sub { font-size: .72em; }
+.nb-tag { display: inline-flex; align-items: center; font-size: .92em; line-height: 1.5; padding: 0 6px; border-radius: 4px; background: var(--nb-accent-soft); color: var(--nb-accent); white-space: nowrap; }
+mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5b83d) 38%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.nb-footnote-ref { font-size: .72em; color: var(--nb-accent); cursor: pointer; padding: 0 2px; }
 .nb-wiki { color: var(--nb-accent); cursor: pointer; }
 .nb-wiki:hover { text-decoration: underline; }
 .nb-ph { color: var(--nb-text-3); opacity: .7; }
@@ -1560,6 +1665,32 @@ window.__ModuleLoader__.load({
 .nb-btn-danger:hover { background: var(--dsw-alias-state-error-secondary); border-color: var(--dsw-alias-state-error-secondary); }
 
 /* empty state & loading */
+/* Obsidian Bases views */
+.nb-bases-view { border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-m); background: var(--nb-card); overflow: hidden; }
+.nb-bases-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--nb-line); background: var(--nb-panel); }
+.nb-bases-icon { font-size: 13px; }
+.nb-bases-name { font-size: 12.5px; font-weight: 600; color: var(--nb-text); }
+.nb-bases-type { font-size: 10.5px; color: var(--nb-text-3); border: 1px solid var(--nb-line); border-radius: 999px; padding: 1px 7px; }
+.nb-bases-tag { margin-left: auto; font-size: 10px; font-weight: 600; letter-spacing: .04em; color: var(--nb-text-3); border: 1px solid var(--nb-line-2); border-radius: 999px; padding: 1px 8px; }
+.nb-bases-count { font-size: 11px; color: var(--nb-text-3); }
+.nb-bases-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.nb-bases-table th { text-align: left; font-weight: 500; font-size: 10.5px; letter-spacing: .04em; color: var(--nb-text-3); padding: 7px 12px; border-bottom: 1px solid var(--nb-line); }
+.nb-bases-table td { padding: 8px 12px; border-bottom: 1px solid var(--nb-line); color: var(--nb-text-2); }
+.nb-bases-table tr:last-child td { border-bottom: none; }
+.nb-bases-row { cursor: pointer; }
+.nb-bases-row:hover td { background: var(--nb-hover); color: var(--nb-text); }
+.nb-bases-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; padding: 10px 12px; }
+.nb-bases-card { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 12px; border: 1px solid var(--nb-line); border-radius: var(--nb-radius-s); background: var(--nb-panel); cursor: pointer; text-align: left; transition: border-color .12s, background .12s; }
+.nb-bases-card:hover { border-color: var(--nb-accent); background: var(--nb-card); }
+.nb-bases-card-title { font-size: 12.5px; font-weight: 500; color: var(--nb-text); }
+.nb-bases-card-meta { font-size: 10.5px; color: var(--nb-text-3); }
+.nb-bases-list { padding: 5px 6px; }
+.nb-bases-list-item { display: block; width: 100%; text-align: left; border: none; background: transparent; color: var(--nb-text-2); font-size: 12.5px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.nb-bases-list-item:hover { background: var(--nb-hover); color: var(--nb-text); }
+.nb-bases-kanban { display: flex; gap: 8px; overflow-x: auto; padding: 10px 12px; align-items: flex-start; }
+.nb-bases-kanban-col { flex: 0 0 190px; display: flex; flex-direction: column; gap: 6px; }
+.nb-bases-kanban-head { font-size: 10.5px; font-weight: 600; letter-spacing: .04em; color: var(--nb-text-3); padding-bottom: 4px; }
+.nb-bases-empty { padding: 14px 12px; font-size: 11.5px; color: var(--nb-text-3); }
 .nb-empty { max-width: 760px; margin: 0 auto; padding: 16vh 64px 0; }
 .nb-empty-title { font-size: 40px; font-weight: 700; letter-spacing: -.025em; line-height: 1.15; }
 .nb-empty-text { margin-top: 12px; font-size: 14.5px; color: var(--nb-text-2); line-height: 1.7; }
@@ -3510,7 +3641,7 @@ window.__ModuleLoader__.load({
       let last = 0
       let count = 0
       const pattern =
-        /(!\[\[[^\]\n]+\]\])|(!\[[^\]\n]*\]\([^)\n]+\)(?:\{width=\d+%\})?)|(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(~~[^~\n]+~~)|(\[\[[^\]\n]+\]\])|(\[[^\]\n]+\]\([^)\n]+\))|(\*[^*\n]+\*)|(_[^_\n]+_)/g
+        /(!\[\[[^\]\n]+\]\])|(!\[[^\]\n]*\]\([^)\n]+\)(?:\{width=\d+%\})?)|(`[^`\n]+`)|(\$\$[^$\n]+\$\$)|(\$[^$\n]+\$)|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(~~[^~\n]+~~)|(==[^=\n]+==)|(%%.*?%%)|(\[\[[^\]\n]+\]\])|(\[[^\]\n]+\]\([^)\n]+\))|(\[\^[^\]\n]+\])|(#([\w\u4e00-\u9fa5][\w\u4e00-\u9fa5/-]*))|(\*[^*\n]+\*)|(_[^_\n]+_)/g
       let match
       while ((match = pattern.exec(text)) !== null) {
         if (match.index > last) nodes.push(text.slice(last, match.index))
@@ -3551,10 +3682,37 @@ window.__ModuleLoader__.load({
           }
         } else if (token.startsWith('`')) {
           nodes.push(h('code', { key }, token.slice(1, -1)))
+        } else if (token.startsWith('$$')) {
+          nodes.push(
+            h('span', { key, className: 'nb-math', dangerouslySetInnerHTML: { __html: renderLatexMath(token, true) } }),
+          )
+        } else if (token.startsWith('$')) {
+          const inner = token.slice(1, -1)
+          if (LATEX_LIKE.test(inner)) {
+            nodes.push(
+              h('span', { key, className: 'nb-math', dangerouslySetInnerHTML: { __html: renderLatexMath(token, false) } }),
+            )
+          } else {
+            nodes.push(token)
+          }
         } else if (token.startsWith('**') || token.startsWith('__')) {
           nodes.push(h('strong', { key }, token.slice(2, -2)))
         } else if (token.startsWith('~~')) {
           nodes.push(h('del', { key }, token.slice(2, -2)))
+        } else if (token.startsWith('==')) {
+          nodes.push(h('mark', { key }, token.slice(2, -2)))
+        } else if (token.startsWith('%%')) {
+          /* Obsidian comments stay hidden */
+        } else if (token.startsWith('[^')) {
+          const ref = token.slice(2, -1)
+          nodes.push(h('sup', { key, className: 'nb-footnote-ref', 'data-ref': ref }, ref))
+        } else if (token.startsWith('#')) {
+          const previous = match.index === 0 ? '' : text[match.index - 1]
+          if (previous === '' || /[\s(（，。;；:：!！?？]/.test(previous)) {
+            nodes.push(h('span', { key, className: 'nb-tag' }, token))
+          } else {
+            nodes.push(token)
+          }
         } else if (token.startsWith('[[')) {
           nodes.push(h('span', { key, className: 'nb-wiki' }, token.slice(2, -2)))
         } else if (token.startsWith('[')) {
@@ -3814,35 +3972,468 @@ window.__ModuleLoader__.load({
       return String(text ?? '').replace(/[&<>"]/g, (match) => ESCAPES[match])
     }
 
+    // ---- Mermaid rendering (runtime script served by the Host) ----
+    let mermaidRuntimePromise = null
+
+    function loadMermaidRuntime() {
+      if (typeof window !== 'undefined' && window.mermaid !== undefined) return Promise.resolve(window.mermaid)
+      if (mermaidRuntimePromise !== null) return mermaidRuntimePromise
+      mermaidRuntimePromise = new Promise((resolve, reject) => {
+        if (typeof document === 'undefined') {
+          reject(new Error('document is not available'))
+          return
+        }
+        const script = document.createElement('script')
+        script.src = '/notebook/vendor/mermaid.js'
+        script.async = true
+        script.onload = () => {
+          if (window.mermaid === undefined) {
+            reject(new Error('Mermaid runtime did not load'))
+            return
+          }
+          try {
+            window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'default' })
+          } catch {
+            /* keep the runtime defaults */
+          }
+          resolve(window.mermaid)
+        }
+        script.onerror = () => reject(new Error('Mermaid runtime could not be loaded'))
+        document.head.appendChild(script)
+      })
+      return mermaidRuntimePromise
+    }
+
+    function MermaidView({ code, t }) {
+      const [state, setState] = React.useState({ status: 'loading', svg: '', error: '' })
+      React.useEffect(() => {
+        let disposed = false
+        const renderId = `nb-mermaid-${Math.random().toString(36).slice(2, 10)}`
+        loadMermaidRuntime()
+          .then((mermaid) => mermaid.render(renderId, String(code ?? '')))
+          .then((result) => {
+            if (!disposed) setState({ status: 'ready', svg: String(result?.svg ?? ''), error: '' })
+          })
+          .catch((error) => {
+            if (!disposed) setState({ status: 'error', svg: '', error: String(error?.message ?? error) })
+          })
+        return () => {
+          disposed = true
+        }
+      }, [code])
+      if (state.status === 'loading') {
+        return h(
+          'div',
+          { className: 'nb-mermaid-card' },
+          h('div', { className: 'nb-mermaid-loading' }, t('mermaidLoading')),
+        )
+      }
+      if (state.status === 'error') {
+        return h(
+          'div',
+          { className: 'nb-mermaid-card' },
+          h(
+            'div',
+            { className: 'nb-mermaid-head' },
+            h('span', { className: 'nb-mermaid-icon', 'aria-hidden': 'true' }, '📈'),
+            h('span', { className: 'nb-mermaid-title' }, t('mermaidTitle')),
+          ),
+          h(
+            'details',
+            { className: 'nb-mermaid-src' },
+            h('summary', null, t('mermaidSource')),
+            h('pre', { className: 'nb-mermaid-code' }, h('code', null, String(code ?? ''))),
+          ),
+          h('div', { className: 'nb-mermaid-hint' }, `${t('mermaidError')}：${state.error}`),
+        )
+      }
+      return h('div', { className: 'nb-mermaid-render', dangerouslySetInnerHTML: { __html: state.svg } })
+    }
+
+    // ---- Obsidian Canvas (.canvas) rendering -------------------------------
+    const CANVAS_COLORS = {
+      '1': '#fb464c', '2': '#e9973f', '3': '#e0de71', '4': '#44cf6e', '5': '#53d4e8', '6': '#a882ff',
+    }
+
+    function canvasBounds(nodes) {
+      const list = Array.isArray(nodes) ? nodes : []
+      let minX = 0
+      let minY = 0
+      let maxX = 0
+      let maxY = 0
+      for (const node of list) {
+        const x = Number(node?.x) || 0
+        const y = Number(node?.y) || 0
+        const width = Number(node?.width) || 220
+        const height = Number(node?.height) || 80
+        minX = Math.min(minX, x)
+        minY = Math.min(minY, y)
+        maxX = Math.max(maxX, x + width)
+        maxY = Math.max(maxY, y + height)
+      }
+      const padding = 80
+      return {
+        minX: minX - padding,
+        minY: minY - padding,
+        width: maxX - minX + padding * 2,
+        height: maxY - minY + padding * 2,
+      }
+    }
+
+    function CanvasView({ path, nodes, edges, loading, error, t, onOpen, onClose }) {
+      const [zoom, setZoom] = React.useState(1)
+      const list = Array.isArray(nodes) ? nodes : []
+      const links = Array.isArray(edges) ? edges : []
+      const bounds = canvasBounds(list)
+      const byId = new Map(list.map((node) => [String(node.id), node]))
+      const centerOf = (node) => ({ x: Number(node.x) + Number(node.width) / 2, y: Number(node.y) + Number(node.height) / 2 })
+      if (loading) return h('div', { className: 'nb-canvas-loading' }, t('canvasLoading'))
+      if (error !== undefined && error !== '') return h('div', { className: 'nb-canvas-loading' }, error)
+      return h(
+        'div',
+        { className: 'nb-canvas-shell' },
+        h(
+          'div',
+          { className: 'nb-canvas-head' },
+          h('span', { className: 'nb-canvas-icon', 'aria-hidden': 'true' }, '🗺️'),
+          h('span', { className: 'nb-canvas-name' }, String(path ?? '').split('/').pop().replace(/\.canvas$/i, '')),
+          h('span', { className: 'nb-canvas-count' }, `${list.length} ${t('canvasNodes')} · ${links.length} ${t('canvasEdges')}`),
+          h('span', { className: 'nb-canvas-badge' }, 'Obsidian Canvas'),
+          h('button', { className: 'nb-canvas-close', onClick: onClose, title: t('close') }, '×'),
+        ),
+        h(
+          'div',
+          { className: 'nb-canvas-body' },
+          list.length === 0
+            ? h('div', { className: 'nb-canvas-empty' }, t('canvasEmpty'))
+            : h(
+                'div',
+                {
+                  className: 'nb-canvas-stage',
+                  style: {
+                    width: `${bounds.width}px`,
+                    height: `${bounds.height}px`,
+                    transform: `scale(${zoom})`,
+                    transformOrigin: '0 0',
+                  },
+                },
+                h(
+                  'svg',
+                  { className: 'nb-canvas-edges', width: bounds.width, height: bounds.height, 'aria-hidden': 'true' },
+                  links.map((edge) => {
+                    const from = byId.get(String(edge.fromNode))
+                    const to = byId.get(String(edge.toNode))
+                    if (from === undefined || to === undefined) return null
+                    const a = centerOf(from)
+                    const b = centerOf(to)
+                    return h('line', {
+                      key: String(edge.id ?? `${edge.fromNode}-${edge.toNode}`),
+                      x1: a.x - bounds.minX,
+                      y1: a.y - bounds.minY,
+                      x2: b.x - bounds.minX,
+                      y2: b.y - bounds.minY,
+                      className: 'nb-canvas-edge',
+                    })
+                  }),
+                ),
+                list.map((node) => {
+                  const color = CANVAS_COLORS[String(node.color ?? '')]
+                  const isGroup = String(node.type) === 'group'
+                  const style = {
+                    left: `${(Number(node.x) || 0) - bounds.minX}px`,
+                    top: `${(Number(node.y) || 0) - bounds.minY}px`,
+                    width: `${Number(node.width) || 220}px`,
+                    height: `${Number(node.height) || 80}px`,
+                    ...(color !== undefined ? { borderColor: color } : {}),
+                  }
+                  const content = isGroup
+                    ? h('span', { className: 'nb-canvas-group-label' }, String(node.label ?? ''))
+                    : String(node.type) === 'file'
+                      ? h(
+                          'button',
+                          {
+                            className: 'nb-canvas-file',
+                            onClick: (event) => {
+                              event.stopPropagation()
+                              if (typeof onOpen === 'function') onOpen(String(node.file ?? ''))
+                            },
+                          },
+                          String(node.file ?? '').split('/').pop().replace(/\.md$/i, ''),
+                        )
+                      : String(node.type) === 'link'
+                        ? h('span', { className: 'nb-canvas-link-text' }, String(node.url ?? ''))
+                        : h('span', { className: 'nb-canvas-text' }, String(node.text ?? ''))
+                  return h(
+                    'div',
+                    {
+                      key: String(node.id),
+                      className: `nb-canvas-node nb-canvas-node-${isGroup ? 'group' : String(node.type ?? 'text')}`,
+                      style,
+                      title: isGroup ? String(node.label ?? '') : undefined,
+                    },
+                    content,
+                  )
+                }),
+              ),
+        ),
+        h(
+          'div',
+          { className: 'nb-canvas-tools' },
+          h('button', { className: 'nb-canvas-tool', onClick: () => setZoom((value) => Math.min(2, Math.round((value + 0.1) * 10) / 10)) }, '+'),
+          h('span', { className: 'nb-canvas-zoom' }, `${Math.round(zoom * 100)}%`),
+          h('button', { className: 'nb-canvas-tool', onClick: () => setZoom((value) => Math.max(0.3, Math.round((value - 0.1) * 10) / 10)) }, '−'),
+          h('span', { className: 'nb-canvas-hint' }, t('canvasHint')),
+        ),
+      )
+    }
+
+    // ---- Obsidian footnotes: `[^ref]` references and `[^ref]: text` definitions ----
+    const FOOTNOTE_DEFINITION = /^\s*\[\^([^\]\s]+)\]:\s*([\s\S]*)$/
+
+    function isFootnoteDefinition(block) {
+      return block !== null && block !== undefined && block.type === 'paragraph' && FOOTNOTE_DEFINITION.test(String(block.text ?? ''))
+    }
+
+    function collectFootnotes(blocks) {
+      const list = []
+      for (const block of Array.isArray(blocks) ? blocks : []) {
+        if (!isFootnoteDefinition(block)) continue
+        const match = FOOTNOTE_DEFINITION.exec(String(block.text ?? ''))
+        if (match !== null) list.push({ ref: match[1], text: match[2].trim() })
+      }
+      return list
+    }
+
+    function FootnoteList({ blocks, t }) {
+      const notes = collectFootnotes(blocks)
+      if (notes.length === 0) return null
+      return h(
+        'div',
+        { className: 'nb-footnotes' },
+        h('div', { className: 'nb-footnotes-title' }, t('footnotesTitle')),
+        notes.map((note) =>
+          h(
+            'div',
+            { key: note.ref, className: 'nb-footnote', id: `nb-fn-${note.ref}` },
+            h('span', { className: 'nb-footnote-ref' }, note.ref),
+            h('span', {
+              className: 'nb-footnote-text',
+              dangerouslySetInnerHTML: { __html: markdownToHtml(note.text) },
+            }),
+          ),
+        ),
+      )
+    }
+
+    // ---- Minimal LaTeX renderer for Obsidian-style $...$ / $$...$$ math ----
+    const LATEX_SYMBOLS = {
+      alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε', varepsilon: 'ε', zeta: 'ζ',
+      eta: 'η', theta: 'θ', vartheta: 'ϑ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ', nu: 'ν',
+      xi: 'ξ', pi: 'π', varpi: 'ϖ', rho: 'ρ', varrho: 'ϱ', sigma: 'σ', varsigma: 'ς', tau: 'τ',
+      upsilon: 'υ', phi: 'φ', varphi: 'φ', chi: 'χ', psi: 'ψ', omega: 'ω', Gamma: 'Γ', Delta: 'Δ',
+      Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ', Upsilon: 'Υ', Phi: 'Φ', Psi: 'Ψ',
+      Omega: 'Ω', times: '×', cdot: '·', pm: '±', mp: '∓', div: '÷', le: '≤', leq: '≤', ge: '≥',
+      geq: '≥', ne: '≠', neq: '≠', approx: '≈', equiv: '≡', sim: '∼', propto: '∝', infty: '∞',
+      sum: '∑', prod: '∏', int: '∫', oint: '∮', partial: '∂', nabla: '∇', forall: '∀', exists: '∃',
+      in: '∈', notin: '∉', subset: '⊂', supset: '⊃', cup: '∪', cap: '∩', subseteq: '⊆',
+      supseteq: '⊇', emptyset: '∅', leftarrow: '←', rightarrow: '→', to: '→', gets: '←',
+      Leftarrow: '⇐', Rightarrow: '⇒', leftrightarrow: '↔', Leftrightarrow: '⇔', uparrow: '↑',
+      downarrow: '↓', ldots: '…', cdots: '⋯', prime: '′', angle: '∠', perp: '⊥', parallel: '∥',
+      degree: '°', because: '∵', therefore: '∴', aa: 'Å', circ: '∘', bullet: '•', star: '⋆',
+    }
+    const LATEX_LIKE = /\\[a-zA-Z]+|\^|_|\{|\}|\\frac|\\sqrt/
+
+    function renderLatexGroup(source, start) {
+      let depth = 1
+      let index = start
+      while (index < source.length && depth > 0) {
+        const char = source[index]
+        if (char === '{') depth += 1
+        else if (char === '}') depth -= 1
+        if (depth === 0) break
+        index += 1
+      }
+      return { content: source.slice(start, index), next: index + 1 }
+    }
+
+    function renderLatexInline(source) {
+      const text = String(source ?? '')
+      let out = ''
+      let index = 0
+      while (index < text.length) {
+        const char = text[index]
+        if (char === '\\') {
+          const rest = text.slice(index + 1)
+          const frac = /^frac\s*/.exec(rest)
+          if (frac !== null) {
+            const first = renderLatexGroup(text, index + 1 + frac[0].length + 1)
+            const second = renderLatexGroup(text, first.next + 1)
+            if (text[index + 1 + frac[0].length] === '{' && text[first.next] === '{') {
+              out += `<span class="nb-math-frac"><span class="nb-math-num">${renderLatexInline(first.content)}</span><span class="nb-math-den">${renderLatexInline(second.content)}</span></span>`
+              index = second.next
+              continue
+            }
+          }
+          const sqrt = /^sqrt\s*/.exec(rest)
+          if (sqrt !== null && text[index + 1 + sqrt[0].length] === '{') {
+            const group = renderLatexGroup(text, index + 1 + sqrt[0].length + 1)
+            out += `<span class="nb-math-sqrt">√<span class="nb-math-radicand">${renderLatexInline(group.content)}</span></span>`
+            index = group.next
+            continue
+          }
+          const textCommand = /^text\s*/.exec(rest)
+          if (textCommand !== null && text[index + 1 + textCommand[0].length] === '{') {
+            const group = renderLatexGroup(text, index + 1 + textCommand[0].length + 1)
+            out += escapeHtml(group.content)
+            index = group.next
+            continue
+          }
+          const command = /^([a-zA-Z]+)/.exec(rest)
+          if (command !== null) {
+            const name = command[1]
+            if (LATEX_SYMBOLS[name] !== undefined) {
+              out += LATEX_SYMBOLS[name]
+            } else if (name === 'quad' || name === 'qquad') {
+              out += '&nbsp;&nbsp;'
+            } else {
+              out += escapeHtml(name)
+            }
+            index += 1 + name.length
+            continue
+          }
+          const escaped = /^[\\,;:! ]/.exec(rest)
+          if (escaped !== null) {
+            out += ' '
+            index += 2
+            continue
+          }
+          out += escapeHtml(rest[0] ?? '')
+          index += 2
+          continue
+        }
+        if (char === '^' || char === '_') {
+          const tag = char === '^' ? 'sup' : 'sub'
+          if (text[index + 1] === '{') {
+            const group = renderLatexGroup(text, index + 2)
+            out += `<${tag}>${renderLatexInline(group.content)}</${tag}>`
+            index = group.next
+            continue
+          }
+          out += `<${tag}>${renderLatexInline(text[index + 1] ?? '')}</${tag}>`
+          index += 2
+          continue
+        }
+        if (char === '{' || char === '}') {
+          index += 1
+          continue
+        }
+        out += escapeHtml(char)
+        index += 1
+      }
+      return out
+    }
+
+    function renderLatexMath(source, block = false) {
+      const math = String(source ?? '').replace(/^\$\$|\$\$$/g, '').replace(/^\$|\$$/g, '').trim()
+      return `<span class="nb-math${block ? ' nb-math-block' : ''}">${renderLatexInline(math)}</span>`
+    }
+
+    /** The inline HTML subset Obsidian renders in reading mode. */
+    const INLINE_HTML_TAGS = new Set([
+      'a', 'abbr', 'audio', 'b', 'blockquote', 'br', 'center', 'code', 'del', 'details', 'div',
+      'em', 'figcaption', 'figure', 'hr', 'i', 'iframe', 'img', 'ins', 'kbd', 'li', 'mark', 'ol',
+      'p', 'pre', 's', 'small', 'source', 'span', 'strong', 'sub', 'summary', 'sup', 'table',
+      'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'u', 'ul', 'video',
+    ])
+    const DANGEROUS_HTML_ATTR = /(^|\s)on[a-z]+\s*=|javascript:|vbscript:|data:text\/html/i
+
+    function sanitizeHtmlBlock(text) {
+      const tokens = []
+      const withTokens = String(text ?? '').replace(
+        /<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:\s+[^<>]*?)?)(\/?)>/g,
+        (whole, closing, name, attrs, selfClose) => {
+          const rendered = safeInlineHtmlTag(closing, name, attrs, selfClose)
+          if (rendered === null) return whole
+          const index = tokens.push(rendered) - 1
+          return `\u0000${index}\u0000`
+        },
+      )
+      let out = escapeHtml(withTokens)
+      out = out.replace(/\u0000(\d+)\u0000/g, (whole, index) => tokens[Number(index)] ?? '')
+      return out
+    }
+
+    function safeInlineHtmlTag(closing, name, attrs, selfClose) {
+      const tag = String(name ?? '').toLowerCase()
+      if (!INLINE_HTML_TAGS.has(tag)) return null
+      if (DANGEROUS_HTML_ATTR.test(String(attrs ?? ''))) return null
+      if (tag === 'iframe') {
+        const src = /src\s*=\s*["']([^"']*)["']/i.exec(String(attrs ?? ''))
+        if (src === null || !/^https?:\/\//i.test(src[1])) return null
+      }
+      return `<${closing}${tag}${attrs ?? ''}${selfClose}>`
+    }
+
     function markdownToHtml(text) {
       const source = String(text ?? '')
+      // Preserve a safe subset of inline HTML; everything else stays escaped.
+      const htmlTokens = []
+      const withHtml = source.replace(
+        /<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:\s+[^<>]*?)?)(\/?)>/g,
+        (whole, closing, name, attrs, selfClose) => {
+          const rendered = safeInlineHtmlTag(closing, name, attrs, selfClose)
+          if (rendered === null) return whole
+          const index = htmlTokens.push(rendered) - 1
+          return `\u0000${index}\u0000`
+        },
+      )
       const pattern =
-        /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(~~[^~\n]+~~)|(\[\[[^\]\n]+\]\])|(\[[^\]\n]+\]\([^)\n]+\))|(\*[^*\n]+\*)|(_[^_\n]+_)/g
+        /(`[^`\n]+`)|(\$\$[^$\n]+\$\$)|(\$[^$\n]+\$)|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(~~[^~\n]+~~)|(==[^=\n]+==)|(%%.*?%%)|(\[\[[^\]\n]+\]\])|(\[[^\]\n]+\]\([^)\n]+\))|(\[\^[^\]\n]+\])|(#([\w\u4e00-\u9fa5][\w\u4e00-\u9fa5/-]*))|(\*[^*\n]+\*)|(_[^_\n]+_)/g
       let out = ''
       let last = 0
       let match
-      while ((match = pattern.exec(source)) !== null) {
-        if (match.index > last) out += escapeHtml(source.slice(last, match.index))
+      while ((match = pattern.exec(withHtml)) !== null) {
+        if (match.index > last) out += escapeHtml(withHtml.slice(last, match.index))
         const token = match[0]
         if (token.startsWith('`')) {
           out += `<code>${escapeHtml(token.slice(1, -1))}</code>`
+        } else if (token.startsWith('$$')) {
+          out += renderLatexMath(token, true)
+        } else if (token.startsWith('$')) {
+          const inner = token.slice(1, -1)
+          out += LATEX_LIKE.test(inner) ? renderLatexMath(token, false) : escapeHtml(token)
         } else if (token.startsWith('**') || token.startsWith('__')) {
           out += `<strong>${escapeHtml(token.slice(2, -2))}</strong>`
         } else if (token.startsWith('~~')) {
           out += `<del>${escapeHtml(token.slice(2, -2))}</del>`
+        } else if (token.startsWith('==')) {
+          out += `<mark>${escapeHtml(token.slice(2, -2))}</mark>`
+        } else if (token.startsWith('%%')) {
+          /* Obsidian comments are hidden in reading mode */
         } else if (token.startsWith('[[')) {
           out += `<span class="nb-wiki">${escapeHtml(token.slice(2, -2))}</span>`
+        } else if (token.startsWith('[^')) {
+          const ref = token.slice(2, -1)
+          out += `<sup class="nb-footnote-ref" data-ref="${escapeHtml(ref)}">${escapeHtml(ref)}</sup>`
         } else if (token.startsWith('[')) {
           const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token)
           const href = link === null ? undefined : safeHref(link[2])
           if (link === null || href === undefined) out += escapeHtml(token)
           else out += `<a href="${escapeHtml(href)}" target="_blank" rel="noreferrer noopener">${escapeHtml(link[1])}</a>`
+        } else if (token.startsWith('#')) {
+          const previous = match.index === 0 ? '' : withHtml[match.index - 1]
+          if (previous === '' || /[\s(（，。;；:：!！?？]/.test(previous)) {
+            out += `<span class="nb-tag">${escapeHtml(token)}</span>`
+          } else {
+            out += escapeHtml(token)
+          }
         } else {
           out += `<em>${escapeHtml(token.slice(1, -1))}</em>`
         }
         last = match.index + token.length
       }
-      if (last < source.length) out += escapeHtml(source.slice(last))
+      if (last < withHtml.length) out += escapeHtml(withHtml.slice(last))
+      out = out.replace(/\u0000(\d+)\u0000/g, (whole, index) => htmlTokens[Number(index)] ?? '')
       return out
     }
 
@@ -5659,6 +6250,454 @@ window.__ModuleLoader__.load({
      * `marp: true` (the note may use a full-width colon), then slides separated
      * by `---` (or `***` / `___`, as Marp allows). Returns null for other code.
      */
+    // ---- Obsidian Bases: YAML subset, filters, sort, render ----
+    const BASES_TYPE_LABELS = { table: '表格', cards: '卡片', list: '列表', kanban: '看板', map: '地图' }
+    const BASES_COLUMN_LABELS = {
+      'file.name': '名称',
+      'file.folder': '目录',
+      'file.path': '路径',
+      'file.ext': '类型',
+      'file.mtime': '修改时间',
+      'file.ctime': '创建时间',
+      'file.size': '大小',
+      'file.tags': '标签',
+    }
+
+    function parseBaseScalar(raw) {
+      const value = String(raw ?? '').trim()
+      if (value.length >= 2) {
+        const first = value[0]
+        const last = value[value.length - 1]
+        if ((first === '"' && last === '"') || (first === "'" && last === "'")) return value.slice(1, -1)
+      }
+      if (value === 'true') return true
+      if (value === 'false') return false
+      if (/^-?\d+(\.\d+)?$/.test(value)) return Number(value)
+      return value
+    }
+
+    /** Parse the indentation-based YAML subset a base code block uses. */
+    function parseYamlSubset(blockLines) {
+      if (blockLines.length === 0) return null
+      const isList = blockLines[0].text.startsWith('- ')
+      const result = isList ? [] : {}
+      let index = 0
+      const takeChildren = (parentIndent) => {
+        const children = []
+        while (index < blockLines.length && blockLines[index].indent > parentIndent) {
+          children.push(blockLines[index])
+          index += 1
+        }
+        return children
+      }
+      if (isList) {
+        while (index < blockLines.length) {
+          const line = blockLines[index]
+          if (line.indent !== blockLines[0].indent || !line.text.startsWith('- ')) break
+          const rest = line.text.slice(2).trim()
+          index += 1
+          const children = takeChildren(line.indent)
+          if (rest.length === 0) {
+            result.push(parseYamlSubset(children))
+            continue
+          }
+          const colon = rest.indexOf(':')
+          const keyCandidate = colon > 0 ? rest.slice(0, colon).trim() : ''
+          if (/^[A-Za-z_][\w.-]*$/.test(keyCandidate)) {
+            const key = keyCandidate
+            const value = rest.slice(colon + 1).trim()
+            const item = {}
+            item[key] = value.length === 0 ? parseYamlSubset(children) : parseBaseScalar(value)
+            const extra = parseYamlSubset(children)
+            if (extra !== null && typeof extra === 'object' && !Array.isArray(extra)) Object.assign(item, extra)
+            result.push(item)
+            continue
+          }
+          result.push(parseBaseScalar(rest))
+          if (children.length > 0) {
+            /* trailing children on a scalar item are ignored */
+          }
+        }
+        return result
+      }
+      while (index < blockLines.length) {
+        const line = blockLines[index]
+        const colon = line.text.indexOf(':')
+        if (colon < 0) {
+          index += 1
+          continue
+        }
+        const key = line.text.slice(0, colon).trim()
+        const value = line.text.slice(colon + 1).trim()
+        index += 1
+        const children = takeChildren(line.indent)
+        result[key] = value.length === 0 ? parseYamlSubset(children) : parseBaseScalar(value)
+      }
+      return result
+    }
+
+    function parseBasesConfig(text) {
+      const lines = []
+      for (const raw of String(text ?? '').split(/\r?\n/)) {
+        if (raw.trim().length === 0 || raw.trim().startsWith('#')) continue
+        lines.push({ indent: raw.length - raw.trimStart().length, text: raw.trim() })
+      }
+      const parsed = parseYamlSubset(lines)
+      const config = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+      return { filters: config.filters ?? null, views: Array.isArray(config.views) ? config.views : [] }
+    }
+
+    function makeBaseRow(note, fields) {
+      const path = String(note?.path ?? '')
+      const parts = path.split('/')
+      const name = String(note?.name ?? parts[parts.length - 1] ?? '').replace(/\.md$/i, '')
+      const rawTags = fields?.tags ?? fields?.Tags ?? []
+      const tags = Array.isArray(rawTags)
+        ? rawTags.map((tag) => String(tag).replace(/^#/, ''))
+        : String(rawTags ?? '')
+            .split(/[,\s]+/)
+            .map((tag) => tag.replace(/^#/, ''))
+            .filter(Boolean)
+      return {
+        path,
+        name,
+        folder: parts.length > 1 ? parts.slice(0, -1).join('/') : '',
+        ext: (path.split('.').pop() ?? '').toLowerCase(),
+        size: Number(note?.size ?? 0),
+        mtime: Number(note?.mtimeMs ?? 0),
+        ctime: Number(note?.mtimeMs ?? 0),
+        fields: fields ?? {},
+        tags,
+      }
+    }
+
+    function baseRowValue(row, property) {
+      const key = String(property ?? '')
+      if (key === 'file.name' || key === 'name' || key === 'note.name') return row.name
+      if (key === 'file.folder' || key === 'file.dir' || key === 'folder') return row.folder
+      if (key === 'file.path' || key === 'path') return row.path
+      if (key === 'file.ext' || key === 'ext') return row.ext
+      if (key === 'file.mtime' || key === 'mtime') return row.mtime
+      if (key === 'file.ctime' || key === 'ctime') return row.ctime
+      if (key === 'file.size' || key === 'size') return row.size
+      if (key === 'file.tags' || key === 'tags') return row.tags
+      if (key.startsWith('note.')) return row.fields[key.slice(5)]
+      if (key.startsWith('file.')) return row[key.slice(5)]
+      return row.fields[key]
+    }
+
+    function parseBaseLiteral(raw, now) {
+      const value = String(raw ?? '').trim()
+      if (value === 'now()' || value === 'today()') return now
+      if (value.startsWith('date(') && value.endsWith(')')) return Date.parse(value.slice(5, -1).replace(/^["']|["']$/g, ''))
+      return parseBaseScalar(value)
+    }
+
+    function evalBaseExpression(expr, row, now) {
+      const source = String(expr ?? '').trim()
+      if (source.length === 0) return true
+      const folder = /^file\.inFolder\("([^"]*)"\)$/.exec(source)
+      if (folder !== null) {
+        const target = folder[1].replace(/^\/+|\/+$/g, '')
+        return target.length === 0 ? true : row.folder === target || row.folder.startsWith(`${target}/`)
+      }
+      const tag = /^file\.hasTag\("([^"]*)"\)$/.exec(source)
+      if (tag !== null) return row.tags.includes(tag[1].replace(/^#/, ''))
+      const comparison = /^(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$/.exec(source)
+      if (comparison !== null) {
+        const left = baseRowValue(row, comparison[1].trim())
+        const right = parseBaseLiteral(comparison[3], now)
+        const operator = comparison[2]
+        const numeric = typeof left === 'number' && typeof right === 'number'
+        if (operator === '==') return numeric ? left === right : String(left ?? '') === String(right ?? '')
+        if (operator === '!=') return numeric ? left !== right : String(left ?? '') !== String(right ?? '')
+        if (operator === '>') return Number(left) > Number(right)
+        if (operator === '<') return Number(left) < Number(right)
+        if (operator === '>=') return Number(left) >= Number(right)
+        return Number(left) <= Number(right)
+      }
+      return true
+    }
+
+    function evalBaseFilter(filter, row, now) {
+      if (filter === null || filter === undefined) return true
+      if (typeof filter === 'string') return evalBaseExpression(filter, row, now)
+      if (Array.isArray(filter)) return filter.every((item) => evalBaseFilter(item, row, now))
+      const source = filter
+      if (source.and !== undefined) {
+        const list = Array.isArray(source.and) ? source.and : [source.and]
+        return list.every((item) => evalBaseFilter(item, row, now))
+      }
+      if (source.or !== undefined) {
+        const list = Array.isArray(source.or) ? source.or : [source.or]
+        return list.some((item) => evalBaseFilter(item, row, now))
+      }
+      if (source.not !== undefined) {
+        const list = Array.isArray(source.not) ? source.not : [source.not]
+        return !list.every((item) => evalBaseFilter(item, row, now))
+      }
+      return true
+    }
+
+    function sortBaseRows(rows, sort) {
+      const rules = (Array.isArray(sort) ? sort : [sort])
+        .filter((rule) => rule !== null && typeof rule === 'object' && typeof rule.property === 'string')
+        .map((rule) => ({ property: rule.property, direction: String(rule.direction ?? 'ASC').toUpperCase() }))
+      if (rules.length === 0) return rows
+      return [...rows].sort((left, right) => {
+        for (const rule of rules) {
+          const a = baseRowValue(left, rule.property)
+          const b = baseRowValue(right, rule.property)
+          const numeric = typeof a === 'number' && typeof b === 'number'
+          const compare = numeric ? a - b : String(a ?? '').localeCompare(String(b ?? ''), 'zh-Hans-CN')
+          if (compare !== 0) return rule.direction === 'DESC' ? -compare : compare
+        }
+        return 0
+      })
+    }
+
+    function baseColumnLabel(property) {
+      return BASES_COLUMN_LABELS[property] ?? String(property ?? '').replace(/^note\./, '')
+    }
+
+    function formatBaseCell(row, property, t) {
+      const value = baseRowValue(row, property)
+      if (property === 'file.mtime' || property === 'file.ctime') return formatBaseTime(Number(value ?? 0), t)
+      if (property === 'file.tags' || property === 'tags') return Array.isArray(value) ? value.map((tag) => `#${tag}`).join(' ') : ''
+      if (value === undefined || value === null || value === '') return ''
+      if (Array.isArray(value)) return value.join(', ')
+      return String(value)
+    }
+
+    function formatBaseTime(ms, t) {
+      const value = Number(ms ?? 0)
+      if (!Number.isFinite(value) || value <= 0) return ''
+      const delta = Math.max(0, Date.now() - value)
+      const minutes = Math.floor(delta / 60000)
+      if (minutes < 1) return t('timeJustNow')
+      if (minutes < 60) return t('timeMinutesAgo', { n: minutes })
+      const hours = Math.floor(minutes / 60)
+      if (hours < 24) return t('timeHoursAgo', { n: hours })
+      const days = Math.floor(hours / 24)
+      if (days < 7) return t('timeDaysAgo', { n: days })
+      return new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric' }).format(new Date(value))
+    }
+
+
+    /** Read just enough of an Obsidian `base` code block to label it. */
+    function parseBasesView(text) {
+      const lines = String(text ?? '').split(/\r?\n/)
+      const views = []
+      let inViews = false
+      for (const line of lines) {
+        if (/^views:\s*$/.test(line)) {
+          inViews = true
+          continue
+        }
+        if (!inViews) continue
+        if (/^\S/.test(line)) {
+          inViews = false
+          continue
+        }
+        const type = /^\s{2}- type:\s*(\w+)\s*$/.exec(line)
+        if (type !== null) {
+          views.push({ type: type[1], name: '' })
+          continue
+        }
+        const name = /^\s{4}name:\s*(.+?)\s*$/.exec(line)
+        if (name !== null && views.length > 0) {
+          const value = name[1].replace(/^["']|["']$/g, '')
+          if (value.length > 0 && views[views.length - 1].name === '') views[views.length - 1].name = value
+        }
+      }
+      return views.length > 0 ? { views } : null
+    }
+
+    /** Render an Obsidian `base` code block from the vault's own data. */
+    function BasesView({ text, t, onOpen }) {
+      const config = React.useMemo(() => parseBasesConfig(text), [text])
+      const [state, setState] = React.useState({ status: 'loading', rows: [], view: null, error: '' })
+      React.useEffect(() => {
+        let disposed = false
+        const view = config.views[0] ?? null
+        const viewValue = view !== null && typeof view === 'object' ? view : {}
+        Promise.all([apiGet('/list?folder='), apiGet('/fields?folder=')])
+          .then(([listResult, fieldsResult]) => {
+            if (disposed) return
+            const fieldMap = new Map()
+            for (const row of Array.isArray(fieldsResult?.rows) ? fieldsResult.rows : []) {
+              fieldMap.set(row.path, row.fields ?? {})
+            }
+            const notes = Array.isArray(listResult?.notes) ? listResult.notes : []
+            let rows = notes.map((note) => makeBaseRow(note, fieldMap.get(note.path) ?? {}))
+            const filters = viewValue.filters ?? config.filters
+            const now = Date.now()
+            rows = rows.filter((row) => evalBaseFilter(filters, row, now))
+            rows = sortBaseRows(rows, viewValue.sort)
+            const limit = Number(viewValue.limit)
+            if (Number.isFinite(limit) && limit > 0) rows = rows.slice(0, limit)
+            setState({ status: 'ready', rows, view: viewValue, error: '' })
+          })
+          .catch((error) => {
+            if (!disposed) {
+              setState({ status: 'error', rows: [], view: viewValue, error: String(error?.message ?? error) })
+            }
+          })
+        return () => {
+          disposed = true
+        }
+      }, [text])
+      const view = state.view ?? {}
+      const type = String(view.type ?? 'table')
+      const order =
+        Array.isArray(view.order) && view.order.length > 0
+          ? view.order.filter((item) => typeof item === 'string')
+          : ['file.name', 'file.folder', 'file.mtime']
+      const heading = (count) =>
+        h(
+          'div',
+          { className: 'nb-bases-head' },
+          h('span', { className: 'nb-bases-icon', 'aria-hidden': 'true' }, '📊'),
+          h(
+            'span',
+            { className: 'nb-bases-name' },
+            typeof view.name === 'string' && view.name.length > 0 ? view.name : t('basesView'),
+          ),
+          h('span', { className: 'nb-bases-type' }, BASES_TYPE_LABELS[type] ?? type),
+          h('span', { className: 'nb-bases-tag' }, 'Obsidian'),
+          h('span', { className: 'nb-bases-count' }, t('basesRows', { n: count })),
+        )
+      if (state.status === 'loading') {
+        return h('div', { className: 'nb-bases-view' }, heading(0), h('div', { className: 'nb-bases-empty' }, t('basesLoading')))
+      }
+      if (state.status === 'error') {
+        return h(
+          'div',
+          { className: 'nb-bases-view' },
+          heading(0),
+          h('div', { className: 'nb-bases-empty' }, `${t('basesError')}：${state.error}`),
+        )
+      }
+      if (state.rows.length === 0) {
+        return h('div', { className: 'nb-bases-view' }, heading(0), h('div', { className: 'nb-bases-empty' }, t('basesEmpty')))
+      }
+      const open = (path) => {
+        if (typeof onOpen === 'function') onOpen(path)
+      }
+      const card = (row) =>
+        h(
+          'button',
+          {
+            key: row.path,
+            className: 'nb-bases-card',
+            title: row.path,
+            onClick: (event) => {
+              event.stopPropagation()
+              open(row.path)
+            },
+          },
+          h('span', { className: 'nb-bases-card-title' }, row.name),
+          h(
+            'span',
+            { className: 'nb-bases-card-meta' },
+            [row.folder, formatBaseTime(row.mtime, t)].filter(Boolean).join(' · '),
+          ),
+        )
+      let body = null
+      if (type === 'cards') {
+        body = h('div', { className: 'nb-bases-cards' }, state.rows.map(card))
+      } else if (type === 'list') {
+        body = h(
+          'div',
+          { className: 'nb-bases-list' },
+          state.rows.map((row) =>
+            h(
+              'button',
+              {
+                key: row.path,
+                className: 'nb-bases-list-item',
+                onClick: (event) => {
+                  event.stopPropagation()
+                  open(row.path)
+                },
+              },
+              row.name,
+            ),
+          ),
+        )
+      } else if (type === 'kanban') {
+        const groupBy = view.groupBy !== null && typeof view.groupBy === 'object' ? String(view.groupBy.property ?? '') : ''
+        const groups = new Map()
+        for (const row of state.rows) {
+          const value = groupBy.length > 0 ? baseRowValue(row, groupBy) : ''
+          const label = value === undefined || value === null || value === '' ? t('basesUncategorized') : String(value)
+          if (!groups.has(label)) groups.set(label, [])
+          groups.get(label).push(row)
+        }
+        body = h(
+          'div',
+          { className: 'nb-bases-kanban' },
+          [...groups.entries()].map(([label, rows]) =>
+            h(
+              'div',
+              { key: label, className: 'nb-bases-kanban-col' },
+              h('div', { className: 'nb-bases-kanban-head' }, `${label} · ${rows.length}`),
+              rows.map(card),
+            ),
+          ),
+        )
+      } else {
+        body = h(
+          'table',
+          { className: 'nb-bases-table' },
+          h(
+            'thead',
+            null,
+            h('tr', null, order.map((property) => h('th', { key: property }, baseColumnLabel(property)))),
+          ),
+          h(
+            'tbody',
+            null,
+            state.rows.map((row) =>
+              h(
+                'tr',
+                {
+                  key: row.path,
+                  className: 'nb-bases-row',
+                  title: row.path,
+                  onClick: (event) => {
+                    event.stopPropagation()
+                    open(row.path)
+                  },
+                },
+                order.map((property) => h('td', { key: property }, formatBaseCell(row, property, t))),
+              ),
+            ),
+          ),
+        )
+      }
+      return h('div', { className: 'nb-bases-view' }, heading(state.rows.length), body)
+    }
+
+    /** Obsidian Bases blocks render as a labelled card here; Obsidian renders the table itself. */
+    function renderBasesCard(bases, t) {
+      const first = bases.views[0]
+      const labels = bases.views.map((view) => BASES_VIEW_TYPES[view.type] ?? view.type)
+      return h(
+        'div',
+        { className: 'nb-bases-card' },
+        h(
+          'div',
+          { className: 'nb-bases-head' },
+          h('span', { className: 'nb-bases-icon', 'aria-hidden': 'true' }, '📊'),
+          h('span', { className: 'nb-bases-title' }, first.name.length > 0 ? first.name : t('basesView')),
+          h('span', { className: 'nb-bases-tag' }, t('basesTag')),
+        ),
+        h('div', { className: 'nb-bases-meta' }, `${labels.join(' / ')} · ${bases.views.length} ${t('basesViews')}`),
+        h('div', { className: 'nb-bases-hint' }, t('basesInObsidian')),
+      )
+    }
+
     function parseMarpDeck(source, lang) {
       const raw = String(source ?? '').replace(/\r\n/g, '\n')
       if (raw.trim().length === 0) return null
@@ -6163,6 +7202,8 @@ window.__ModuleLoader__.load({
             ? '```'
             : t('placeholderText')
 
+      const mathBlock =
+        block.type === 'paragraph' && /^\s*\$\$[\s\S]*\$\$\s*$/.test(text) ? text.trim() : null
       let prefix = null
       let body = null
 
@@ -6257,6 +7298,17 @@ window.__ModuleLoader__.load({
                 )
               : highlightCode(text),
           )
+        } else if (block.type === 'code' && String(block.lang ?? '') === 'base' && parseBasesConfig(text).views.length > 0) {
+          content = h(BasesView, { text, t, onOpen: onOpenWiki })
+        } else if (block.type === 'code' && String(block.lang ?? '').toLowerCase() === 'mermaid') {
+          content = h(MermaidView, { key: 'mermaid', code: text, t })
+        } else if (mathBlock !== null) {
+          content = h('div', { className: 'nb-math-block-wrap', dangerouslySetInnerHTML: { __html: renderLatexMath(mathBlock, true) } })
+        } else if (block.type === 'paragraph' && /^\s*<[a-zA-Z][^>]*>/.test(text) && /<\/[a-zA-Z]/.test(text)) {
+          content = h('div', {
+            className: 'nb-html-block',
+            dangerouslySetInnerHTML: { __html: sanitizeHtmlBlock(text) },
+          })
         } else if (block.type === 'code') {
           content = text.length > 0 ? highlightCode(text) : placeholder
         } else if (content === null) {
@@ -7604,6 +8656,7 @@ window.__ModuleLoader__.load({
       const [imageUrl, setImageUrl] = React.useState('')
       const [imageTargetId, setImageTargetId] = React.useState(null)
       const [zen, setZen] = React.useState(false)
+      const [canvasView, setCanvasView] = React.useState(null)
       const [findOpen, setFindOpen] = React.useState(false)
       const [findQuery, setFindQuery] = React.useState('')
       const [findIndex, setFindIndex] = React.useState(0)
@@ -8339,8 +9392,12 @@ window.__ModuleLoader__.load({
 
       const loadList = React.useCallback(async () => {
         try {
-          const data = await apiGet('/list')
-          setNotes(Array.isArray(data.notes) ? data.notes : [])
+          const [data, canvasData] = await Promise.all([
+            apiGet('/list'),
+            apiGet('/canvases').catch(() => ({ files: [] })),
+          ])
+          const canvasItems = Array.isArray(canvasData?.files) ? canvasData.files : []
+          setNotes([...(Array.isArray(data.notes) ? data.notes : []), ...canvasItems])
           setStatus(data.vault ?? null)
           setVaultError(null)
           return true
@@ -8695,8 +9752,34 @@ window.__ModuleLoader__.load({
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [blocks, selected, frontmatter])
 
+      async function openCanvas(path) {
+        const target = String(path ?? '')
+        setSelected(null)
+        selectedRef.current = null
+        setCanvasView({ path: target, nodes: [], edges: [], loading: true, error: '' })
+        try {
+          const data = await apiGet(`/canvas?path=${encodeURIComponent(target)}`)
+          const opened = data.path ?? target
+          setCanvasView({
+            path: opened,
+            nodes: Array.isArray(data.nodes) ? data.nodes : [],
+            edges: Array.isArray(data.edges) ? data.edges : [],
+            loading: false,
+            error: '',
+          })
+          setTabs((previous) => (previous.includes(opened) ? previous : [...previous, opened]))
+          setRecent((previous) => [opened, ...previous.filter((item) => item !== opened)].slice(0, 6))
+        } catch (error) {
+          setCanvasView({ path: target, nodes: [], edges: [], loading: false, error: error.message })
+        }
+      }
+
       async function openNote(path) {
         setFlashOpen(false)
+        if (String(path ?? '').toLowerCase().endsWith('.canvas')) {
+          await openCanvas(path)
+          return
+        }
         if (path === selectedRef.current) return
         setLoading(true)
         try {
@@ -10122,6 +11205,7 @@ window.__ModuleLoader__.load({
       }
 
       function closeTab(path) {
+        setCanvasView((current) => (current !== null && current.path === path ? null : current))
         const remaining = tabs.filter((item) => item !== path)
         setTabs(remaining)
         if (selected !== path) return
@@ -11375,6 +12459,20 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
               },
               onChanged: () => setFlashRevision((value) => value + 1),
             })
+          : canvasView !== null
+          ? h(CanvasView, {
+              path: canvasView.path,
+              nodes: canvasView.nodes,
+              edges: canvasView.edges,
+              loading: canvasView.loading,
+              error: canvasView.error,
+              t,
+              onOpen: (path) => void openNote(path),
+              onClose: () => {
+                setCanvasView(null)
+                setSelected(null)
+              },
+            })
           : selected === null
           ? h(
               'div',
@@ -11631,7 +12729,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                   'div',
                   { className: 'nb-blocks' },
                   blocks
-                    .filter((block) => !hiddenIds.has(block.id))
+                    .filter((block) => !hiddenIds.has(block.id) && !isFootnoteDefinition(block))
                     .map((block, index) =>
                     h(BlockView, {
                       key: block.id,
@@ -11691,6 +12789,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                       onCloseMenu: () => setMenuFor(null),
                     }),
                   ),
+                  h(FootnoteList, { key: 'footnotes', blocks, t }),
                 ),
                 h('button', { className: 'nb-add', onClick: addBlock }, `+ ${t('addBlock')}`),
                 backlinks.length > 0 || outgoing.length > 0 || mentions.length > 0
@@ -13649,6 +14748,17 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         groupCollectionRows,
         isTemplateHref,
         isBlankBlockText,
+        parseBasesView,
+        parseBasesConfig,
+        collectFootnotes,
+        canvasBounds,
+        CanvasView,
+        isFootnoteDefinition,
+        renderLatexMath,
+        makeBaseRow,
+        evalBaseFilter,
+        sortBaseRows,
+        baseRowValue,
         chatNoteToolModel,
         toolBlockArgs,
         toolBlockText,

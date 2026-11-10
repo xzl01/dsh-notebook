@@ -1003,7 +1003,14 @@ check('Markdown converts to safe inline HTML', () => {
   assert(markdownToHtml('*i*') === '<em>i</em>', markdownToHtml('*i*'))
   assert(markdownToHtml('`c`') === '<code>c</code>', markdownToHtml('`c`'))
   assert(markdownToHtml('~~d~~') === '<del>d</del>', markdownToHtml('~~d~~'))
-  assert(markdownToHtml('<b>') === '&lt;b&gt;', `escaping failed: ${markdownToHtml('<b>')}`)
+  assert(markdownToHtml('<script>alert(1)</script>').includes('&lt;script&gt;'), `script must stay escaped: ${markdownToHtml('<script>alert(1)</script>')}`)
+  assert(markdownToHtml('<img src=x onerror=alert(1)>').includes('&lt;img'), 'dangerous attributes must escape the tag')
+  assert(markdownToHtml('<span class="x">a</span>') === '<span class="x">a</span>', markdownToHtml('<span class="x">a</span>'))
+  assert(markdownToHtml('<kbd>Ctrl</kbd>') === '<kbd>Ctrl</kbd>', markdownToHtml('<kbd>Ctrl</kbd>'))
+  assert(markdownToHtml('==高亮==') === '<mark>高亮</mark>', markdownToHtml('==高亮=='))
+  assert(markdownToHtml('%%注释%%') === '', `comments must disappear: ${markdownToHtml('%%注释%%')}`)
+  assert(markdownToHtml('#标签 内容').startsWith('<span class="nb-tag">#标签</span>'), markdownToHtml('#标签 内容'))
+  assert(markdownToHtml('[^1]').includes('nb-footnote-ref'), markdownToHtml('[^1]'))
   assert(
     markdownToHtml('[t](https://x)') ===
       '<a href="https://x" target="_blank" rel="noreferrer noopener">t</a>',
@@ -1933,6 +1940,108 @@ check('collection views derive columns, filter, sort and group', () => {
   return 'collection helpers'
 })
 
+check('canvas bounds cover every card with padding', () => {
+  const { canvasBounds } = captured.module.__internal
+  const empty = canvasBounds([])
+  assert(empty.width > 0 && empty.height > 0, JSON.stringify(empty))
+  const bounds = canvasBounds([
+    { x: 0, y: 0, width: 200, height: 100 },
+    { x: 400, y: 300, width: 100, height: 50 },
+  ])
+  assert(bounds.minX <= -80, JSON.stringify(bounds))
+  assert(bounds.minY <= -80, JSON.stringify(bounds))
+  assert(bounds.width >= 400 + 100 + 80, JSON.stringify(bounds))
+  assert(bounds.height >= 300 + 50 + 80, JSON.stringify(bounds))
+  return 'canvas bounds'
+})
+
+check('math and footnotes follow Obsidian syntax', () => {
+  const { markdownToHtml, renderLatexMath, collectFootnotes, isFootnoteDefinition } = captured.module.__internal
+  const inline = markdownToHtml('$E=mc^2$')
+  assert(inline.includes('nb-math'), inline)
+  assert(inline.includes('<sup>2</sup>'), inline)
+  const plain = markdownToHtml('$5 and $6')
+  assert(!plain.includes('nb-math'), `currency must not become math: ${plain}`)
+  const frac = renderLatexMath('\\frac{1}{2}')
+  assert(frac.includes('nb-math-frac'), frac)
+  const sqrt = renderLatexMath('\\sqrt{x}')
+  assert(sqrt.includes('nb-math-radicand'), sqrt)
+  const greek = renderLatexMath('\\alpha + \\beta')
+  assert(greek.includes('α') && greek.includes('β'), greek)
+  const blocks = [
+    { type: 'paragraph', text: '正文[^1]' },
+    { type: 'paragraph', text: '[^1]: 脚注内容 **加粗**' },
+    { type: 'paragraph', text: '普通段落' },
+  ]
+  assert(isFootnoteDefinition(blocks[1]) === true, 'definition not detected')
+  assert(isFootnoteDefinition(blocks[0]) === false, 'reference must not be a definition')
+  const notes = collectFootnotes(blocks)
+  assert(notes.length === 1 && notes[0].ref === '1' && notes[0].text.includes('脚注内容'), JSON.stringify(notes))
+  return 'math + footnotes'
+})
+
+check('Bases config parses filters, sort and views', () => {
+  const { parseBasesConfig } = captured.module.__internal
+  const text = [
+    'views:',
+    '  - type: table',
+    '    name: 最近编辑',
+    '    limit: 10',
+    '    filters:',
+    '      and:',
+    '        - \'file.ext == "md"\'',
+    '        - not:',
+    '            - \'file.inFolder("附件")\'',
+    '    sort:',
+    '      - property: file.mtime',
+    '        direction: DESC',
+  ].join('\n')
+  const config = parseBasesConfig(text)
+  assert(config.views.length === 1, JSON.stringify(config.views))
+  assert(config.views[0].type === 'table', JSON.stringify(config.views[0]))
+  assert(config.views[0].name === '最近编辑', JSON.stringify(config.views[0]))
+  assert(config.views[0].limit === 10, JSON.stringify(config.views[0]))
+  assert(Array.isArray(config.views[0].sort), JSON.stringify(config.views[0].sort))
+  assert(config.views[0].sort[0].direction === 'DESC', JSON.stringify(config.views[0].sort))
+  const and = config.views[0].filters.and
+  assert(Array.isArray(and) && and.length === 2, JSON.stringify(and))
+  assert(typeof and[1] === 'object' && Array.isArray(and[1].not), JSON.stringify(and[1]))
+  return 'bases config'
+})
+
+check('Bases filters and sort run on vault rows', () => {
+  const { parseBasesConfig, makeBaseRow, evalBaseFilter, sortBaseRows } = captured.module.__internal
+  const config = parseBasesConfig(
+    ['filters:', '  and:', '    - \'file.ext == "md"\'', '    - not:', '        - \'file.inFolder("附件")\'', 'views:', '  - type: table', '    name: T', '    sort:', '      - property: file.mtime', '        direction: DESC'].join('\n'),
+  )
+  const rows = [
+    makeBaseRow({ path: 'a.md', name: 'a', size: 10, mtimeMs: 100 }, {}),
+    makeBaseRow({ path: '附件/x.md', name: 'x', size: 10, mtimeMs: 300 }, {}),
+    makeBaseRow({ path: '笔记/b.md', name: 'b', size: 10, mtimeMs: 200 }, {}),
+  ]
+  const filtered = rows.filter((row) => evalBaseFilter(config.filters, row, Date.now()))
+  assert(filtered.length === 2, JSON.stringify(filtered.map((row) => row.path)))
+  const sorted = sortBaseRows(filtered, config.views[0].sort)
+  assert(sorted[0].path === '笔记/b.md', JSON.stringify(sorted.map((row) => row.path)))
+  assert(sorted[1].path === 'a.md', JSON.stringify(sorted.map((row) => row.path)))
+  const inFolder = evalBaseFilter('file.inFolder("笔记")', rows[2], Date.now())
+  assert(inFolder === true, 'inFolder failed')
+  return 'filters + sort'
+})
+
+check('Obsidian base code blocks parse their first view', () => {
+  const { parseBasesView } = captured.module.__internal
+  const parsed = parseBasesView('views:\n  - type: table\n    name: 最近编辑\n    limit: 10\n')
+  assert(parsed !== null, 'base block did not parse')
+  assert(parsed.views.length === 1, JSON.stringify(parsed.views))
+  assert(parsed.views[0].type === 'table', JSON.stringify(parsed.views[0]))
+  assert(parsed.views[0].name === '最近编辑', JSON.stringify(parsed.views[0]))
+  const two = parseBasesView('filters:\n  and:\n    - 1\nviews:\n  - type: cards\n    name: Cards\n  - type: kanban\n    name: Board\n')
+  assert(two !== null && two.views.length === 2, JSON.stringify(two))
+  assert(parseBasesView('const x = 1') === null, 'plain code must not parse as bases')
+  return 'bases parse cases'
+})
+
 check('blank blocks treat newline-only text as empty', () => {
   const { isBlankBlockText } = captured.module.__internal
   assert(isBlankBlockText('') === true, 'empty string failed')
@@ -1984,6 +2093,7 @@ check('Workbench renders a selected note with one block view per block', () => {
     '',
     null,
     true,
+    null,
     true,
     '',
     0,

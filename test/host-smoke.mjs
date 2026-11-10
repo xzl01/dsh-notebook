@@ -876,6 +876,39 @@ async function main() {
     assert.equal(empty.code, 'empty_instruction', JSON.stringify(empty))
   })
 
+  await check('canvas files are listed and parsed', async () => {
+    const canvasDir = join(VAULT, '画布')
+    await fsp.mkdir(canvasDir, { recursive: true })
+    await fsp.writeFile(
+      join(canvasDir, '白板.canvas'),
+      JSON.stringify({
+        nodes: [
+          { id: 'a', type: 'text', text: '开始', x: 0, y: 0, width: 200, height: 80 },
+          { id: 'b', type: 'file', file: '笔记/01 工作/第三版.md', x: 260, y: 0, width: 260, height: 120 },
+        ],
+        edges: [{ id: 'e1', fromNode: 'a', toNode: 'b' }],
+      }),
+      'utf8',
+    )
+    const listed = expectOk(await get('/notebook/api/canvases'), 'canvas list')
+    assert(
+      Array.isArray(listed.files) && listed.files.some((file) => file.path === '画布/白板.canvas'),
+      JSON.stringify(listed.files),
+    )
+    const canvas = expectOk(
+      await get('/notebook/api/canvas?path=' + encodeURIComponent('画布/白板.canvas')),
+      'canvas read',
+    )
+    assert(canvas.nodes.length === 2, JSON.stringify(canvas.nodes))
+    assert(canvas.nodes[0].text === '开始', JSON.stringify(canvas.nodes[0]))
+    assert(canvas.edges.length === 1 && canvas.edges[0].fromNode === 'a', JSON.stringify(canvas.edges))
+    const bad = expectReject(
+      await get('/notebook/api/canvas?path=' + encodeURIComponent('不存在.canvas')),
+      'missing canvas',
+    )
+    assert(bad.code === 'missing_canvas', JSON.stringify(bad))
+  })
+
   await check('POST /api/ai streams through the Harness model route', async () => {
     const response = await post('/notebook/api/ai', { task: 'rewrite', text: '原文内容', locale: 'zh' })
     const body = expectOk(response, 'ai rewrite')
