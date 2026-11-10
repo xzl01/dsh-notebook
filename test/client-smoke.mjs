@@ -1955,6 +1955,25 @@ check('canvas bounds cover every card with padding', () => {
   return 'canvas bounds'
 })
 
+check('obsidian-columns callout parses into a columns block', () => {
+  const { parseBlocks, serializeBlocks } = captured.module.__internal
+  const blocks = parseBlocks('> [!col]\n> 左栏 A\n> 左栏 B\n>\n> 右栏 C\n')
+  assert(blocks.length === 1, JSON.stringify(blocks.map((b) => b.type)))
+  assert(blocks[0].type === 'columns', JSON.stringify(blocks[0]))
+  assert(
+    JSON.stringify(blocks[0].columns) === JSON.stringify(['左栏 A\n左栏 B', '右栏 C']),
+    JSON.stringify(blocks[0].columns),
+  )
+  const markdown = serializeBlocks(blocks)
+  assert(markdown.includes('> [!col]') && markdown.includes('> 右栏 C'), markdown)
+  const round = parseBlocks(markdown)
+  assert(round.length === 1 && round[0].type === 'columns', JSON.stringify(round.map((b) => b.type)))
+  assert(round[0].columns.length === 2, JSON.stringify(round[0].columns))
+  const three = parseBlocks('> [!col]\n> A\n>\n> B\n>\n> C\n')
+  assert(three[0].columns.length === 3, JSON.stringify(three[0].columns))
+  return 'columns round-trip'
+})
+
 check('math and footnotes follow Obsidian syntax', () => {
   const { markdownToHtml, renderLatexMath, collectFootnotes, isFootnoteDefinition } = captured.module.__internal
   const inline = markdownToHtml('$E=mc^2$')

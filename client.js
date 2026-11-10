@@ -254,6 +254,9 @@ window.__ModuleLoader__.load({
       basesEmpty: '没有匹配的笔记',
       basesError: '无法加载视图',
       basesUncategorized: '未分类',
+      typeColumns2: '2 栏',
+      typeColumns3: '3 栏',
+      columnsHint: '每栏之间用空行（>）分隔；内容支持行内 Markdown。',
       footnotesTitle: '脚注',
       mermaidTitle: 'Mermaid 图表',
       mermaidSource: '查看源码',
@@ -274,6 +277,9 @@ window.__ModuleLoader__.load({
       basesEmpty: 'No matching notes',
       basesError: 'Could not load the view',
       basesUncategorized: 'Uncategorized',
+      typeColumns2: '2 columns',
+      typeColumns3: '3 columns',
+      columnsHint: 'Separate columns with an empty quoted line (>); inline Markdown is supported.',
       footnotesTitle: 'Footnotes',
       mermaidTitle: 'Mermaid diagram',
       mermaidSource: 'Show source',
@@ -1413,6 +1419,10 @@ window.__ModuleLoader__.load({
 .nb-canvas-tool:hover { border-color: var(--nb-accent); color: var(--nb-text); }
 .nb-canvas-zoom { font-size: 11px; color: var(--nb-text-3); min-width: 38px; text-align: center; }
 .nb-canvas-hint { margin-left: auto; font-size: 10.5px; color: var(--nb-text-3); }
+/* Callout columns (obsidian-columns syntax) */
+.nb-columns { display: grid; gap: 16px; align-items: start; margin: 8px 0; }
+.nb-column { min-width: 0; border: 1px solid var(--nb-line); border-radius: var(--nb-radius-m); padding: 10px 12px; background: var(--nb-panel); }
+.nb-column > :first-child { margin-top: 0; }
 .nb-footnotes { margin-top: 22px; padding-top: 12px; border-top: 1px solid var(--nb-line); }
 .nb-footnotes-title { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--nb-text-3); margin-bottom: 6px; }
 .nb-footnote { display: flex; gap: 8px; font-size: 12px; line-height: 1.65; color: var(--nb-text-2); padding: 2px 0; }
@@ -2251,6 +2261,43 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         if (numbered !== null) {
           flushParagraph()
           blocks.push({ id: makeId(), type: 'numbered', text: numbered[1], indent })
+          continue
+        }
+        const colCallout = /^\s*>\s*\[!col\]([+-]?)\s?(.*)$/i.exec(line)
+        if (colCallout !== null) {
+          flushParagraph()
+          const columns = []
+          let current = []
+          const firstText = String(colCallout[2] ?? '').trim()
+          if (firstText.length > 0) current.push(firstText)
+          let scan = index + 1
+          while (scan < lines.length) {
+            const quoted = /^\s*>\s?(.*)$/.exec(lines[scan])
+            if (quoted === null) break
+            const content = String(quoted[1] ?? '')
+            if (content.trim().length === 0) {
+              if (current.length > 0) {
+                columns.push(current.join('\n'))
+                current = []
+              }
+              scan += 1
+              continue
+            }
+            if (/^\s*\[!col-md(?:-[0-9.]+)?\]/i.test(content.trim())) {
+              if (current.length > 0) {
+                columns.push(current.join('\n'))
+                current = []
+              }
+              scan += 1
+              continue
+            }
+            current.push(content.trim())
+            scan += 1
+          }
+          if (current.length > 0) columns.push(current.join('\n'))
+          if (columns.length === 0) columns.push('')
+          blocks.push({ id: makeId(), type: 'columns', columns, text: columns.join('\n'), indent })
+          index = scan - 1
           continue
         }
         const callout = /^\s*>\s*\[!(\w+)\]([+-]?)\s?(.*)$/.exec(line)
@@ -3328,6 +3375,19 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         case 'callout':
           line = `> [!${block.variant ?? 'note'}] ${text}`
           break
+        case 'columns': {
+          const columns = Array.isArray(block.columns) && block.columns.length > 0 ? block.columns : ['']
+          line = columns
+            .map((column, columnIndex) => {
+              const quoted = String(column ?? '')
+                .split('\n')
+                .map((value) => `> ${value}`)
+                .join('\n')
+              return `${columnIndex === 0 ? '> [!col]' : '>'}\n${quoted}`
+            })
+            .join('\n')
+          break
+        }
         case 'toggle':
           line = `> [!toggle]${block.collapsed === true ? '-' : ''} ${text}`
           break
@@ -7327,6 +7387,26 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           onResize: (id, widths) => onTableResize(id, widths),
           onMoveColumn: (id, from, to) => onTableMoveColumn(id, from, to),
         })
+      } else if (block.type === 'columns' && !editing) {
+        const columns = Array.isArray(block.columns) && block.columns.length > 0 ? block.columns : ['']
+        body = h(
+          'div',
+          {
+            key: 'columns',
+            ref: renderRef,
+            className: 'nb-columns',
+            style: { gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` },
+            onClick: beginEditing,
+            onDoubleClick: beginEditing,
+          },
+          columns.map((column, columnIndex) =>
+            h('div', {
+              key: `col-${columnIndex}`,
+              className: 'nb-column',
+              dangerouslySetInnerHTML: { __html: markdownToHtml(String(column ?? '')) },
+            }),
+          ),
+        )
       } else if (editing) {
         body = h('div', {
           // A distinct key from the display branch forces React to replace this
@@ -7516,6 +7596,8 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         ['code', t('typeCode'), '</>'],
         ['divider', t('typeDivider'), '—'],
         ['table', t('typeTable'), '⊞'],
+        ['columns-2', t('typeColumns2'), '▥'],
+        ['columns-3', t('typeColumns3'), '▥'],
         ['callout', t('typeCallout'), '💡'],
         ['toggle', t('typeToggle'), '▾'],
         ['image', t('typeImage'), '🖼'],
@@ -10342,6 +10424,21 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       }
 
       function pickSlash(blockId, type) {
+        if (type === 'columns-2' || type === 'columns-3') {
+          setSlash(null)
+          setMenuFor(null)
+          const count = type === 'columns-3' ? 3 : 2
+          updateBlocks(
+            blocksRef.current.map((block) =>
+              block.id === blockId
+                ? { ...block, type: 'columns', columns: Array.from({ length: count }, () => ''), text: '' }
+                : block,
+            ),
+          )
+          setEditingId(null)
+          setFocusRequest(null)
+          return
+        }
         if (type === 'image') {
           setSlash(null)
           setMenuFor(null)
