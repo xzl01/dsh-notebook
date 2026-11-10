@@ -243,7 +243,7 @@ window.__ModuleLoader__.load({
       ['Ctrl/Cmd + C / X', 'scCopy'],
       ['Tab / Shift+Tab', 'scTab'],
     ]
-    const inject = ['slots', 'locale']
+    const inject = ['slots', 'locale', 'sessions']
 
     const zh = {
       panelTitle: '笔记本',
@@ -254,6 +254,7 @@ window.__ModuleLoader__.load({
       basesEmpty: '没有匹配的笔记',
       basesError: '无法加载视图',
       basesUncategorized: '未分类',
+      saveToFlash: '存到闪念',
       typeColumns2: '2 栏',
       typeColumns3: '3 栏',
       columnsHint: '每栏之间用空行（>）分隔；内容支持行内 Markdown。',
@@ -277,6 +278,7 @@ window.__ModuleLoader__.load({
       basesEmpty: 'No matching notes',
       basesError: 'Could not load the view',
       basesUncategorized: 'Uncategorized',
+      saveToFlash: 'Save to flash',
       typeColumns2: '2 columns',
       typeColumns3: '3 columns',
       columnsHint: 'Separate columns with an empty quoted line (>); inline Markdown is supported.',
@@ -4212,6 +4214,18 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
 
     function MermaidView({ code, t }) {
       const [state, setState] = React.useState({ status: 'loading', svg: '', error: '' })
+      const [themeTick, setThemeTick] = React.useState(0)
+      React.useEffect(() => {
+        if (typeof MutationObserver === 'undefined' || typeof document === 'undefined') return undefined
+        // DSH re-themes by changing attributes on the root element; re-render the
+        // diagram so its colours follow light/dark switches.
+        const observer = new MutationObserver(() => setThemeTick((value) => value + 1))
+        observer.observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['class', 'style', 'data-theme', 'data-color-scheme'],
+        })
+        return () => observer.disconnect()
+      }, [])
       React.useEffect(() => {
         let disposed = false
         const renderId = `nb-mermaid-${Math.random().toString(36).slice(2, 10)}`
@@ -4229,7 +4243,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         return () => {
           disposed = true
         }
-      }, [code])
+      }, [code, themeTick])
       if (state.status === 'loading') {
         return h(
           'div',
@@ -4955,6 +4969,11 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
     // ---------------------------------------------------------------------
 
     const CHAT_TOOL_CSS = `
+.nb-chat-action { border: none; background: transparent; color: inherit; cursor: pointer; font-size: 13px; line-height: 1; padding: 2px 5px; border-radius: 4px; opacity: .75; }
+.nb-chat-action:hover { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); }
+.nb-chat-action.is-done { color: var(--dsw-alias-state-success-primary, #1a7f4b); }
+.nb-chat-action.is-warn { color: var(--dsw-alias-state-warn-primary, #b45309); }
+
 .nb-chat-tool { display: flex; flex-direction: column; min-width: 0; }
 .nb-chat-tool-row {
   display: flex; align-items: center; gap: 6px; min-width: 0;
@@ -14901,6 +14920,45 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
       )
     }
 
+    /** Icon action on finalized assistant messages: copy the reply into the flash inbox. */
+    function AssistantNotebookAction(props) {
+      const { t, messageId, readMessageText, saveToFlash } = props
+      const [state, setState] = React.useState('idle')
+      const onClick = async (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        if (state === 'saving') return
+        setState('saving')
+        try {
+          const text = typeof readMessageText === 'function' ? await readMessageText(messageId) : null
+          if (text === null || String(text).trim().length === 0) {
+            setState('empty')
+          } else {
+            await saveToFlash(String(text))
+            setState('saved')
+          }
+        } catch {
+          setState('error')
+        }
+        window.setTimeout(() => setState('idle'), 1800)
+      }
+      const label = t('saveToFlash')
+      const symbol =
+        state === 'saving' ? '…' : state === 'saved' ? '✓' : state === 'error' || state === 'empty' ? '!' : '⚡'
+      return h(
+        'button',
+        {
+          type: 'button',
+          className: `nb-chat-action${state === 'saved' ? ' is-done' : ''}${state === 'error' || state === 'empty' ? ' is-warn' : ''}`,
+          title: label,
+          'aria-label': label,
+          onClick,
+          disabled: state === 'saving',
+        },
+        symbol,
+      )
+    }
+
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), `${NS}: dictionaries`)
       const t = ctx.locale.bind(NS)
@@ -14999,6 +15057,62 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
           }),
         ),
       )
+
+      // Finalized assistant reply → one click into the flash inbox.
+      const clientSessions = (() => {
+        try {
+          return ctx.sessions
+        } catch {
+          return undefined
+        }
+      })()
+      if (clientSessions !== undefined && typeof clientSessions.using === 'function') {
+        ctx.slots.inject('conversation.chat.assistant-actions', () =>
+          ctx.slots.register(
+            {
+              name: 'conversation.chat.assistant-actions',
+              id: `${NS}:flash`,
+              order: 20,
+              locale: NS,
+              inject: (sessionId) => ({
+                readMessageText: async (messageId) => {
+                  return clientSessions.using(
+                    sessionId,
+                    { source: 'controllerOperation' },
+                    async (reference) => {
+                      const binding = await reference.ready
+                      const window = binding.eventSource.getSnapshot()
+                      const entries = Array.isArray(window?.entries) ? window.entries : []
+                      let fallback = ''
+                      for (const entry of entries) {
+                        if (entry === null || entry === undefined || entry.type !== 'event') continue
+                        const event = entry.event
+                        if (event === null || event === undefined || event.type !== 'assistant/message') continue
+                        const message = event.data?.message ?? event.message
+                        if (message === null || message === undefined) continue
+                        const blocks = Array.isArray(message.content) ? message.content : []
+                        const value = blocks
+                          .filter((item) => item !== null && item.type === 'text')
+                          .map((item) => String(item.text ?? ''))
+                          .join('\n')
+                          .trim()
+                        if (value.length === 0) continue
+                        fallback = value
+                        if (message.id === messageId) return value
+                      }
+                      return fallback.length > 0 ? fallback : null
+                    },
+                  )
+                },
+                saveToFlash: async (text) => {
+                  await apiPost('/flash/create', { text, category: '摘录', tags: ['对话'] })
+                },
+              }),
+            },
+            (props) => h(AssistantNotebookAction, { ...props, t }),
+          ),
+        )
+      }
 
       ctx.slots.inject('sidebar.panellist', () =>
         ctx.slots.register(

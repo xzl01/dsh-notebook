@@ -153,6 +153,14 @@ DSH 里也可以输入 `/` 选「2 栏 / 3 栏」插入。
 - 支持缩放（+ / − 按钮）；只读预览，编辑仍在 Obsidian 中进行
 - Host 接口：`GET /api/canvases`（列出画布）、`GET /api/canvas?path=`（读取并归一化节点/连线）
 
+## 与 DSH 的原生集成
+
+- **对话回答 → 闪念**：assistant 消息动作行新增 ⚡「存到闪念」，一键把这条回答存进逐日闪念收件箱
+  （通过 `conversation.chat.assistant-actions` 槽位 + Client `sessions` 读取消息文本）
+- **Mermaid 跟随主题**：DSH 切换深浅色/主题时，图表会用新主题 token 重新渲染
+- 其他已有集成：面板槽位、`/note` 命令、`systemPrompt` 当前笔记、`conversation.input.left` 按钮、
+  Agent 工具（list/read/search/write/flash/sync）、工具卡片视图
+
 ## Obsidian 语法兼容
 
 面板里的渲染器对齐 Obsidian 阅读模式的核心语法：
