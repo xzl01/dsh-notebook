@@ -109,7 +109,7 @@ const CONFIG_JSON_SCHEMA = {
       default: '',
       title: 'Vault path',
       description:
-        'Absolute path of the Obsidian vault folder. Empty detects the currently open vault from ~/.config/obsidian/obsidian.json.',
+        'Absolute path of the Obsidian vault folder. Empty detects the vault Obsidian last opened, from its per-platform config (macOS ~/Library/Application Support/obsidian, Windows %APPDATA%/obsidian, Linux ~/.config/obsidian).',
     },
     maxNoteBytes: {
       type: 'number',
@@ -205,12 +205,38 @@ function expandHome(input) {
 }
 
 /**
- * The vault Obsidian currently has open, read from its own recent-vault list.
- * Returns null when Obsidian was never launched or the list is unreadable.
+ * Where Obsidian keeps its own configuration on each platform. macOS and Linux
+ * differ by more than a leading dot; Windows has no HOME convention at all, so
+ * APPDATA is used when present and a plain Roaming path otherwise.
  */
-function detectObsidianVault() {
-  try {
-    const record = JSON.parse(readFileSync(join(homedir(), '.config', 'obsidian', 'obsidian.json'), 'utf8'))
+function obsidianConfigPaths() {
+  const home = homedir()
+  const paths = []
+  if (process.platform === 'darwin') {
+    paths.push(join(home, 'Library', 'Application Support', 'obsidian', 'obsidian.json'))
+  } else if (process.platform === 'win32') {
+    const roaming = process.env.APPDATA ?? join(home, 'AppData', 'Roaming')
+    paths.push(join(roaming, 'obsidian', 'obsidian.json'))
+  }
+  // XDG/config-dir installs also appear on macOS (custom profiles) and are the
+  // normal location on Linux, so they stay as a fallback on every platform.
+  paths.push(join(home, '.config', 'obsidian', 'obsidian.json'))
+  return [...new Set(paths)]
+}
+
+/**
+ * The vault Obsidian currently has open, read from its own recent-vault list.
+ * Returns null when Obsidian was never launched or every config is unreadable.
+ * Exported so a test can point it at a temporary home directory.
+ */
+export function detectObsidianVault(configPaths = obsidianConfigPaths()) {
+  for (const configPath of configPaths) {
+    let record
+    try {
+      record = JSON.parse(readFileSync(configPath, 'utf8'))
+    } catch {
+      continue
+    }
     const vaults = Object.entries(record?.vaults ?? {})
       .map(([id, value]) => ({
         id,
@@ -219,14 +245,13 @@ function detectObsidianVault() {
         ts: Number(value?.ts) || 0,
       }))
       .filter((entry) => entry.path.length > 0)
-    if (vaults.length === 0) return null
+    if (vaults.length === 0) continue
     const open = vaults.find((entry) => entry.open)
     if (open !== undefined) return open.path
     vaults.sort((a, b) => b.ts - a.ts)
     return vaults[0].path
-  } catch {
-    return null
   }
+  return null
 }
 
 function isMarkdownFile(path) {
@@ -542,6 +567,19 @@ function createVault(config) {
     }
     const content = await fsp.readFile(abs, 'utf8')
     return { path: rel, content, size: stats.size, mtimeMs: Math.round(stats.mtimeMs) }
+  }
+
+  /**
+   * Cheap existence + mtime probe for the open note, so the panel can notice
+   * that the agent (or Obsidian) rewrote the file without fetching its body.
+   */
+  async function stat(path) {
+    const base = requireRoot()
+    const { abs, rel } = resolveNotePath(base, path)
+    await assertInsideVault(abs, rel)
+    const stats = await statOrNull(abs)
+    if (stats === null || !stats.isFile()) return { path: rel, exists: false, size: 0, mtimeMs: 0 }
+    return { path: rel, exists: true, size: stats.size, mtimeMs: Math.round(stats.mtimeMs) }
   }
 
   async function writeAtomic(abs, content) {
@@ -920,6 +958,7 @@ function createVault(config) {
     status,
     list,
     read,
+    stat,
     write,
     rename,
     remove,
@@ -1116,7 +1155,8 @@ export function apply(ctx, rawConfig) {
     return { text: `${source}\n\n${excerpts.join('\n\n')}`, notes: excerpts.length }
   }
 
-  async function aiGenerate(input) {
+  /** Validate one AI-panel request before any streaming headers go out. */
+  function aiInputSpec(input) {
     const task = typeof input === 'object' && input !== null ? String(input.task ?? '') : ''
     const spec = AI_TASKS[task]
     if (spec === undefined) throw new NotebookError('Unknown AI task.', 'unknown_ai_task')
@@ -1125,14 +1165,20 @@ export function apply(ctx, rawConfig) {
     if (text.length > AI_MAX_INPUT) {
       throw new NotebookError(`The text is longer than ${AI_MAX_INPUT} characters.`, 'text_too_long')
     }
-    const locale = input.locale === 'en' ? 'en' : 'zh'
+    return { task, spec, text, locale: input.locale === 'en' ? 'en' : 'zh' }
+  }
+
+  /** Run one AI-panel task, optionally mirroring text deltas to a stream. */
+  async function runAiGeneration(prepared, route, emit, signal) {
+    const { task, spec, text, locale } = prepared
     const expanded = await expandNoteReferences(text)
-    const route = await resolveModelRoute()
-    if (route === null) {
-      throw new NotebookError('This Harness has no model configured yet.', 'no_model')
-    }
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS)
+    const onAbort = () => controller.abort()
+    if (signal !== undefined && signal !== null) {
+      if (signal.aborted === true) controller.abort()
+      else signal.addEventListener('abort', onAbort, { once: true })
+    }
     let output = ''
     let failure = null
     try {
@@ -1147,8 +1193,10 @@ export function apply(ctx, rawConfig) {
         temperature: 0.4,
         signal: controller.signal,
       })) {
-        if (chunk.type === 'text-delta') output += chunk.text
-        else if (
+        if (chunk.type === 'text-delta') {
+          output += chunk.text
+          if (typeof emit === 'function') emit({ type: 'delta', text: chunk.text })
+        } else if (
           chunk.type === 'finish' &&
           (chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted')
         ) {
@@ -1157,6 +1205,7 @@ export function apply(ctx, rawConfig) {
       }
     } finally {
       clearTimeout(timer)
+      if (signal !== undefined && signal !== null) signal.removeEventListener('abort', onAbort)
     }
     const result = output.trim()
     if (result.length === 0 && failure !== null) {
@@ -1165,8 +1214,76 @@ export function apply(ctx, rawConfig) {
     return { task, text: result, provider: route.provider, model: route.model }
   }
 
+  async function aiGenerate(input, emit, signal) {
+    const prepared = aiInputSpec(input ?? {})
+    const route = await resolveModelRoute()
+    if (route === null) {
+      throw new NotebookError('This Harness has no model configured yet.', 'no_model')
+    }
+    return runAiGeneration(prepared, route, emit, signal)
+  }
+
+  /** SSE variant for the block/page AI panel: meta, deltas, done. */
+  async function aiStream(req, res, body) {
+    const prepared = aiInputSpec(body ?? {})
+    const route = await resolveModelRoute()
+    if (route === null) throw new NotebookError('This Harness has no model configured yet.', 'no_model')
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    })
+    const send = (event) => {
+      if (res.writableEnded === true || res.destroyed === true) return
+      res.write(`data: ${JSON.stringify(event)}\n\n`)
+    }
+    send({ type: 'meta', provider: route.provider, model: route.model })
+    const controller = new AbortController()
+    const onClose = () => {
+      if (res.writableEnded !== true) controller.abort()
+    }
+    res.on('close', onClose)
+    try {
+      const result = await runAiGeneration(prepared, route, send, controller.signal)
+      send({ type: 'done', text: result.text })
+    } catch (error) {
+      send({ type: 'error', error: String(error?.message ?? '模型调用失败。') })
+    } finally {
+      res.off('close', onClose)
+    }
+    if (res.writableEnded !== true) res.end()
+  }
+
   // ---- Live note, /note command, and agent-style AI (all via Host services) ----
   let currentNote = null
+  /**
+   * What the panel is looking at inside the open note: the block being edited
+   * and the heading it sits under. The agent receives it as prompt context so
+   * "this paragraph" / "这段" resolves without guessing.
+   */
+  let currentFocus = null
+
+  /** Keep the focus hint to a size that is cheap to put in every prompt. */
+  function setCurrentFocus(input) {
+    if (currentNote === null || input === null || typeof input !== 'object') {
+      currentFocus = null
+      return
+    }
+    const path = typeof input.path === 'string' ? input.path.trim() : ''
+    if (path.length === 0 || path !== currentNote.path) return
+    const text = typeof input.text === 'string' ? input.text.replace(/\s+/g, ' ').trim().slice(0, 500) : ''
+    if (text.length === 0) {
+      currentFocus = null
+      return
+    }
+    currentFocus = {
+      text,
+      heading: typeof input.heading === 'string' ? input.heading.replace(/\s+/g, ' ').trim().slice(0, 120) : '',
+      kind: typeof input.kind === 'string' ? input.kind.slice(0, 20) : 'paragraph',
+      updatedAt: Date.now(),
+    }
+  }
 
   /**
    * Remember the note the panel is editing and read enough of it to describe
@@ -1174,6 +1291,7 @@ export function apply(ctx, rawConfig) {
    */
   async function setCurrentNote(path) {
     if (typeof path !== 'string' || path.length === 0) return
+    currentFocus = null
     const entry = { path, updatedAt: Date.now(), title: '', outline: [] }
     currentNote = entry
     try {
@@ -1198,6 +1316,30 @@ export function apply(ctx, rawConfig) {
     }
   }
 
+  function focusKindName(kind) {
+    switch (kind) {
+      case 'heading1':
+      case 'heading2':
+      case 'heading3':
+        return '标题'
+      case 'bullet':
+      case 'numbered':
+        return '列表项'
+      case 'todo':
+        return '待办事项'
+      case 'quote':
+        return '引用'
+      case 'code':
+        return '代码块'
+      case 'callout':
+        return '提示块'
+      case 'toggle':
+        return '折叠列表'
+      default:
+        return '段落'
+    }
+  }
+
   function currentNotePromptText() {
     if (currentNote === null) return ''
     const age = Math.max(0, Math.round((Date.now() - currentNote.updatedAt) / 1000))
@@ -1210,7 +1352,15 @@ export function apply(ctx, rawConfig) {
     if (currentNote.outline.length > 0) {
       parts.push('这篇笔记的大纲：', ...currentNote.outline)
     }
-    parts.push('需要读取或修改它时使用 notebook_read / notebook_write 工具；改动后简短说明改了什么。')
+    if (currentFocus !== null) {
+      const where = currentFocus.heading.length > 0 ? `「${currentFocus.heading}」下` : ''
+      parts.push(
+        `用户当前${where ? '聚焦在' : '正在看'}${where}的${focusKindName(currentFocus.kind)}：`,
+        `> ${currentFocus.text.slice(0, 300)}`,
+        '用户说「这段 / 这里 / 当前块」时指的就是它。',
+      )
+    }
+    parts.push('需要读取或修改笔记时使用 notebook_read / notebook_write 工具；改动后简短说明改了什么。')
     return parts.join('\n')
   }
 
@@ -1343,17 +1493,27 @@ export function apply(ctx, rawConfig) {
           definitionId: 'dsh-notebook:note',
           name: 'note',
           description:
-            'Notebook: 显示当前笔记；/note <名字> 切换；/note save [标题] 保存对话；/note new [标题] 新建笔记',
-          input: { hint: '<名字> | save [标题] | new [标题]' },
+            'Notebook: 显示当前笔记；/note <名字> 切换；/note save [标题] 保存对话；/note new [标题] 新建笔记；' +
+            '/note ask <问题> 让笔记本的只读 Agent 回答；/note agent <任务> 起子 Agent 改写笔记',
+          input: { hint: '<名字> | save [标题] | new [标题] | ask <问题> | agent <任务>' },
           handler: async (invocation) => {
             const raw = typeof invocation?.rawInput === 'string' ? invocation.rawInput.trim() : ''
             if (raw.length === 0) {
-              return currentNote === null
-                ? { kind: 'success', text: '笔记本还没有打开任何笔记，先在笔记面板里打开一篇。' }
-                : {
-                    kind: 'success',
-                    text: `当前笔记：${currentNote.path}${currentNote.title.length > 0 ? `（${currentNote.title}）` : ''}`,
-                  }
+              if (currentNote === null) {
+                return { kind: 'success', text: '笔记本还没有打开任何笔记，先在笔记面板里打开一篇。' }
+              }
+              const focusLine =
+                currentFocus === null
+                  ? ''
+                  : `\n正在编辑：${currentFocus.heading.length > 0 ? `「${currentFocus.heading}」下` : ''}${
+                      focusKindName(currentFocus.kind)
+                    }「${currentFocus.text.slice(0, 80)}${currentFocus.text.length > 80 ? '…' : ''}」`
+              return {
+                kind: 'success',
+                text: `当前笔记：${currentNote.path}${
+                  currentNote.title.length > 0 ? `（${currentNote.title}）` : ''
+                }${focusLine}`,
+              }
             }
             const [verbRaw, ...restWords] = raw.split(/\s+/)
             const verb = String(verbRaw ?? '').toLowerCase()
@@ -1365,6 +1525,21 @@ export function apply(ctx, rawConfig) {
                 return { kind: 'error', text: '用法：/note agent <要做的事>，例如 /note agent 把当前笔记整理成小节' }
               }
               return runNotebookSubagent(invocation, rest)
+            }
+            if (verb === 'ask') {
+              if (rest.length === 0) {
+                return { kind: 'error', text: '用法：/note ask <问题>，例如 /note ask 这篇笔记的结论是什么' }
+              }
+              try {
+                const result = await askAgentRun({
+                  question: rest,
+                  path: currentNote === null ? '' : currentNote.path,
+                  locale: 'zh',
+                })
+                return { kind: 'success', text: result.text }
+              } catch (error) {
+                return { kind: 'error', text: `提问失败：${error.message}` }
+              }
             }
             if (verb === 'open') {
               return currentNote === null
@@ -1565,6 +1740,334 @@ export function apply(ctx, rawConfig) {
     return { text: '已达到执行步数上限，请查看笔记确认结果。', steps, writes, provider: route.provider, model: route.model }
   }
 
+  const ASK_MAX_QUESTION = 4000
+  const ASK_MAX_CONTEXT = 16000
+  const ASK_HISTORY_TURNS = 8
+  const ASK_MAX_TOKENS = 2000
+  const ASK_AGENT_MAX_STEPS = 5
+
+  const ASK_AGENT_SYSTEM_ZH = [
+    '你是 DSH 笔记本里的检索助手，可以读取和搜索用户的 Obsidian 笔记，但不能修改任何文件。',
+    '每次只输出一个 JSON 对象，不要输出解释或 Markdown 代码块：',
+    '{"tool":"list","folder":"可选目录"} 列出笔记',
+    '{"tool":"read","path":"笔记路径"} 读取笔记全文',
+    '{"tool":"search","query":"关键词"} 全文搜索',
+    '{"done":"给用户的回答"} 能回答时结束',
+    '规则：需要时先查再答；引用笔记时写明路径；回答用中文 Markdown，简洁直接；不要建议或执行写操作。',
+  ].join('\n')
+
+  const ASK_AGENT_SYSTEM_EN = [
+    'You are the retrieval assistant inside the DSH notebook. You may read and search the user\'s Obsidian notes but must not modify any file.',
+    'Emit exactly one JSON object per reply, no prose and no code fences:',
+    '{"tool":"list","folder":"optional folder"} list notes',
+    '{"tool":"read","path":"vault-relative path"} read a note',
+    '{"tool":"search","query":"text"} full-text search',
+    '{"done":"answer for the user"} finish when you can answer',
+    'Rules: look things up when needed; name the note paths you quote; answer concisely in English Markdown; never write.',
+  ].join('\n')
+
+  /**
+   * One read-only agent pass behind the ask panel's Agent mode: the model may
+   * list/read/search notes across the vault, but a write action is refused no
+   * matter what it emits.
+   */
+  async function askAgentRun(input, emit) {
+    const question = typeof input?.question === 'string' ? input.question.trim() : ''
+    if (question.length === 0) throw new NotebookError('请先输入问题。', 'empty_question')
+    if (question.length > ASK_MAX_QUESTION) throw new NotebookError('问题太长了。', 'question_too_long')
+    const route = await resolveModelRoute()
+    if (route === null) throw new NotebookError('这个 Harness 还没有配置可用的模型。', 'no_model')
+    const locale = input?.locale === 'en' ? 'en' : 'zh'
+    const path = typeof input?.path === 'string' ? input.path.trim() : ''
+    const focus = currentFocus !== null && currentNote !== null && currentNote.path === path ? currentFocus : null
+    const selection =
+      typeof input?.selection === 'string' ? input.selection.replace(/\s+/g, ' ').trim().slice(0, 1000) : ''
+    const task = [
+      path.length > 0 ? `当前笔记：${path}` : '',
+      focus !== null
+        ? `当前聚焦：${focus.heading.length > 0 ? `「${focus.heading}」下` : ''}${focusKindName(focus.kind)}：${focus.text.slice(0, 300)}`
+        : '',
+      selection.length > 0 ? `选中的文字：${selection}` : '',
+      `问题：${question}`,
+    ]
+      .filter(Boolean)
+      .join('\n')
+    const system = locale === 'en' ? ASK_AGENT_SYSTEM_EN : ASK_AGENT_SYSTEM_ZH
+    const outerSignal = input?.signal
+    const history = []
+    const steps = []
+    for (let step = 0; step < ASK_AGENT_MAX_STEPS; step += 1) {
+      const prompt =
+        step === 0
+          ? task
+          : [
+              task,
+              '已执行步骤：',
+              ...history.map((entry, index) => `${index + 1}. ${entry.tool} → ${entry.result}`),
+              '请继续：输出下一个 JSON 动作，或 {"done":"给用户的回答"} 结束。',
+            ].join('\n')
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS)
+      const onAbort = () => controller.abort()
+      if (outerSignal !== undefined && outerSignal !== null) {
+        if (outerSignal.aborted === true) controller.abort()
+        else outerSignal.addEventListener('abort', onAbort, { once: true })
+      }
+      let reply = ''
+      let failure = null
+      try {
+        for await (const chunk of ctx.llm.stream({
+          provider: route.provider,
+          model: route.model,
+          system,
+          messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+          maxTokens: 1200,
+          temperature: 0.2,
+          signal: controller.signal,
+        })) {
+          if (chunk.type === 'text-delta') reply += chunk.text
+          else if (
+            chunk.type === 'finish' &&
+            (chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted')
+          ) {
+            failure = chunk.reason.failure
+          }
+        }
+      } finally {
+        clearTimeout(timer)
+        if (outerSignal !== undefined && outerSignal !== null) outerSignal.removeEventListener('abort', onAbort)
+      }
+      if (outerSignal !== undefined && outerSignal !== null && outerSignal.aborted === true) {
+        throw new NotebookError('已取消。', 'aborted')
+      }
+      const content = reply.trim()
+      if (content.length === 0 && failure !== null) {
+        throw new NotebookError(failure.message ?? 'The model call failed.', 'model_error')
+      }
+      const action = parseAiAction(content)
+      if (action === null) return { text: content, steps, provider: route.provider, model: route.model }
+      if (typeof action.done === 'string' && action.done.trim().length > 0) {
+        return { text: action.done.trim(), steps, provider: route.provider, model: route.model }
+      }
+      if (typeof action.tool === 'string') {
+        const tool = String(action.tool)
+        let resultText = ''
+        try {
+          if (tool === 'write') throw new NotebookError('只读模式不能修改笔记。', 'read_only')
+          resultText = await aiToolCall(action)
+          steps.push({ tool, ok: true })
+          if (typeof emit === 'function') emit({ type: 'step', tool, ok: true })
+        } catch (error) {
+          resultText = `ERROR: ${error.message}`
+          steps.push({ tool, ok: false })
+          if (typeof emit === 'function') emit({ type: 'step', tool, ok: false })
+        }
+        history.push({ tool, result: String(resultText).slice(0, 800) })
+        continue
+      }
+      return { text: content, steps, provider: route.provider, model: route.model }
+    }
+    return { text: '已达到执行步数上限，请把问题问得更具体一些。', steps, provider: route.provider, model: route.model }
+  }
+
+  /** The system prompt for the notebook's ask panel: the note, focus and rules. */
+  function askPromptText(locale, notePath, noteTitle, noteContent, focus, selection) {
+    const lines = []
+    if (locale === 'en') {
+      lines.push(
+        'You are the Q&A assistant inside the DSH notebook panel. The user is reading a Markdown note; answer from it, explain, point out gaps or contradictions, and suggest next steps.',
+      )
+      lines.push(`Note path: ${notePath}`)
+      if (noteTitle.length > 0) lines.push(`Note title: ${noteTitle}`)
+      if (selection.length > 0) {
+        lines.push('The user selected this text in the note:', `> ${selection.slice(0, 800)}`)
+        lines.push('When the user says "this text", "this part" or "here", that is what they mean.')
+      }
+      if (focus !== null) {
+        lines.push(
+          `The user is looking at the ${focusKindName(focus.kind)}${
+            focus.heading.length > 0 ? ` under "${focus.heading}"` : ''
+          }:`,
+        )
+        lines.push(`> ${focus.text.slice(0, 300)}`)
+        lines.push('When the user says "this paragraph" or "here", that is what they mean.')
+      }
+      if (noteContent.length > 0) lines.push('Note content (may be truncated):', '<<<', noteContent, '>>>')
+      lines.push(
+        'Answer in English Markdown, concise. Quote the note as written. Do not invent facts the note does not contain.',
+      )
+    } else {
+      lines.push(
+        '你是 DSH 笔记本面板里的问答助手。用户在阅读一篇 Markdown 笔记：可以基于它回答问题、解释概念、指出没写清楚或前后矛盾的地方，并给出下一步建议。',
+      )
+      lines.push(`笔记路径：${notePath}`)
+      if (noteTitle.length > 0) lines.push(`笔记标题：${noteTitle}`)
+      if (selection.length > 0) {
+        lines.push('用户在笔记里选中了这段文字：', `> ${selection.slice(0, 800)}`)
+        lines.push('用户说「这段 / 这里 / 选中的」时指的就是它。')
+      }
+      if (focus !== null) {
+        lines.push(
+          `用户当前看着${focus.heading.length > 0 ? `「${focus.heading}」下的` : ''}${focusKindName(focus.kind)}：`,
+        )
+        lines.push(`> ${focus.text.slice(0, 300)}`)
+        lines.push('用户说「这段 / 这里」时指的就是它。')
+      }
+      if (noteContent.length > 0) lines.push('笔记内容如下（可能被截断）：', '<<<', noteContent, '>>>')
+      lines.push('用中文 Markdown 简洁回答；引用笔记原文时保持原样；不要编造笔记里没有的事实。')
+    }
+    return lines.join('\n')
+  }
+
+  /**
+   * Stream one answer to the right-panel ask UI as server-sent events. Headers
+   * go out only after every failure that can still become a JSON error; after
+   * that the stream reports its own `error`/`done` events.
+   */
+  async function askStream(req, res, body) {
+    const question = typeof body?.question === 'string' ? body.question.trim() : ''
+    if (question.length === 0) throw new NotebookError('请先输入问题。', 'empty_question')
+    if (question.length > ASK_MAX_QUESTION) throw new NotebookError('问题太长了。', 'question_too_long')
+    const requested = typeof body?.path === 'string' ? body.path.trim() : ''
+    const path = requested.length > 0 ? requested : (currentNote?.path ?? '')
+    let note = null
+    if (path.length > 0) {
+      try {
+        note = await vault.read(path)
+      } catch {
+        note = null
+      }
+    }
+    const route = await resolveModelRoute()
+    if (route === null) throw new NotebookError('这个 Harness 还没有配置可用的模型。', 'no_model')
+    const locale = body?.locale === 'en' ? 'en' : 'zh'
+    const messages = []
+    for (const turn of (Array.isArray(body?.history) ? body.history : []).slice(-ASK_HISTORY_TURNS)) {
+      const text = typeof turn?.text === 'string' ? turn.text.trim().slice(0, ASK_MAX_QUESTION) : ''
+      if (text.length === 0) continue
+      messages.push({
+        role: turn.role === 'assistant' ? 'assistant' : 'user',
+        content: [{ type: 'text', text }],
+      })
+    }
+    messages.push({ role: 'user', content: [{ type: 'text', text: question }] })
+    const focus = currentFocus !== null && currentNote !== null && currentNote.path === path ? currentFocus : null
+    const title = currentNote !== null && currentNote.path === path ? currentNote.title : ''
+    const selection =
+      typeof body?.selection === 'string' ? body.selection.replace(/\s+/g, ' ').trim().slice(0, 1000) : ''
+    const system = askPromptText(locale, path, title, (note?.content ?? '').slice(0, ASK_MAX_CONTEXT), focus, selection)
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    })
+    const send = (event) => {
+      if (res.writableEnded === true || res.destroyed === true) return
+      res.write(`data: ${JSON.stringify(event)}\n\n`)
+    }
+    send({ type: 'meta', provider: route.provider, model: route.model })
+    const controller = new AbortController()
+    // 'request close' fires once the body is consumed; the response closing is
+    // the signal that the browser really went away, so abort on that only.
+    const onClose = () => {
+      if (res.writableEnded !== true) controller.abort()
+    }
+    res.on('close', onClose)
+    const timer = setTimeout(() => controller.abort(), 120000)
+    let failure = null
+    try {
+      for await (const chunk of ctx.llm.stream({
+        provider: route.provider,
+        model: route.model,
+        system,
+        messages,
+        maxTokens: ASK_MAX_TOKENS,
+        temperature: 0.3,
+        signal: controller.signal,
+      })) {
+        if (chunk.type === 'text-delta') send({ type: 'delta', text: chunk.text })
+        else if (
+          chunk.type === 'finish' &&
+          (chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted')
+        ) {
+          failure = chunk.reason.failure ?? { message: '模型调用失败。' }
+        }
+      }
+    } catch (error) {
+      failure = error
+    } finally {
+      clearTimeout(timer)
+      res.off('close', onClose)
+    }
+    if (failure !== null) send({ type: 'error', error: String(failure.message ?? '模型调用失败。') })
+    send({ type: 'done' })
+    if (res.writableEnded !== true) res.end()
+  }
+
+  /**
+   * Stream one read-only agent run: a meta event, one step event per tool call,
+   * the final answer, then done. Validation failures stay JSON errors because
+   * they happen before the headers go out.
+   */
+  async function askAgentStream(req, res, body) {
+    const question = typeof body?.question === 'string' ? body.question.trim() : ''
+    if (question.length === 0) throw new NotebookError('请先输入问题。', 'empty_question')
+    if (question.length > ASK_MAX_QUESTION) throw new NotebookError('问题太长了。', 'question_too_long')
+    const route = await resolveModelRoute()
+    if (route === null) throw new NotebookError('这个 Harness 还没有配置可用的模型。', 'no_model')
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    })
+    const send = (event) => {
+      if (res.writableEnded === true || res.destroyed === true) return
+      res.write(`data: ${JSON.stringify(event)}\n\n`)
+    }
+    send({ type: 'meta', provider: route.provider, model: route.model })
+    const controller = new AbortController()
+    const onClose = () => {
+      if (res.writableEnded !== true) controller.abort()
+    }
+    res.on('close', onClose)
+    try {
+      const result = await askAgentRun({ ...body, signal: controller.signal }, send)
+      send({ type: 'answer', text: result.text, steps: result.steps.length })
+    } catch (error) {
+      send({ type: 'error', error: String(error?.message ?? '检索失败。') })
+    } finally {
+      res.off('close', onClose)
+    }
+    send({ type: 'done' })
+    if (res.writableEnded !== true) res.end()
+  }
+
+  /**
+   * The config editor plus this row's Loader entry, or null when the profile
+   * cannot persist plugin configuration. `ctx.fiber.entry` is the normal path;
+   * `entries()` is the fallback for contexts that do not expose it.
+   */
+  function configWriter() {
+    const editor = typeof ctx.get === 'function' ? ctx.get('configEditor') : undefined
+    if (editor === undefined || editor === null || typeof editor.edit !== 'function') return null
+    let entry = ctx.fiber === undefined || ctx.fiber === null ? undefined : ctx.fiber.entry
+    if (entry === undefined && typeof editor.entries === 'function') {
+      try {
+        const list = editor.entries()
+        entry = (Array.isArray(list) ? list : []).find(
+          (item) => item?.name === '@local/dsh-notebook' || item?.id === 'include:dsh-notebook',
+        )
+      } catch {
+        entry = undefined
+      }
+    }
+    if (entry === undefined) return null
+    return { editor, entry }
+  }
+
   ctx.effect(
     () =>
       ctx.webServer.register({
@@ -1579,7 +2082,38 @@ export function apply(ctx, rawConfig) {
           const path = url.pathname.replace(/^\/notebook/, '')
           try {
             if (req.method === 'GET' && path === '/api/status') {
-              sendJson(res, 200, { ok: true, ...(await vault.status()) })
+              sendJson(res, 200, {
+                ok: true,
+                configWritable: configWriter() !== null,
+                ...(await vault.status()),
+              })
+              return
+            }
+            if (req.method === 'POST' && path === '/api/vault') {
+              const body = await readJsonBody(req)
+              const raw = typeof body?.path === 'string' ? body.path.trim() : ''
+              const target = raw.length === 0 ? '' : expandHome(raw)
+              if (target.length > 0) {
+                const stats = await statOrNull(target)
+                if (stats === null || !stats.isDirectory()) {
+                  throw new NotebookError(`这个目录不存在或不是文件夹：${target}`, 'no_vault')
+                }
+              }
+              const writer = configWriter()
+              if (writer === null) {
+                throw new NotebookError(
+                  '当前 profile 没有可用的配置编辑器，请到插件页把 vaultPath 改成笔记库路径。',
+                  'config_unavailable',
+                )
+              }
+              sendJson(res, 200, { ok: true, path: target, restarting: true })
+              // Apply after the response flushes: a config change restarts this
+              // plugin row, which would dispose the route mid-request.
+              setTimeout(() => {
+                Promise.resolve()
+                  .then(() => writer.editor.edit(writer.entry, (current) => ({ ...(current ?? {}), vaultPath: target })))
+                  .catch(() => {})
+              }, 80)
               return
             }
             if (req.method === 'GET' && path === '/api/list') {
@@ -1597,6 +2131,7 @@ export function apply(ctx, rawConfig) {
                 title: currentNote === null ? null : currentNote.title,
                 outline: currentNote === null ? [] : currentNote.outline,
                 updatedAt: currentNote === null ? null : currentNote.updatedAt,
+                focus: currentFocus,
               })
               return
             }
@@ -1608,7 +2143,28 @@ export function apply(ctx, rawConfig) {
                 path: currentNote === null ? null : currentNote.path,
                 title: currentNote === null ? null : currentNote.title,
                 outline: currentNote === null ? [] : currentNote.outline,
+                focus: currentFocus,
               })
+              return
+            }
+            if (req.method === 'POST' && path === '/api/focus') {
+              const body = await readJsonBody(req)
+              setCurrentFocus(body)
+              sendJson(res, 200, { ok: true, focus: currentFocus })
+              return
+            }
+            if (req.method === 'GET' && path === '/api/stat') {
+              sendJson(res, 200, { ok: true, ...(await vault.stat(url.searchParams.get('path') ?? '')) })
+              return
+            }
+            if (req.method === 'POST' && path === '/api/ask') {
+              const body = await readJsonBody(req)
+              await askStream(req, res, body)
+              return
+            }
+            if (req.method === 'POST' && path === '/api/ask/agent') {
+              const body = await readJsonBody(req)
+              await askAgentStream(req, res, body)
               return
             }
             if (req.method === 'POST' && path === '/api/ai/agent') {
@@ -1619,6 +2175,11 @@ export function apply(ctx, rawConfig) {
             if (req.method === 'POST' && path === '/api/ai') {
               const body = await readJsonBody(req)
               sendJson(res, 200, { ok: true, ...(await aiGenerate(body ?? {})) })
+              return
+            }
+            if (req.method === 'POST' && path === '/api/ai/stream') {
+              const body = await readJsonBody(req)
+              await aiStream(req, res, body)
               return
             }
             if (req.method === 'GET' && path === '/api/fields') {
@@ -1727,23 +2288,65 @@ export function apply(ctx, rawConfig) {
       ctx.tools.register({
         name: 'notebook_list',
         description:
-          'List Markdown notes in the user\'s Obsidian vault (the notebook workbench). Returns one line per note with ' +
-          'its vault-relative path, size and last-modified time. Call this before reading or writing so paths are exact.',
+          'List the notes directly inside one folder of the user\'s Obsidian vault, plus a count for every subfolder. ' +
+          'Paths are vault-relative; call it before reading or writing so paths are exact. Pass recursive: true to ' +
+          'list every note under the folder instead.',
         parameters: {
           folder: {
             type: 'string',
-            description: 'Optional folder inside the vault to list; omit for the whole vault.',
+            description: 'Optional folder inside the vault to list; omit for the vault root.',
+          },
+          recursive: {
+            type: 'boolean',
+            description: 'List every note under the folder, not only its direct notes. Defaults to false.',
+          },
+          limit: {
+            type: 'number',
+            description: 'Maximum notes to print (default 100, max 500). Folders are summarized separately.',
           },
         },
         output: TOOL_OUTPUT,
         isConcurrencySafe: () => true,
         execute: async (args) => {
-          const result = await vault.list(args?.folder ?? '')
-          const header = `Vault: ${result.vault.path ?? '(none)'} — ${result.notes.length} note(s)`
-          const lines = result.notes.map(
-            (note) => `${note.path}  (${formatBytes(note.size)}, ${new Date(note.mtimeMs).toLocaleString('zh-CN')})`,
-          )
-          return [header, ...lines, result.truncated ? '(list truncated)' : ''].filter(Boolean).join('\n')
+          const result = await vault.list(typeof args?.folder === 'string' ? args.folder : '')
+          const recursive = args?.recursive === true
+          const limit = Math.max(1, Math.min(500, Number(args?.limit) || 100))
+          const base = result.folder.length > 0 ? `${result.folder}/` : ''
+          const direct = []
+          const folders = new Map()
+          for (const note of result.notes) {
+            const rel = base.length > 0 ? note.path.slice(base.length) : note.path
+            const cut = rel.indexOf('/')
+            if (cut < 0) {
+              direct.push(note)
+              continue
+            }
+            const name = rel.slice(0, cut)
+            folders.set(name, (folders.get(name) ?? 0) + 1)
+          }
+          const lines = [
+            `Vault: ${result.vault.path ?? '(none)'} — ${result.notes.length} note(s) under ${
+              result.folder.length > 0 ? `"${result.folder}"` : 'the root'
+            }`,
+          ]
+          const folderNames = [...folders.keys()].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN', { numeric: true }))
+          if (folderNames.length > 0) {
+            lines.push(`Folders (${folderNames.length}):`)
+            for (const name of folderNames) lines.push(`  ${name}/ — ${folders.get(name)} note(s)`)
+          }
+          const pool = recursive ? result.notes : direct
+          const shown = pool.slice(0, limit)
+          lines.push(`Notes (${shown.length} of ${pool.length}):`)
+          for (const note of shown) {
+            lines.push(
+              `  ${note.path}  (${formatBytes(note.size)}, ${new Date(note.mtimeMs).toLocaleString('zh-CN')})`,
+            )
+          }
+          if (pool.length > shown.length) {
+            lines.push('(list truncated — pass a folder, recursive: true with a larger limit, or use notebook_search)')
+          }
+          if (result.truncated) lines.push('(the vault index stopped at maxIndexFiles)')
+          return lines.join('\n')
         },
       }),
     )

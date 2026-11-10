@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Notebook",
-    "description": "A Markdown notebook inside the Harness Web UI: browse, edit and search notes from a local Obsidian vault folder, and let the agent read and write the same notes."
+    "description": "A Notion-style Markdown notebook: browse, edit and search a local Obsidian vault, folder pages and backlinks, plus a built-in Ask AI sidebar (streaming answers, read-only vault agent, clickable citations) over the same notes the agent can read and write."
   }
 }

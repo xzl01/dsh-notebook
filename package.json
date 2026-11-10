@@ -2,7 +2,7 @@
   "name": "@local/dsh-notebook",
   "version": "0.1.0",
   "private": true,
-  "description": "Markdown notebook workbench for the DeepSeek Harness Web UI, backed by an Obsidian vault.",
+  "description": "Notion-style Markdown notebook for the DeepSeek Harness Web UI, backed by an Obsidian vault, with folder pages, a streaming Ask AI sidebar and agent tools over the same notes.",
   "type": "module",
   "exports": {
     ".": "./index.js",

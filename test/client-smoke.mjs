@@ -91,7 +91,18 @@ check('factory returns the plugin shape with the slots/locale injection', () => 
 check('apply registers the sidebar icon and the main workbench', () => {
   const registrations = []
   const disposals = []
+  const shortcutCommands = []
+  const shortcutsMock = {
+    register(command) {
+      shortcutCommands.push(command)
+      return () => {}
+    },
+  }
   const ctx = {
+    inject(services, callback) {
+      assert(services.includes('shortcuts'), 'unexpected injected services')
+      callback({ effect: ctx.effect, shortcuts: shortcutsMock })
+    },
     effect: (callback) => {
       const dispose = callback()
       if (typeof dispose === 'function') disposals.push(dispose)
@@ -123,9 +134,533 @@ check('apply registers the sidebar icon and the main workbench', () => {
   assert(typeof main.component === 'function', 'main panel must be a component')
   const label = panel.options.label()
   assert(typeof label === 'string' && label.length > 0, 'sidebar label is empty')
+  assert(shortcutCommands.length === 1, `expected 1 shortcut, got ${shortcutCommands.length}`)
+  const shortcut = shortcutCommands[0]
+  assert(shortcut.id === 'dsh-notebook.ask', `shortcut id was ${shortcut.id}`)
+  assert(typeof shortcut.defaults['desktop:macos'] === 'object', 'missing macOS default')
+  assert(typeof shortcut.label === 'function' && shortcut.label() === 'askAi', 'shortcut label is wrong')
+  const resolution = shortcut.resolve({})
+  assert(resolution !== null && resolution.status === 'handled', JSON.stringify(resolution))
+  resolution.run()
   captured.panel = panel
   captured.main = main
-  return `id=${panel.options.id}, label=${label}`
+  captured.registrations = registrations
+  return `id=${panel.options.id}, label=${label}, shortcut=${shortcut.id}`
+})
+
+check('apply registers the four notebook chat tool views', () => {
+  const views = captured.registrations.filter((entry) => entry.options.name === 'tool.call.toolview')
+  const keys = views.map((entry) => entry.options.key).sort()
+  assert(
+    keys.join(',') === 'notebook_list,notebook_read,notebook_search,notebook_write',
+    `unexpected tool view keys: ${keys.join(',')}`,
+  )
+  for (const view of views) {
+    assert(view.options.locale === 'dsh-notebook', `${view.options.key} must bind the notebook locale namespace`)
+    assert(typeof view.component === 'function', `${view.options.key} view is not a component`)
+  }
+  // The card renders without the workbench: a fake host owner supplies t and
+  // the disclosure hook, and the row must read the block without throwing.
+  const view = views.find((entry) => entry.options.key === 'notebook_read')
+  const element = view.component({
+    callId: 'call-1',
+    toolName: 'notebook_read',
+    phase: 'start',
+    block: { phase: 'start', name: 'notebook_read', argsRaw: '{"path":"笔记/欢迎.md"}', callId: 'call-1', subCalls: [] },
+    t: (key) => key,
+    useDisclosure: () => ({ expanded: false, toggle: () => {} }),
+    onOpenNote: () => {},
+  })
+  assert(element !== null && typeof element === 'object', 'tool card returned nothing')
+  const tree = element.type(element.props)
+  assert(tree !== null && typeof tree === 'object', 'tool card rendered nothing')
+  assert(tree.props.className === 'nb-chat-tool', 'tool card root class missing')
+  return `${keys.join(', ')}`
+})
+
+check('chat tool rows derive note, mode, size and preview from real tool payloads', () => {
+  const { chatNoteToolModel } = captured.module.__internal
+  const t = (key, params) => (params === undefined ? key : `${key}:${JSON.stringify(params)}`)
+  const started = (name, args) => ({
+    phase: 'start',
+    name,
+    argsRaw: JSON.stringify(args),
+    callId: 'call-1',
+    subCalls: [],
+  })
+  const settled = (name, args, text, isError = false) => ({
+    kind: 'tool-result',
+    callId: 'call-1',
+    call: { name, argsRaw: JSON.stringify(args) },
+    content: [{ type: 'text', text }],
+    isError,
+    meta: {},
+    subCalls: [],
+  })
+
+  const read = chatNoteToolModel(
+    'notebook_read',
+    settled('notebook_read', { path: '笔记/欢迎.md' }, '# 笔记/欢迎.md (221 B)\n\n# 欢迎\n正文'),
+    t,
+  )
+  assert(read.title === 'chatReadNote', `read title was ${read.title}`)
+  assert(read.summary === '欢迎', `read summary was ${read.summary}`)
+  assert(read.suffix === '221 B', `read suffix was ${read.suffix}`)
+  assert(read.path === '笔记/欢迎.md', `read path was ${read.path}`)
+  assert(read.preview === '# 欢迎\n正文', `read preview was ${JSON.stringify(read.preview)}`)
+
+  const write = chatNoteToolModel(
+    'notebook_write',
+    settled('notebook_write', { path: '项目/设计.md', mode: 'append', content: '新的一行' }, 'append 项目/设计.md (1.2 KB)'),
+    t,
+  )
+  assert(write.summary === '设计', `write summary was ${write.summary}`)
+  assert(write.suffix === 'chatModeAppend · 1.2 KB', `write suffix was ${write.suffix}`)
+  assert(write.preview === '新的一行', `write preview was ${JSON.stringify(write.preview)}`)
+
+  const list = chatNoteToolModel(
+    'notebook_list',
+    settled('notebook_list', {}, 'Vault: /v — 2 note(s)\n笔记/a.md  (1 B)\n笔记/b.md  (2 B)'),
+    t,
+  )
+  assert(list.summary === 'chatAllNotes', `list summary was ${list.summary}`)
+  assert(list.suffix === 'chatMatches:{"count":"2"}', `list suffix was ${list.suffix}`)
+
+  const search = chatNoteToolModel(
+    'notebook_search',
+    settled('notebook_search', { query: '待办' }, '2 match(es) for "待办"\n笔记/a.md:3: 待办'),
+    t,
+  )
+  assert(search.summary === '待办', `search summary was ${search.summary}`)
+  assert(search.suffix === 'chatMatches:{"count":"2"}', `search suffix was ${search.suffix}`)
+  assert(search.results.length === 1, `search results was ${search.results.length}`)
+  assert(search.results[0].path === '笔记/a.md', JSON.stringify(search.results[0]))
+  assert(search.results[0].line === 3, JSON.stringify(search.results[0]))
+  assert(search.results[0].text === '待办', JSON.stringify(search.results[0]))
+
+  const emptySearch = chatNoteToolModel(
+    'notebook_search',
+    settled('notebook_search', { query: 'zzz' }, 'No matches for "zzz" in 602 note(s).'),
+    t,
+  )
+  assert(emptySearch.suffix === 'chatMatches:{"count":"0"}', `empty search suffix was ${emptySearch.suffix}`)
+
+  const running = chatNoteToolModel('notebook_read', started('notebook_read', { path: 'a.md' }), t)
+  assert(running.state === 'running', `running state was ${running.state}`)
+  assert(running.preview === '', 'a running call must not preview an empty body')
+  assert(running.suffix === 'chatRunning', `running suffix was ${running.suffix}`)
+
+  const failed = chatNoteToolModel(
+    'notebook_read',
+    settled('notebook_read', { path: 'a.md' }, 'The note does not exist: a.md', true),
+    t,
+  )
+  assert(failed.state === 'error', `error state was ${failed.state}`)
+  assert(failed.suffix === 'chatFailed', `error suffix was ${failed.suffix}`)
+  assert(failed.preview.includes('does not exist'), `error preview was ${JSON.stringify(failed.preview)}`)
+  return 'read/write/list/search/running/error'
+})
+
+check('apply registers the settings row and the composer notebook button', () => {
+  const settings = captured.registrations.find((entry) => entry.options.name === 'settings.general.item')
+  const composer = captured.registrations.find((entry) => entry.options.name === 'conversation.input.left')
+  assert(settings !== undefined, 'no settings.general.item registration')
+  assert(composer !== undefined, 'no conversation.input.left registration')
+  assert(settings.options.id === 'dsh-notebook:vault', `settings id was ${settings.options.id}`)
+  assert(composer.options.id === 'dsh-notebook:composer', `composer id was ${composer.options.id}`)
+
+  const rowElement = settings.component()
+  assert(typeof rowElement.type === 'function', 'settings row is not a component')
+  resetState([null, null, false])
+  const row = rowElement.type(rowElement.props)
+  assert(row !== null && row.props.className === 'nb-set-row', 'settings row markup missing')
+  const hasButton = JSON.stringify(row).includes('nb-set-btn')
+  assert(hasButton, 'settings row draws no controls')
+
+  const buttonElement = composer.component({ inputActions: undefined })
+  assert(buttonElement !== null && typeof buttonElement === 'object', 'composer button returned nothing')
+  const button = buttonElement.type(buttonElement.props)
+  assert(button !== null && button.props.className === 'nb-composer-btn', 'composer button markup missing')
+  assert(button.props['aria-label'] === 'panelTitle', `composer aria-label was ${button.props['aria-label']}`)
+  return 'vault row + composer button'
+})
+
+check('a search tool card renders one clickable row per match', () => {
+  const view = captured.registrations.find(
+    (entry) => entry.options.name === 'tool.call.toolview' && entry.options.key === 'notebook_search',
+  )
+  assert(view !== undefined, 'no notebook_search tool view')
+  const block = {
+    kind: 'tool-result',
+    callId: 'call-search',
+    call: { name: 'notebook_search', argsRaw: '{"query":"待办"}' },
+    content: [
+      {
+        type: 'text',
+        text: '2 match(es) for "待办"\n笔记/a.md:3: 待办一\n笔记/b.md:9: 待办二',
+      },
+    ],
+    isError: false,
+    meta: {},
+    subCalls: [],
+  }
+  const element = view.component({
+    callId: 'call-search',
+    toolName: 'notebook_search',
+    phase: 'result',
+    block,
+    t: (key, params) => (params === undefined ? key : `${key}:${params.count}`),
+    useDisclosure: () => ({ expanded: true, toggle: () => {} }),
+    onOpenNote: () => {},
+  })
+  const tree = element.type(element.props)
+  let rows = 0
+  const walk = (node) => {
+    if (node === null || node === undefined) return
+    if (Array.isArray(node)) {
+      for (const child of node) walk(child)
+      return
+    }
+    if (typeof node !== 'object') return
+    if (typeof node.props?.className === 'string' && node.props.className === 'nb-chat-tool-result') rows += 1
+    if (Array.isArray(node.children)) walk(node.children)
+  }
+  walk(tree)
+  assert(rows === 2, `expected 2 clickable result rows, got ${rows}`)
+  return '2 rows'
+})
+
+check('a write card offers open and version history', () => {
+  const view = captured.registrations.find(
+    (entry) => entry.options.name === 'tool.call.toolview' && entry.options.key === 'notebook_write',
+  )
+  assert(view !== undefined, 'no notebook_write tool view')
+  const block = {
+    kind: 'tool-result',
+    callId: 'call-write',
+    call: { name: 'notebook_write', argsRaw: '{"path":"笔记/a.md","content":"新内容"}' },
+    content: [{ type: 'text', text: 'replace 笔记/a.md (1.2 KB)' }],
+    isError: false,
+    meta: {},
+    subCalls: [],
+  }
+  const element = view.component({
+    callId: 'call-write',
+    toolName: 'notebook_write',
+    phase: 'result',
+    block,
+    t: (key) => key,
+    useDisclosure: () => ({ expanded: false, toggle: () => {} }),
+    onOpenNote: () => {},
+  })
+  const tree = element.type(element.props)
+  const buttons = []
+  const walk = (node) => {
+    if (node === null || node === undefined) return
+    if (Array.isArray(node)) {
+      for (const child of node) walk(child)
+      return
+    }
+    if (typeof node !== 'object') return
+    if (typeof node.props?.className === 'string' && node.props.className.split(' ').includes('nb-chat-tool-open')) {
+      buttons.push(node)
+    }
+    if (Array.isArray(node.children)) walk(node.children)
+  }
+  walk(tree)
+  assert(buttons.length === 2, `expected open + history buttons, got ${buttons.length}`)
+  assert(
+    buttons.some((button) => button.props.title === 'chatHistory'),
+    'history button missing',
+  )
+  return 'open + history'
+})
+
+check('the agent context tracks the block being edited', () => {
+  const { focusPayloadFor } = captured.module.__internal
+  const blocks = [
+    { id: 'h', type: 'heading1', text: '项目' },
+    { id: 'p1', type: 'paragraph', text: '第一段' },
+    { id: 'h2', type: 'heading2', text: '细节' },
+    { id: 'p2', type: 'paragraph', text: '  需要改的句子  ' },
+    { id: 'empty', type: 'paragraph', text: '   ' },
+  ]
+  assert(
+    JSON.stringify(focusPayloadFor(blocks, 'p2')) ===
+      JSON.stringify({ heading: '细节', kind: 'paragraph', text: '需要改的句子' }),
+    `unexpected focus ${JSON.stringify(focusPayloadFor(blocks, 'p2'))}`,
+  )
+  assert(focusPayloadFor(blocks, 'empty') === null, 'an empty block carries no focus')
+  assert(focusPayloadFor(blocks, 'missing') === null, 'a vanished block carries no focus')
+  assert(focusPayloadFor(blocks, 'h').heading === '项目', 'a heading is its own context')
+  return 'heading breadcrumb + text + empty/missing'
+})
+
+check('ask answers render Markdown as safe read-only HTML', () => {
+  const { answerHtml } = captured.module.__internal
+  const html = answerHtml(
+    '## 小节\n\n- 一\n- 二\n\n```\nconst a = 1\n```\n\n> 引用 **重点**\n\n[链接](https://example.com) [坏链](javascript:alert(1))\n',
+  )
+  assert(html.includes('<h4>小节</h4>'), html)
+  assert(html.includes('<ul><li>一</li><li>二</li></ul>'), html)
+  assert(html.includes('<pre><code>const a = 1</code></pre>'), html)
+  assert(html.includes('<blockquote>引用 <strong>重点</strong></blockquote>'), html)
+  assert(html.includes('href="https://example.com"'), html)
+  assert(!html.includes('href="javascript:'), 'unsafe link targets must not become hrefs')
+  const escaped = answerHtml('<img src=x onerror=alert(1)>')
+  assert(escaped.includes('&lt;img'), `raw HTML must be escaped, got ${escaped}`)
+  const table = answerHtml('| a | b |\n| --- | --- |\n| 1 | 2 |\n')
+  assert(table.includes('<table>') && table.includes('<th>a</th>'), table)
+
+  const citations = answerHtml('参考 [[内核中断]] 和 `笔记/01 工作/工作.md`\n\n```\n[[不转换]]\n```\n')
+  assert(citations.includes('data-note="内核中断"'), citations)
+  assert(citations.includes('data-note="笔记/01 工作/工作.md"'), citations)
+  assert(!citations.includes('data-note="不转换"'), 'code block contents must stay code')
+  return 'headings/lists/code/quotes/links/tables/citations/escape'
+})
+
+check('new notes land in the folder a page presents', () => {
+  const { noteDirFor } = captured.module.__internal
+  assert(noteDirFor(null, '笔记') === '笔记/', `explicit folder: ${noteDirFor(null, '笔记')}`)
+  assert(noteDirFor(null, '笔记/') === '笔记/', `trailing slash: ${noteDirFor(null, '笔记/')}`)
+  assert(noteDirFor('/a/b.md', '') === '', `root target: ${noteDirFor('/a/b.md', '')}`)
+  assert(noteDirFor('笔记/01 工作/工作.md', null) === '笔记/01 工作/', 'defaults to the open note')
+  assert(noteDirFor('欢迎.md', null) === '', 'root note has no folder')
+  assert(noteDirFor(null, null) === '', 'nothing open, no target')
+  return 'explicit / default / root'
+})
+
+check('citation names resolve wiki anchors and aliases', () => {
+  const { citationNoteName } = captured.module.__internal
+  assert(citationNoteName('内核中断') === '内核中断', 'plain name')
+  assert(citationNoteName('内核中断#调度') === '内核中断', 'anchor must be dropped')
+  assert(citationNoteName('内核中断|别名') === '内核中断', 'alias must be dropped')
+  assert(citationNoteName('笔记/01 工作/工作.md') === '笔记/01 工作/工作.md', 'path stays intact')
+  return 'name / anchor / alias / path'
+})
+
+check('ask threads survive unmounts and stay bounded', () => {
+  const { rememberAskThread, ASK_THREADS } = captured.module.__internal
+  ASK_THREADS.clear()
+  for (let index = 0; index < 45; index += 1) {
+    rememberAskThread(`note:${index}`, [{ role: 'user', text: String(index) }])
+  }
+  assert(ASK_THREADS.size === 40, `cache size was ${ASK_THREADS.size}`)
+  assert(!ASK_THREADS.has('note:0'), 'the oldest thread must be evicted')
+  assert(ASK_THREADS.has('note:44'), 'the newest thread must be kept')
+  rememberAskThread('note:44', [])
+  assert(ASK_THREADS.size === 40, 'updating an existing thread must not grow the cache')
+  ASK_THREADS.clear()
+  return 'bounded at 40'
+})
+
+check('retry anchors on the last user turn', () => {
+  const { lastUserIndex } = captured.module.__internal
+  const thread = [
+    { role: 'user', text: 'a' },
+    { role: 'assistant', text: 'A' },
+    { role: 'user', text: 'b' },
+    { role: 'assistant', text: '' },
+  ]
+  assert(lastUserIndex(thread) === 2, `got ${lastUserIndex(thread)}`)
+  assert(lastUserIndex([]) === -1, 'an empty thread has no anchor')
+  assert(lastUserIndex(undefined) === -1, 'a missing thread has no anchor')
+  return 'last user / empty / undefined'
+})
+
+check('an inserted answer lands after the focused block', () => {
+  const { insertAfterBlock } = captured.module.__internal
+  const blocks = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+  const afterB = insertAfterBlock(blocks, 'b', [{ id: 'x' }])
+  assert(afterB.map((block) => block.id).join(',') === 'a,b,x,c', JSON.stringify(afterB))
+  const atEnd = insertAfterBlock(blocks, 'missing', [{ id: 'y' }])
+  assert(atEnd.map((block) => block.id).join(',') === 'a,b,c,y', JSON.stringify(atEnd))
+  const noFocus = insertAfterBlock(blocks, null, [{ id: 'z' }])
+  assert(noFocus.map((block) => block.id).join(',') === 'a,b,c,z', JSON.stringify(noFocus))
+  assert(blocks.length === 3, 'the input list must not be mutated')
+  return 'after block / fallback / end'
+})
+
+check('selected text is normalized for the ask prompt', () => {
+  const { normalizeSelectionText } = captured.module.__internal
+  assert(normalizeSelectionText('  第一行\n\n第二行  ') === '第一行 第二行', 'whitespace not collapsed')
+  assert(normalizeSelectionText(undefined) === '', 'missing selection must be empty')
+  assert(normalizeSelectionText('x'.repeat(2000)).length === 800, 'selection must be capped')
+  return 'collapse / empty / cap'
+})
+
+check('the ask panel reads the app language from the locale service', () => {
+  const { activeLocaleId } = captured.module.__internal
+  assert(activeLocaleId({ getSnapshot: () => ({ active: 'en-US' }) }) === 'en', 'en snapshot not detected')
+  assert(activeLocaleId({ getSnapshot: () => ({ active: 'zh-CN' }) }) === 'zh', 'zh snapshot not detected')
+  assert(activeLocaleId({ getSnapshot: () => ({ active: 'ja' }) }) === 'zh', 'unknown locales fall back to zh')
+  assert(activeLocaleId(undefined) === 'zh', 'a missing locale falls back to zh')
+  return 'en / zh / fallback'
+})
+
+check('an external note change reloads when idle and asks while editing', () => {
+  const { noteSyncDecision } = captured.module.__internal
+  assert(noteSyncDecision({ saved: true, editing: false }) === 'reload', 'a clean idle page reloads')
+  assert(noteSyncDecision({ saved: true, editing: true }) === 'warn', 'editing asks before reloading')
+  assert(noteSyncDecision({ saved: false, editing: true }) === 'ignore', 'unsaved edits are never discarded')
+  assert(noteSyncDecision({ saved: false, editing: false }) === 'ignore', 'a pending save is left alone')
+  return 'reload / warn / ignore'
+})
+
+check('an answer becomes a short, clean note title', () => {
+  const { askAnswerTitle } = captured.module.__internal
+  assert(askAnswerTitle('## 中断处理要点\n\n正文', 'fallback') === '中断处理要点', 'heading not stripped')
+  assert(askAnswerTitle('- **结论**：可以用', 'fallback') === '结论：可以用', 'list/bold not stripped')
+  assert(askAnswerTitle('\n\n', 'fallback') === 'fallback', 'empty answer must fall back')
+  assert(askAnswerTitle('x'.repeat(100), 'fallback').length === 60, 'title must be capped')
+  return 'heading / list / empty / cap'
+})
+
+check('a save conflict offers the reload banner instead of a toast', () => {
+  const { saveFailureKind } = captured.module.__internal
+  assert(saveFailureKind('conflict') === 'sync', 'conflicts must use the sync banner')
+  assert(saveFailureKind('missing_note') === 'notice', 'other failures stay a notice')
+  assert(saveFailureKind(undefined) === 'notice', 'unknown failures stay a notice')
+  return 'conflict / other'
+})
+
+check('the composer ask entry queues an open for the next mount', () => {
+  const { requestAskOpen, takePendingAskOpen } = captured.module.__internal
+  assert(takePendingAskOpen() === false, 'the queue starts empty')
+  requestAskOpen()
+  assert(takePendingAskOpen() === true, 'an unmounted panel must keep the request pending')
+  assert(takePendingAskOpen() === false, 'the request is consumed once')
+  return 'pending open'
+})
+
+check('a chat tool card hands its note to the workbench, pending when unmounted', () => {
+  const { requestNoteOpen, subscribeNoteOpen, takePendingNoteOpen } = captured.module.__internal
+  const seen = []
+  const unsubscribe = subscribeNoteOpen((request) => seen.push(request))
+  requestNoteOpen('笔记/欢迎.md')
+  assert(
+    seen.length === 1 && seen[0].path === '笔记/欢迎.md' && seen[0].history === false,
+    `listener saw ${JSON.stringify(seen)}`,
+  )
+  assert(takePendingNoteOpen() === null, 'a delivered request must not stay pending')
+  unsubscribe()
+  requestNoteOpen('笔记/别.md', { history: true })
+  const pending = takePendingNoteOpen()
+  assert(pending !== null && pending.path === '笔记/别.md', 'an undelivered request must stay pending')
+  assert(pending.history === true, 'the history flag must survive the handoff')
+  assert(takePendingNoteOpen() === null, 'pending is consumed once')
+  return 'live panel + mount handoff + history flag'
+})
+
+check('a body of sibling links is detected as a folder page', () => {
+  const { autoFolderPageFor, linkOnlyTarget, resolveNoteLink } = captured.module.__internal
+  const page = (blocks, path = '笔记/01 工作/工作.md') => autoFolderPageFor(blocks, path)
+  const body = [
+    { id: '1', type: 'heading1', text: '工作' },
+    { id: '2', type: 'paragraph', text: '[Linux](<./Linux.md>)' },
+    { id: '3', type: 'paragraph', text: '[讲稿](<./讲稿.md>)' },
+    { id: '4', type: 'paragraph', text: '[[打包工作]]' },
+  ]
+  const detected = page(body)
+  assert(detected !== null, 'a sibling link list was not detected')
+  assert(detected.folder === '笔记/01 工作', `folder was ${detected.folder}`)
+  assert(detected.auto === true, 'detected pages are automatic')
+  assert(detected.links === 3, `links was ${detected.links}`)
+
+  // Two links are a list, not a directory page.
+  assert(page(body.slice(0, 3)) === null, 'two links must not become a folder page')
+  // Prose, other block types, links leaving the folder, or a different title heading stop it.
+  assert(page([...body, { id: '5', type: 'paragraph', text: '补充说明' }]) === null, 'prose must stop detection')
+  assert(page([...body, { id: '6', type: 'bullet', text: '- 条目' }]) === null, 'other blocks must stop detection')
+  assert(
+    page([body[0], body[1], body[2], { id: '7', type: 'paragraph', text: '[生活](../02 生活/生活.md)' }]) === null,
+    'a link outside the folder must stop detection',
+  )
+  assert(page(body, '笔记/01 工作/其他.md') === null, 'a heading that is not the page title must stop detection')
+
+  assert(linkOnlyTarget('[A](<./a.md>)') === './a.md', 'markdown link not read')
+  assert(linkOnlyTarget('[[B#标题|别名]]') === 'B', 'wiki link not read')
+  assert(linkOnlyTarget('普通文字') === null, 'prose reported as a link')
+  assert(resolveNoteLink('笔记/01 工作/工作.md', './Linux.md') === '笔记/01 工作/Linux.md', 'relative link not resolved')
+  assert(resolveNoteLink('笔记/01 工作/工作.md', '[[Linux]]') === '笔记/01 工作/Linux.md', 'wiki target not resolved')
+  assert(resolveNoteLink('顶层.md', '../外面.md') === null, 'a link leaving the vault must resolve to null')
+  return 'detected + five rejection cases'
+})
+
+check('frontmatter type: folder pins the page and can point at another folder', () => {
+  const { folderPageConfigFor, folderPageFor } = captured.module.__internal
+  const pinned = folderPageConfigFor('type: folder\nfolder: 笔记', '笔记/00 首页/爱coding的小龙.md')
+  assert(pinned !== null, 'type: folder was not recognized')
+  assert(pinned.folder === '笔记', `override folder was ${pinned.folder}`)
+  assert(pinned.auto === false, 'a pinned page is explicit')
+  const own = folderPageFor('type: directory', '笔记/01 工作/工作.md', [])
+  assert(own !== null && own.folder === '笔记/01 工作', 'a page without folder: presents its own folder')
+  assert(folderPageConfigFor('type: collection', 'a.md') === null, 'collection pages are not folder pages')
+  // A pinned page whose body is still a sibling link list hides that body too.
+  const linkBody = [
+    { id: '1', type: 'paragraph', text: '[A](./a.md)' },
+    { id: '2', type: 'paragraph', text: '[B](./b.md)' },
+    { id: '3', type: 'paragraph', text: '[C](./c.md)' },
+  ]
+  const pinnedLinks = folderPageFor('type: folder', '笔记/01 工作/工作.md', linkBody)
+  assert(pinnedLinks.linkBody === true, 'a pinned page with a link list must hide the list')
+  const pinnedProse = folderPageFor('type: folder', '笔记/01 工作/工作.md', [
+    { id: '1', type: 'paragraph', text: '一段说明' },
+  ])
+  assert(pinnedProse.linkBody === false, 'a pinned page with prose keeps its body')
+  return 'pinned + override + link body'
+})
+
+check('a folder page lists direct notes and subfolders, excluding itself', () => {
+  const { folderEntriesFor, sortFolderNotes, FolderView } = captured.module.__internal
+  const notes = [
+    { path: '笔记/01 工作/工作.md', name: '工作', size: 10, mtimeMs: 1 },
+    { path: '笔记/01 工作/Linux.md', name: 'Linux', size: 2048, mtimeMs: 20 },
+    { path: '笔记/01 工作/讲稿.md', name: '讲稿', size: 100, mtimeMs: 30 },
+    { path: '笔记/01 工作/子目录/a.md', name: 'a', size: 5, mtimeMs: 40 },
+    { path: '笔记/02 生活/生活.md', name: '生活', size: 5, mtimeMs: 50 },
+  ]
+  const entries = folderEntriesFor(notes, '笔记/01 工作', '笔记/01 工作/工作.md')
+  assert(entries.files.length === 2, `expected 2 direct notes, got ${entries.files.length}`)
+  assert(!entries.files.some((note) => note.name === '工作'), 'the page itself must not be listed')
+  assert(entries.folders.length === 1, `expected 1 subfolder, got ${entries.folders.length}`)
+  assert(entries.folders[0].name === '子目录', `subfolder was ${entries.folders[0].name}`)
+  assert(entries.folders[0].count === 1 && entries.folders[0].notes.length === 1, 'subfolder direct notes are wrong')
+  assert(sortFolderNotes(notes.slice(1, 3), 'updated')[0].name === '讲稿', 'updated sort is not newest-first')
+
+  const countRows = (node) => {
+    let count = 0
+    const walk = (value) => {
+      if (value === null || value === undefined) return
+      if (Array.isArray(value)) {
+        for (const child of value) walk(child)
+        return
+      }
+      if (typeof value !== 'object') return
+      const className = typeof value.props?.className === 'string' ? value.props.className.split(' ') : []
+      if (className.includes('nb-folder-row')) count += 1
+      if (Array.isArray(value.children)) walk(value.children)
+    }
+    walk(node)
+    return count
+  }
+  const props = {
+    t: (key, params) => (params === undefined ? key : `${key}:${params.count}`),
+    folder: '笔记/01 工作',
+    entries,
+    hasBody: true,
+    bodyOpen: false,
+    onToggleBody: () => {},
+    onOpen: () => {},
+    onCreate: () => {},
+  }
+  resetState(['', 'name', {}])
+  const collapsed = countRows(FolderView(props))
+  assert(collapsed === 4, `expected 1 folder + 2 notes + new rows, got ${collapsed}`)
+  resetState(['', 'name', { '笔记/01 工作/子目录': true }])
+  const expanded = countRows(FolderView(props))
+  assert(expanded === 5, `expected the expanded subfolder note, got ${expanded}`)
+  return 'entries + collapsed/expanded rows + new'
 })
 
 check('sidebar glyph renders a theme-aware svg in both states', () => {

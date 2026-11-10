@@ -8,3 +8,6 @@ test/.tmp-outside-secret.md
 # Local logs and OS noise
 *.log
 .DS_Store
+
+# Linkr screen captures
+.linkr/

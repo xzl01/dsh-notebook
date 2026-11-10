@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "笔记本",
-    "description": "在 Harness Web UI 内直接浏览、编辑、搜索本地 Obsidian 仓库里的 Markdown 笔记；对话中的 Agent 也能读写同一批笔记。"
+    "description": "Notion 式 Markdown 笔记工作台：浏览 / 编辑 / 搜索本地 Obsidian 仓库，目录页与双向链接，内置「问 AI」右栏（流式问答、只读 Agent 查库、引用可点），对话中的 Agent 也能读写同一批笔记。"
   }
 }

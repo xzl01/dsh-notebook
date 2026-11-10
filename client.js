@@ -221,6 +221,7 @@ window.__ModuleLoader__.load({
       ['Ctrl/Cmd + S', 'scSave'],
       ['Ctrl/Cmd + Shift + F', 'scZen'],
       ['Ctrl/Cmd + P', 'scQuickOpen'],
+      ['Ctrl/Cmd + Alt + J', 'scAsk'],
       ['Ctrl/Cmd + Z', 'scUndo'],
       ['Ctrl/Cmd + Shift + Z', 'scRedo'],
       ['Ctrl/Cmd + B / I', 'scBold'],
@@ -238,6 +239,9 @@ window.__ModuleLoader__.load({
       searchPlaceholder: '搜索…',
       emptyTitle: '写点什么',
       emptyHint: '从左侧选择一篇笔记，或者新建一页。',
+      vaultEmptyTitle: '还没有找到笔记库',
+      vaultEmptyText: '去 设置 → 通用 → 笔记本笔记库，点「选择目录…」挑一个文件夹；如果 Obsidian 已经打开过仓库，留空会自动检测。',
+      vaultEmptyError: 'Host 返回：{message}',
       noNotes: '还没有笔记',
       notes: '笔记库',
       noResults: '没有找到',
@@ -326,6 +330,7 @@ window.__ModuleLoader__.load({
       scSave: '保存',
       scZen: '禅模式（专注写作）',
       scQuickOpen: '快速打开笔记',
+      scAsk: '打开 / 关闭「问 AI」',
       scUndo: '撤销 / 重做',
       scRedo: '重做',
       scBold: '加粗 / 斜体',
@@ -456,6 +461,75 @@ window.__ModuleLoader__.load({
       linkCancel: '取消',
       linkInvalid: '链接要以 http://、https:// 或 mailto: 开头',
       fmtClear: '清除格式',
+      chatReadNote: '读取笔记',
+      chatWriteNote: '写入笔记',
+      chatListNotes: '列出笔记',
+      chatSearchNotes: '搜索笔记',
+      chatOpenInNotebook: '在笔记本中打开',
+      chatOpen: '打开',
+      chatHistory: '历史',
+      chatAllNotes: '全部笔记',
+      chatModeReplace: '覆盖',
+      chatModeAppend: '追加',
+      chatModeCreate: '新建',
+      chatRunning: '进行中…',
+      chatFailed: '失败',
+      chatMatches: '{count} 条',
+      folderFilter: '筛选笔记…',
+      folderNoteCount: '{count} 篇笔记',
+      folderFolderCount: '{count} 个文件夹',
+      folderSortName: '名称',
+      folderSortUpdated: '最近修改',
+      folderEmpty: '这个目录还没有笔记',
+      folderShowBody: '查看原文',
+      folderHideBody: '收起原文',
+      folderPageOn: '设为目录页',
+      folderPageOff: '取消目录页',
+      folderFolderEmpty: '这个文件夹里没有直接笔记',
+      folderReload: '刷新列表',
+      syncExternal: '这篇笔记在别处被修改了（Agent、Obsidian 或另一个窗口）。',
+      syncReload: '重新加载',
+      menuOpenNotebook: '打开笔记本',
+      menuAskAi: '问 AI（当前笔记）',
+      menuInsertNote: '插入当前笔记',
+      settingsVaultTitle: '笔记本笔记库',
+      settingsPick: '选择目录…',
+      settingsAuto: '自动检测',
+      settingsApplying: '正在应用…',
+      settingsNoVault: '还没有可用的笔记库',
+      settingsDetected: '自动检测',
+      settingsRestart: '改动会重启插件并重新载入笔记面板',
+      settingsUnavailable: '当前 profile 不支持在这里改笔记库，请到插件页修改 vaultPath',
+      askAi: '问 AI',
+      askAbout: '关于《{title}》',
+      askFocus: '聚焦：{text}',
+      askEmpty: '就这篇笔记问点什么：它在讲什么？哪里没写清楚？帮我列个提纲？',
+      askYou: '我',
+      askAgent: 'AI',
+      askPlaceholder: '就这篇笔记提问…（Enter 发送，Shift+Enter 换行）',
+      askSend: '发送',
+      askStop: '停止',
+      askThinking: '思考中…',
+      askNoNote: '先打开一篇笔记',
+      askCopy: '复制',
+      askCopied: '已复制',
+      askInsert: '插入到笔记',
+      askInserted: '已插入',
+      askSave: '存为笔记',
+      askSaved: '已保存',
+      askUntitled: 'AI 回答',
+      askModeNote: '问这篇笔记',
+      askModeAgent: 'Agent 查库',
+      askPlaceholderAgent: '让 Agent 在笔记库里查找并回答…（只读）',
+      askEmptyAgent: 'Agent 模式会按需读取、搜索整个笔记库来回答，不会修改任何文件。',
+      askSelection: '选中：“{text}”',
+      askQuickSummary: '总结这篇笔记的要点',
+      askQuickTodos: '整理这篇的待办和下一步',
+      askQuickExplain: '解释选中的这段文字',
+      askSteps: '检索了 {count} 步',
+      askRetry: '重试',
+      askClear: '清空对话',
+      askNoteMissing: '找不到笔记：{name}',
     }
 
     const en = {
@@ -464,6 +538,9 @@ window.__ModuleLoader__.load({
       searchPlaceholder: 'Search…',
       emptyTitle: 'Write something',
       emptyHint: 'Pick a note on the left, or create a new page.',
+      vaultEmptyTitle: 'No notebook vault yet',
+      vaultEmptyText: 'Open Settings → General → Notebook vault and choose a folder; if Obsidian has been opened before, leaving it empty auto-detects the vault.',
+      vaultEmptyError: 'Host said: {message}',
       noNotes: 'No notes yet',
       notes: 'Vault',
       noResults: 'Nothing found',
@@ -554,6 +631,7 @@ window.__ModuleLoader__.load({
       scSave: 'Save',
       scZen: 'Zen mode (distraction-free)',
       scQuickOpen: 'Quick open a note',
+      scAsk: 'Toggle the ask panel',
       scUndo: 'Undo / redo',
       scRedo: 'Redo',
       scBold: 'Bold / italic',
@@ -684,6 +762,75 @@ window.__ModuleLoader__.load({
       linkCancel: 'Cancel',
       linkInvalid: 'A link must start with http://, https:// or mailto:',
       fmtClear: 'Clear formatting',
+      chatReadNote: 'Read note',
+      chatWriteNote: 'Write note',
+      chatListNotes: 'List notes',
+      chatSearchNotes: 'Search notes',
+      chatOpenInNotebook: 'Open in notebook',
+      chatOpen: 'Open',
+      chatHistory: 'History',
+      chatAllNotes: 'All notes',
+      chatModeReplace: 'Replace',
+      chatModeAppend: 'Append',
+      chatModeCreate: 'Create',
+      chatRunning: 'Running…',
+      chatFailed: 'Failed',
+      chatMatches: '{count} matches',
+      folderFilter: 'Filter notes…',
+      folderNoteCount: '{count} notes',
+      folderFolderCount: '{count} folders',
+      folderSortName: 'Name',
+      folderSortUpdated: 'Updated',
+      folderEmpty: 'This folder has no notes yet',
+      folderShowBody: 'Show source',
+      folderHideBody: 'Hide source',
+      folderPageOn: 'Use as folder page',
+      folderPageOff: 'Stop using as folder page',
+      folderFolderEmpty: 'No notes directly in this folder',
+      folderReload: 'Refresh list',
+      syncExternal: 'This note changed outside this panel (agent, Obsidian or another window).',
+      syncReload: 'Reload',
+      menuOpenNotebook: 'Open notebook',
+      menuAskAi: 'Ask AI (current note)',
+      menuInsertNote: 'Insert current note',
+      settingsVaultTitle: 'Notebook vault',
+      settingsPick: 'Choose folder…',
+      settingsAuto: 'Auto-detect',
+      settingsApplying: 'Applying…',
+      settingsNoVault: 'No vault configured',
+      settingsDetected: 'auto-detected',
+      settingsRestart: 'Changes restart the plugin and reload the notebook panel',
+      settingsUnavailable: 'This profile cannot change the vault here; edit vaultPath on the plugin page',
+      askAi: 'Ask AI',
+      askAbout: 'About "{title}"',
+      askFocus: 'Focus: {text}',
+      askEmpty: 'Ask about this note: what is it about? What is unclear? Outline it for me?',
+      askYou: 'You',
+      askAgent: 'AI',
+      askPlaceholder: 'Ask about this note… (Enter to send, Shift+Enter for a new line)',
+      askSend: 'Send',
+      askStop: 'Stop',
+      askThinking: 'Thinking…',
+      askNoNote: 'Open a note first',
+      askCopy: 'Copy',
+      askCopied: 'Copied',
+      askInsert: 'Insert into note',
+      askInserted: 'Inserted',
+      askSave: 'Save as note',
+      askSaved: 'Saved',
+      askUntitled: 'AI answer',
+      askModeNote: 'Ask this note',
+      askModeAgent: 'Agent search',
+      askPlaceholderAgent: 'Let the agent read and search the vault… (read-only)',
+      askEmptyAgent: 'Agent mode reads and searches the whole vault as needed; it never writes.',
+      askSelection: 'Selected: "{text}"',
+      askQuickSummary: 'Summarize this note',
+      askQuickTodos: 'List its to-dos and next steps',
+      askQuickExplain: 'Explain the selected text',
+      askSteps: 'Searched {count} step(s)',
+      askRetry: 'Retry',
+      askClear: 'Clear conversation',
+      askNoteMissing: 'Note not found: {name}',
     }
 
     const CSS = `
@@ -798,6 +945,10 @@ window.__ModuleLoader__.load({
 .nb-icon-btn { width: 28px; height: 28px; border: none; border-radius: var(--nb-radius-s); background: transparent; color: var(--nb-text-2); cursor: pointer; font-size: 15px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; transition: background .14s var(--nb-ease), color .14s var(--nb-ease); }
 .nb-icon-btn:hover { background: var(--nb-hover); color: var(--nb-text); }
 .nb-notice { flex: 0 0 auto; margin: 8px 18px 0; padding: 8px 12px; border-radius: var(--nb-radius-s); font-size: 12px; background: var(--dsw-alias-state-error-tertiary, var(--nb-hover)); color: var(--dsw-alias-state-error-primary); border: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 18%, transparent); }
+.nb-notice.nb-sync { display: flex; align-items: center; gap: 10px; background: var(--nb-hover); color: var(--nb-text); border-color: var(--nb-line-2); }
+.nb-sync-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-sync-action { flex: none; margin-left: auto; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--nb-line-2); background: var(--nb-card); color: var(--nb-text); font-size: 12px; cursor: pointer; }
+.nb-sync-action:hover { background: var(--nb-panel); }
 .nb-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .nb-doc { max-width: 720px; margin: 0 auto; padding: 36px 60px 40vh; }
 .nb-doc.full { max-width: none; padding-left: 8vw; padding-right: 8vw; }
@@ -948,6 +1099,7 @@ window.__ModuleLoader__.load({
 .nb-menu-empty { padding: 8px 10px; font-size: 12px; color: var(--nb-text-3); }
 .nb-toolbar { position: fixed; z-index: 80; display: flex; gap: 2px; padding: 4px; background: var(--nb-card); border: 1px solid var(--nb-line); border-radius: var(--nb-radius-m); box-shadow: var(--nb-shadow-2); animation: nb-pop .14s var(--nb-ease); }
 .nb-toolbar-btn { min-width: 28px; height: 28px; padding: 0 7px; border: none; border-radius: 5px; background: transparent; color: var(--nb-text); cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; transition: background .12s; }
+.nb-toolbar-btn.nb-toolbar-ask { color: var(--nb-accent); }
 .nb-toolbar-btn:hover { background: var(--nb-hover); }
 .nb-toolbar-bold { font-weight: 700; }
 .nb-toolbar-italic { font-style: italic; }
@@ -976,6 +1128,7 @@ window.__ModuleLoader__.load({
 .nb-empty-text { margin-top: 12px; font-size: 14.5px; color: var(--nb-text-2); line-height: 1.7; }
 .nb-empty-btn { margin-top: 22px; border: 1px solid var(--nb-line-2); background: var(--nb-card); color: var(--nb-text); font-size: 13px; font-weight: 500; padding: 8px 14px; border-radius: var(--nb-radius-s); cursor: pointer; box-shadow: var(--nb-shadow-1); transition: background .14s, border-color .14s; }
 .nb-empty-btn:hover { background: var(--nb-hover); border-color: var(--nb-accent); }
+.nb-empty-error { margin-top: 18px; font-size: 12px; color: var(--nb-text-3); word-break: break-word; }
 .nb-loading { display: flex; align-items: center; justify-content: center; flex: 1 1 auto; color: var(--nb-text-3); font-size: 13px; }
 
 /* ── Embeds ────────────────────────────────────────────── */
@@ -1196,12 +1349,102 @@ window.__ModuleLoader__.load({
   .nb-empty-title { font-size: 32px; }
 }
 
+/* ── Folder page ────────────────────────────────────────── */
+.nb-folder { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 20px; }
+.nb-folder-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.nb-folder-filter { flex: 0 1 210px; min-width: 120px; height: 28px; padding: 0 10px; border: 1px solid var(--nb-line); border-radius: var(--nb-radius-s); background: var(--nb-card); color: var(--nb-text); font-size: 12.5px; outline: none; transition: border-color .14s var(--nb-ease), box-shadow .14s var(--nb-ease); }
+.nb-folder-filter::placeholder { color: var(--nb-text-3); }
+.nb-folder-filter:focus { border-color: var(--nb-accent); box-shadow: 0 0 0 3px var(--nb-accent-ring); }
+.nb-folder-sort { height: 26px; padding: 0 9px; border: 1px solid transparent; border-radius: var(--nb-radius-s); background: transparent; color: var(--nb-text-3); font-size: 12px; cursor: pointer; transition: background .14s var(--nb-ease), color .14s var(--nb-ease); }
+.nb-folder-sort:hover { background: var(--nb-hover); color: var(--nb-text-2); }
+.nb-folder-sort.on { background: var(--nb-hover); color: var(--nb-text); }
+.nb-folder-count { margin-left: auto; color: var(--nb-text-3); font-size: 12px; }
+.nb-folder-list { display: flex; flex-direction: column; border: 1px solid var(--nb-line); border-radius: var(--nb-radius-m); overflow: hidden; background: var(--nb-card); }
+.nb-folder-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 4px 10px; border: none; border-top: 1px solid var(--nb-line); background: transparent; color: var(--nb-text); font-size: 13px; text-align: left; cursor: pointer; }
+.nb-folder-list > .nb-folder-row:first-child { border-top: none; }
+.nb-folder-row:hover { background: var(--nb-hover); }
+.nb-folder-row:focus-visible { outline: 2px solid var(--nb-accent); outline-offset: -2px; }
+.nb-folder-glyph { flex: none; width: 18px; text-align: center; font-size: 13px; line-height: 1; }
+.nb-folder-chevron { flex: none; width: 10px; color: var(--nb-text-3); font-size: 10px; }
+.nb-folder-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-folder-meta { margin-left: auto; flex: none; color: var(--nb-text-3); font-size: 11.5px; }
+.nb-folder-note { padding: 6px 10px; color: var(--nb-text-3); font-size: 12px; }
+.nb-folder-body { align-self: flex-start; margin-top: 2px; padding: 2px 8px; border: none; border-radius: var(--nb-radius-s); background: transparent; color: var(--nb-text-3); font-size: 12px; cursor: pointer; }
+.nb-folder-body:hover { background: var(--nb-hover); color: var(--nb-text-2); }
+.nb-folder-new { color: var(--nb-text-3); }
+.nb-folder-new:hover { color: var(--nb-text); background: var(--nb-hover); }
+
+/* ── Ask-AI right column ───────────────────────────────── */
+.nb-icon-btn.on { color: var(--nb-accent); background: var(--nb-accent-soft); }
+.nb-ask { flex: 0 0 340px; width: 340px; min-width: 260px; max-width: 46%; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--nb-line); background: var(--nb-surface); }
+.nb-ask-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--nb-line); }
+.nb-ask-title { flex: 1 1 auto; font-size: 13px; font-weight: 600; color: var(--nb-text); }
+.nb-ask-model { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--nb-text-3); }
+.nb-ask-context { flex: 0 0 auto; padding: 8px 14px; border-bottom: 1px solid var(--nb-line); min-width: 0; }
+.nb-ask-about { font-size: 12px; color: var(--nb-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-ask-selection { display: flex; align-items: center; gap: 4px; margin-top: 6px; min-width: 0; }
+.nb-ask-selection-text { flex: 1 1 auto; min-width: 0; padding: 3px 8px; border-radius: 6px; background: var(--nb-accent-soft); color: var(--nb-accent); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-ask-focus { margin-top: 3px; font-size: 11.5px; line-height: 1.5; color: var(--nb-text-3); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.nb-ask-thread { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 14px; }
+.nb-ask-empty { color: var(--nb-text-3); font-size: 12.5px; line-height: 1.7; }
+.nb-ask-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.nb-ask-chip { height: 24px; padding: 0 10px; border: 1px solid var(--nb-line-2); border-radius: 999px; background: var(--nb-card); color: var(--nb-text-2); font-size: 12px; cursor: pointer; }
+.nb-ask-chip:hover:not(:disabled) { background: var(--nb-hover); color: var(--nb-text); }
+.nb-ask-chip:disabled { opacity: .5; cursor: default; }
+.nb-ask-msg { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.nb-ask-role { font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--nb-text-3); }
+.nb-ask-text { font-size: 13px; line-height: 1.7; color: var(--nb-text); white-space: pre-wrap; word-break: break-word; }
+.nb-ask-msg.user .nb-ask-text { background: var(--nb-hover); border-radius: var(--nb-radius-m); padding: 7px 10px; }
+.nb-ask-md { font-size: 13px; line-height: 1.7; color: var(--nb-text); white-space: normal; }
+.nb-ask-md p { margin: 0 0 8px; }
+.nb-ask-md p:last-child { margin-bottom: 0; }
+.nb-ask-md h3 { margin: 2px 0 6px; font-size: 15px; line-height: 1.4; }
+.nb-ask-md h4 { margin: 2px 0 6px; font-size: 14px; line-height: 1.4; }
+.nb-ask-md h5 { margin: 2px 0 6px; font-size: 13px; line-height: 1.4; color: var(--nb-text-2); }
+.nb-ask-md ul, .nb-ask-md ol { margin: 0 0 8px; padding-left: 20px; }
+.nb-ask-md li { margin: 2px 0; }
+.nb-ask-md li.todo { display: flex; align-items: baseline; gap: 6px; list-style: none; margin-left: -20px; }
+.nb-ask-md li.todo .box { flex: none; width: 11px; height: 11px; border: 1.5px solid var(--nb-line-2); border-radius: 3px; }
+.nb-ask-md li.todo.done .box { background: var(--nb-accent); border-color: var(--nb-accent); }
+.nb-ask-md li.todo.done { color: var(--nb-text-3); text-decoration: line-through; }
+.nb-ask-md pre { margin: 0 0 8px; padding: 8px 10px; border-radius: 6px; background: var(--nb-panel); overflow-x: auto; }
+.nb-ask-md pre code { padding: 0; background: transparent; }
+.nb-ask-md code { padding: 1px 4px; border-radius: 4px; background: var(--nb-hover); font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+.nb-ask-md blockquote { margin: 0 0 8px; padding: 2px 0 2px 10px; border-left: 3px solid var(--nb-line-2); color: var(--nb-text-2); }
+.nb-ask-md hr { margin: 10px 0; border: none; border-top: 1px solid var(--nb-line); }
+.nb-ask-md table { width: 100%; margin: 0 0 8px; border-collapse: collapse; font-size: 12px; }
+.nb-ask-md th, .nb-ask-md td { padding: 4px 6px; border: 1px solid var(--nb-line-2); text-align: left; }
+.nb-ask-md a { color: var(--nb-accent); }
+.nb-ask-md a.nb-ask-note { color: var(--nb-accent); text-decoration: none; border-bottom: 1px dashed var(--nb-accent-soft); cursor: pointer; }
+.nb-ask-md a.nb-ask-note code { color: var(--nb-accent); background: var(--nb-accent-soft); }
+.nb-ask-error { display: flex; align-items: baseline; gap: 8px; flex: none; margin: 0 14px 8px; font-size: 12px; color: var(--dsw-alias-state-error-primary); }
+.nb-ask-error-text { flex: 1 1 auto; min-width: 0; }
+.nb-ask-steps { font-size: 11px; color: var(--nb-text-3); }
+.nb-ask-msg-actions { display: flex; gap: 6px; margin-top: 2px; }
+.nb-ask-mini { padding: 2px 6px; border: none; border-radius: 4px; background: transparent; color: var(--nb-text-3); font-size: 11px; cursor: pointer; }
+.nb-ask-mini:hover { background: var(--nb-hover); color: var(--nb-text-2); }
+.nb-ask-modes { display: flex; gap: 4px; margin-top: 8px; }
+.nb-ask-mode { height: 22px; padding: 0 8px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--nb-text-3); font-size: 11.5px; cursor: pointer; }
+.nb-ask-mode:hover:not(:disabled) { background: var(--nb-hover); color: var(--nb-text-2); }
+.nb-ask-mode.on { background: var(--nb-accent-soft); color: var(--nb-accent); }
+.nb-ask-mode:disabled { opacity: .6; cursor: default; }
+.nb-ask-compose { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--nb-line); }
+.nb-ask-input { width: 100%; box-sizing: border-box; min-height: 58px; max-height: 160px; resize: vertical; padding: 8px 10px; border: 1px solid var(--nb-line); border-radius: var(--nb-radius-s); background: var(--nb-card); color: var(--nb-text); font: inherit; font-size: 13px; line-height: 1.5; outline: none; transition: border-color .14s var(--nb-ease), box-shadow .14s var(--nb-ease); }
+.nb-ask-input:focus { border-color: var(--nb-accent); box-shadow: 0 0 0 3px var(--nb-accent-ring); }
+.nb-ask-input::placeholder { color: var(--nb-text-3); }
+.nb-ask-actions { display: flex; justify-content: flex-end; }
+.nb-ask-btn { height: 28px; padding: 0 14px; border-radius: var(--nb-radius-s); border: 1px solid var(--nb-line-2); background: var(--nb-card); color: var(--nb-text); font-size: 12.5px; cursor: pointer; }
+.nb-ask-btn.primary { background: var(--nb-accent); border-color: var(--nb-accent); color: #fff; }
+.nb-ask-btn:disabled { opacity: .5; cursor: default; }
+.nb-root.zen .nb-ask { display: none; }
+@media (max-width: 1000px) { .nb-ask { flex: 0 0 300px; width: 300px; max-width: none; } }
+
 /* ── Print ─────────────────────────────────────────────── */
 @media print {
   body * { visibility: hidden; }
   .nb-root, .nb-root * { visibility: visible; }
   .nb-root { position: absolute; inset: 0; display: block; height: auto; background: #fff; color: #000; }
-  .nb-side, .nb-topbar, .nb-tabs, .nb-gutter, .nb-add, .nb-notice, .nb-find, .nb-toolbar, .nb-img-bar, .nb-ghost, .nb-modal, .nb-icon-panel, .nb-col-handle, .nb-row-handle, .nb-col-resize, .nb-toggle-arrow { display: none !important; }
+  .nb-side, .nb-topbar, .nb-tabs, .nb-gutter, .nb-add, .nb-notice, .nb-find, .nb-toolbar, .nb-img-bar, .nb-ghost, .nb-modal, .nb-icon-panel, .nb-ask, .nb-col-handle, .nb-row-handle, .nb-col-resize, .nb-toggle-arrow { display: none !important; }
   .nb-scroll { overflow: visible; height: auto; }
   .nb-doc { max-width: none; padding: 0; margin: 0; }
   .nb-block:hover > .nb-b { background: transparent; }
@@ -1618,6 +1861,271 @@ window.__ModuleLoader__.load({
         map.get(value).push(row)
       }
       return [...map.entries()].map(([value, list]) => ({ value, rows: list }))
+    }
+
+    /** Directory part of a vault-relative note path ('' at the vault root). */
+    function folderOfPath(path) {
+      const text = String(path ?? '')
+      const cut = text.lastIndexOf('/')
+      return cut < 0 ? '' : text.slice(0, cut)
+    }
+
+    /** The single link a block's whole text is, or null for anything else. */
+    function linkOnlyTarget(text) {
+      const value = String(text ?? '').trim()
+      const markdown = /^\[[^\]]*\]\(\s*<?([^)<>]+?)>?\s*\)$/.exec(value)
+      if (markdown !== null) {
+        const target = markdown[1].split('#')[0].trim()
+        return target.length > 0 ? target : null
+      }
+      const wiki = /^!?\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]$/.exec(value)
+      return wiki === null ? null : wiki[1].trim()
+    }
+
+    /** Resolve one note's relative link into a vault-relative path. */
+    function resolveNoteLink(notePath, target) {
+      const raw = String(target ?? '').trim()
+      const wiki = /^!?\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]$/.exec(raw)
+      const text = (wiki !== null ? wiki[1] : raw.split('#')[0]).trim()
+      const base = folderOfPath(notePath).split('/').filter(Boolean)
+      for (const part of text.replace(/\\/g, '/').split('/')) {
+        if (part.length === 0 || part === '.') continue
+        if (part === '..') {
+          if (base.length === 0) return null
+          base.pop()
+          continue
+        }
+        base.push(part)
+      }
+      const joined = base.join('/')
+      if (joined.length === 0) return null
+      return /\.[a-z0-9]+$/i.test(joined) ? joined : `${joined}.md`
+    }
+
+    /**
+     * A page whose body is nothing but links to its own folder's notes reads as
+     * a folder index — `工作.md` listing the notes of `01 工作/`. One leading
+     * heading equal to the page name is allowed (it is the page title written
+     * out again), and three links is the floor so a stray list does not count.
+     */
+    function autoFolderPageFor(blocks, notePath) {
+      const folder = folderOfPath(notePath)
+      const noteName = noteNameFromPath(notePath)
+      const links = []
+      let first = true
+      for (const block of Array.isArray(blocks) ? blocks : []) {
+        const text = String(block?.text ?? '').trim()
+        if (text.length === 0) continue
+        if (first && block.type === 'heading1' && text === noteName) {
+          first = false
+          continue
+        }
+        first = false
+        if (block.type !== 'paragraph') return null
+        const target = linkOnlyTarget(text)
+        if (target === null) return null
+        links.push(target)
+      }
+      if (links.length < 3) return null
+      const targets = new Set()
+      for (const target of links) {
+        const resolved = resolveNoteLink(notePath, target)
+        if (resolved === null || folderOfPath(resolved) !== folder) return null
+        targets.add(resolved)
+      }
+      if (targets.size < 3) return null
+      return { folder, auto: true, links: targets.size }
+    }
+
+    /** Frontmatter `type: folder` / `directory` / `index`, with a `folder:` override. */
+    function folderPageConfigFor(frontmatter, notePath) {
+      const type = frontmatterValue(frontmatter, 'type').trim().toLowerCase()
+      if (type !== 'folder' && type !== 'directory' && type !== 'index') return null
+      const override = frontmatterValue(frontmatter, 'folder').trim().replace(/^\/+|\/+$/g, '')
+      return { folder: override.length > 0 ? override : folderOfPath(notePath), auto: false, links: 0 }
+    }
+
+    /** Resolve the folder a page presents: explicit frontmatter wins, else detection. */
+    function folderPageFor(frontmatter, notePath, blocks) {
+      const linkList = autoFolderPageFor(blocks, notePath)
+      const explicit = folderPageConfigFor(frontmatter, notePath)
+      if (explicit !== null) return { ...explicit, linkBody: linkList !== null }
+      return linkList === null ? null : { ...linkList, linkBody: true }
+    }
+
+    /** Direct notes and subfolders of one folder, from the Host's note list. */
+    function folderEntriesFor(notes, folder, selfPath) {
+      const prefix = folder.length === 0 ? '' : `${folder}/`
+      const files = []
+      const folders = new Map()
+      for (const note of Array.isArray(notes) ? notes : []) {
+        const path = typeof note?.path === 'string' ? note.path : ''
+        if (path.length === 0 || path === selfPath || !path.startsWith(prefix)) continue
+        const rest = path.slice(prefix.length)
+        const cut = rest.indexOf('/')
+        if (cut < 0) {
+          files.push(note)
+          continue
+        }
+        const name = rest.slice(0, cut)
+        if (!folders.has(name)) folders.set(name, { name, path: `${prefix}${name}`, count: 0, notes: [] })
+        const entry = folders.get(name)
+        entry.count += 1
+        if (rest.slice(cut + 1).indexOf('/') < 0) entry.notes.push(note)
+      }
+      const byName = (a, b) => String(a.name).localeCompare(String(b.name), 'zh-Hans-CN', { numeric: true })
+      files.sort(byName)
+      const dirs = [...folders.values()].sort(byName)
+      for (const entry of dirs) entry.notes.sort(byName)
+      return { files, folders: dirs }
+    }
+
+    /** Sort a folder page's notes by name (ascending) or last change (newest first). */
+    function sortFolderNotes(notes, key) {
+      const list = Array.isArray(notes) ? notes.slice() : []
+      if (key === 'updated') return list.sort((a, b) => (Number(b.mtimeMs) || 0) - (Number(a.mtimeMs) || 0))
+      return list.sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh-Hans-CN', { numeric: true }))
+    }
+
+    /** Folder page body: live listing of the folder's notes and subfolders. */
+    function FolderView({ t, folder, entries, hasBody, bodyOpen, onToggleBody, onOpen, onReload, onCreate }) {
+      const [query, setQuery] = React.useState('')
+      const [sort, setSort] = React.useState('name')
+      const [expanded, setExpanded] = React.useState({})
+      const needle = query.trim().toLowerCase()
+      const matches = (note) =>
+        needle.length === 0 || `${note.name ?? ''} ${note.path}`.toLowerCase().includes(needle)
+      const files = sortFolderNotes(entries.files.filter(matches), sort)
+      const folders = entries.folders
+        .map((item) => ({ ...item, notes: item.notes.filter(matches) }))
+        .filter((item) => needle.length === 0 || item.name.toLowerCase().includes(needle) || item.notes.length > 0)
+      const countLabel = [
+        t('folderNoteCount', { count: entries.files.length }),
+        entries.folders.length > 0 ? t('folderFolderCount', { count: entries.folders.length }) : '',
+      ]
+        .filter(Boolean)
+        .join(' · ')
+      const noteRow = (note, depth) =>
+        h(
+          'button',
+          {
+            key: note.path,
+            type: 'button',
+            className: 'nb-folder-row',
+            style: depth > 0 ? { paddingLeft: 12 + depth * 18 } : undefined,
+            onClick: () => onOpen(note.path),
+            title: note.path,
+          },
+          h('span', { className: 'nb-folder-glyph', 'aria-hidden': 'true' }, '📄'),
+          h('span', { className: 'nb-folder-name' }, note.name ?? noteNameFromPath(note.path)),
+          h(
+            'span',
+            { className: 'nb-folder-meta' },
+            [formatBytes(note.size), formatShortDate(note.mtimeMs)].filter(Boolean).join(' · '),
+          ),
+        )
+      const folderRow = (item) => {
+        const open = expanded[item.path] === true
+        return h(
+          'button',
+          {
+            key: item.path,
+            type: 'button',
+            className: 'nb-folder-row nb-folder-row-dir',
+            'aria-expanded': open,
+            onClick: () => setExpanded((previous) => ({ ...previous, [item.path]: !previous[item.path] })),
+            title: item.path,
+          },
+          h('span', { className: 'nb-folder-chevron', 'aria-hidden': 'true' }, open ? '▾' : '▸'),
+          h('span', { className: 'nb-folder-glyph', 'aria-hidden': 'true' }, '📁'),
+          h('span', { className: 'nb-folder-name' }, item.name),
+          h('span', { className: 'nb-folder-meta' }, t('folderFolderCount', { count: item.count })),
+        )
+      }
+      const rows = []
+      for (const item of folders) {
+        rows.push(folderRow(item))
+        if (expanded[item.path] === true) {
+          if (item.notes.length === 0) {
+            rows.push(
+              h('div', { key: `${item.path}:empty`, className: 'nb-folder-note' }, t('folderFolderEmpty')),
+            )
+          } else {
+            for (const note of sortFolderNotes(item.notes, 'name')) rows.push(noteRow(note, 1))
+          }
+        }
+      }
+      for (const note of files) rows.push(noteRow(note, 0))
+      // A folder page is where the folder's next note gets started.
+      if (typeof onCreate === 'function') {
+        rows.push(
+          h(
+            'button',
+            { key: '__new', type: 'button', className: 'nb-folder-row nb-folder-new', onClick: () => onCreate() },
+            h('span', { className: 'nb-folder-glyph', 'aria-hidden': 'true' }, '+'),
+            h('span', { className: 'nb-folder-name' }, t('newNote')),
+          ),
+        )
+      }
+      return h(
+        'div',
+        { className: 'nb-folder' },
+        h(
+          'div',
+          { className: 'nb-folder-bar' },
+          h('input', {
+            className: 'nb-folder-filter',
+            value: query,
+            placeholder: t('folderFilter'),
+            'aria-label': t('folderFilter'),
+            onChange: (event) => setQuery(event.target.value),
+          }),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: `nb-folder-sort${sort === 'name' ? ' on' : ''}`,
+              onClick: () => setSort('name'),
+            },
+            t('folderSortName'),
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: `nb-folder-sort${sort === 'updated' ? ' on' : ''}`,
+              onClick: () => setSort('updated'),
+            },
+            t('folderSortUpdated'),
+          ),
+          typeof onReload === 'function'
+            ? h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'nb-folder-sort',
+                  title: t('folderReload'),
+                  'aria-label': t('folderReload'),
+                  onClick: () => onReload(),
+                },
+                '⟳',
+              )
+            : null,
+          h('span', { className: 'nb-folder-count', title: folder.length === 0 ? '/' : folder }, countLabel),
+        ),
+        h(
+          'div',
+          { className: 'nb-folder-list' },
+          rows.length > 0 ? rows : h('div', { className: 'nb-folder-note' }, t('folderEmpty')),
+        ),
+        hasBody
+          ? h(
+              'button',
+              { type: 'button', className: 'nb-folder-body', onClick: onToggleBody },
+              bodyOpen ? t('folderHideBody') : t('folderShowBody'),
+            )
+          : null,
+      )
     }
 
     /** Table / board view over a folder's notes and their frontmatter fields. */
@@ -2663,6 +3171,67 @@ window.__ModuleLoader__.load({
       return out
     }
 
+    /**
+     * Render a model's Markdown answer as read-only HTML: block structure from
+     * the same parser the editor uses, inline formatting from markdownToHtml
+     * (escaped text, http(s)/mailto links only). Used by the ask panel.
+     */
+    function answerHtml(text) {
+      const blocks = parseBlocks(String(text ?? ''))
+      const html = []
+      let list = null
+      const flush = () => {
+        if (list === null) return
+        html.push(`<${list.tag}>${list.items.join('')}</${list.tag}>`)
+        list = null
+      }
+      for (const block of blocks) {
+        const inline = markdownToHtml(block.text ?? '')
+        if (block.type === 'bullet' || block.type === 'numbered' || block.type === 'todo') {
+          const tag = block.type === 'numbered' ? 'ol' : 'ul'
+          if (list === null || list.tag !== tag) {
+            flush()
+            list = { tag, items: [] }
+          }
+          if (block.type === 'todo') {
+            list.items.push(
+              `<li class="todo${block.checked === true ? ' done' : ''}"><span class="box"></span>${inline}</li>`,
+            )
+          } else {
+            list.items.push(`<li>${inline}</li>`)
+          }
+          continue
+        }
+        flush()
+        if (block.type === 'heading1') html.push(`<h3>${inline}</h3>`)
+        else if (block.type === 'heading2') html.push(`<h4>${inline}</h4>`)
+        else if (block.type === 'heading3') html.push(`<h5>${inline}</h5>`)
+        else if (block.type === 'code') html.push(`<pre><code>${escapeHtml(block.text)}</code></pre>`)
+        else if (block.type === 'quote') html.push(`<blockquote>${inline}</blockquote>`)
+        else if (block.type === 'divider') html.push('<hr>')
+        else if (block.type === 'table') {
+          const rows = Array.isArray(block.rows) ? block.rows : []
+          const head = rows[0] ?? []
+          const body = rows.slice(1)
+          const row = (cells, tag) => `<tr>${cells.map((cell) => `<${tag}>${markdownToHtml(cell)}</${tag}>`).join('')}</tr>`
+          html.push(`<table><thead>${row(head, 'th')}</thead><tbody>${body.map((line) => row(line, 'td')).join('')}</tbody></table>`)
+        } else html.push(`<p>${inline}</p>`)
+      }
+      flush()
+      // Citations become clickable: [[note]] spans and bare vault `.md` paths
+      // inside inline code carry the raw target in data-note.
+      return html
+        .join('')
+        .replace(
+          /<span class="nb-wiki">([^<]*)<\/span>/g,
+          '<a href="#" class="nb-ask-note" data-note="$1">$1</a>',
+        )
+        .replace(
+          /(?<!<pre>)<code>([^<>]+\.md)<\/code>/g,
+          (match, path) => `<a href="#" class="nb-ask-note" data-note="${path}"><code>${path}</code></a>`,
+        )
+    }
+
     function nodeToMarkdown(node) {
       if (node === null || node === undefined) return ''
       if (node.nodeType === 3) return String(node.textContent ?? '')
@@ -2838,6 +3407,730 @@ window.__ModuleLoader__.load({
     }
 
     /* ---------------- components ---------------- */
+
+    // ---------------------------------------------------------------------
+    // Conversation tool cards
+    //
+    // The agent's notebook tools run in the Host; these rows are their face in
+    // the chat: which note was read or written, in which mode, and a direct
+    // jump into the workbench. Clicking "Open" stores the path in NOTE_OPEN,
+    // switches the main panel, and the workbench consumes it on mount (or
+    // immediately while it is already mounted).
+    // ---------------------------------------------------------------------
+
+    const CHAT_TOOL_CSS = `
+.nb-chat-tool { display: flex; flex-direction: column; min-width: 0; }
+.nb-chat-tool-row {
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+  min-height: 24px; padding: 0 6px; border-radius: 6px;
+  color: var(--dsw-alias-label-tertiary); font-size: 13px; line-height: 24px;
+}
+.nb-chat-tool-row[role="button"] { cursor: pointer; }
+.nb-chat-tool-row[role="button"]:hover { color: var(--dsw-alias-label-secondary); background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, .05)); }
+.nb-chat-tool-row[role="button"]:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 1px; }
+.nb-chat-tool-leading { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; flex: none; }
+.nb-chat-tool-title { flex: none; }
+.nb-chat-tool-sep { width: 2px; height: 2px; flex: none; border-radius: 1px; background: currentColor; opacity: .55; }
+.nb-chat-tool-summary {
+  min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--dsw-alias-label-secondary);
+}
+.nb-chat-tool-suffix {
+  flex: none; font-size: 11px; line-height: 16px; padding: 0 6px; border-radius: 999px;
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, .06));
+  color: var(--dsw-alias-label-tertiary);
+}
+.nb-chat-tool[data-state="error"] .nb-chat-tool-suffix { color: var(--dsw-alias-state-error-primary); }
+.nb-chat-tool-open {
+  flex: none; margin-left: auto; padding: 0 8px; border-radius: 999px;
+  border: .5px solid var(--dsw-alias-border-l2); background: transparent;
+  color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; cursor: pointer;
+}
+.nb-chat-tool-open:hover { background: var(--dsw-alias-interactive-bg-hover-solid, rgba(38, 49, 72, .08)); color: var(--dsw-alias-label-primary); }
+.nb-chat-tool-results { display: flex; flex-direction: column; margin: 2px 0 4px 22px; border: .5px solid var(--dsw-alias-border-l1); border-radius: 8px; overflow: hidden; }
+.nb-chat-tool-result { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 4px 10px; border: none; border-top: .5px solid var(--dsw-alias-border-l1); background: transparent; color: var(--dsw-alias-label-secondary); font-size: 12px; text-align: left; cursor: pointer; }
+.nb-chat-tool-result:first-child { border-top: none; }
+.nb-chat-tool-result:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, .05)); }
+.nb-chat-tool-result-path { flex: none; color: var(--dsw-alias-label-tertiary); font-size: 11px; }
+.nb-chat-tool-result-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-chat-tool-body {
+  margin: 2px 0 4px 22px; padding: 8px 10px; max-height: 190px; overflow: auto;
+  border: .5px solid var(--dsw-alias-border-l1); border-radius: 8px;
+  background: var(--dsw-alias-markdown-code-block, var(--dsw-alias-bg-module-platform));
+  color: var(--dsw-alias-label-secondary);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+}
+
+/* Composer notebook button + its body-level menu */
+.nb-composer-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-tertiary); cursor: pointer; }
+.nb-composer-btn:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, .06)); color: var(--dsw-alias-label-secondary); }
+.nb-composer-btn:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 1px; }
+.nb-composer-menu { position: fixed; z-index: 10000; min-width: 168px; padding: 4px; border-radius: 8px; border: .5px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-module-platform, #fff); box-shadow: 0 8px 28px rgba(0, 0, 0, .16); }
+.nb-composer-menu-item { display: flex; align-items: center; width: 100%; padding: 6px 10px; border: none; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-primary); font-size: 13px; text-align: left; cursor: pointer; }
+.nb-composer-menu-item:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, .06)); }
+
+/* Settings → General row for the vault folder */
+.nb-set-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 0; }
+.nb-set-main { min-width: 0; flex: 1 1 260px; }
+.nb-set-title { font-size: 13px; color: var(--dsw-alias-label-primary); }
+.nb-set-sub { margin-top: 2px; font-size: 12px; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
+.nb-set-hint { margin-top: 2px; font-size: 11.5px; color: var(--dsw-alias-label-caption, var(--dsw-alias-label-tertiary)); }
+.nb-set-actions { display: flex; flex: none; gap: 8px; }
+.nb-set-btn { height: 28px; padding: 0 12px; border-radius: 6px; border: .5px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font-size: 12px; cursor: pointer; }
+.nb-set-btn:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, .06)); }
+.nb-set-btn:disabled { opacity: .5; cursor: default; }
+.nb-set-error { flex: 1 1 100%; color: var(--dsw-alias-state-error-primary); font-size: 12px; }
+`
+
+    /** Cross-component mailbox: chat tool card → workbench. */
+    const NOTE_OPEN = { pending: null, listeners: new Set() }
+    /** Set when the Settings row switched the vault while the panel was closed. */
+    const VAULT_CHANGED = { pending: false }
+    /** Ask threads survive the workbench unmounting when the main panel changes. */
+    const ASK_THREADS = new Map()
+    const ASK_THREAD_LIMIT = 40
+
+    function rememberAskThread(key, thread) {
+      ASK_THREADS.delete(key)
+      ASK_THREADS.set(key, thread)
+      while (ASK_THREADS.size > ASK_THREAD_LIMIT) {
+        const oldest = ASK_THREADS.keys().next()
+        if (oldest.done === true) break
+        ASK_THREADS.delete(oldest.value)
+      }
+    }
+    /** Cross-component mailbox: a shortcut asks the open workbench to toggle ask. */
+    const ASK_TOGGLE = { listeners: new Set() }
+
+    /** Cross-component mailbox: open the ask panel (composer menu → workbench). */
+    const ASK_OPEN = { pending: false, listeners: new Set() }
+
+    function requestAskOpen() {
+      ASK_OPEN.pending = true
+      for (const listener of [...ASK_OPEN.listeners]) {
+        try {
+          listener()
+        } catch {
+          /* a stale listener must not break the menu */
+        }
+      }
+      if (ASK_OPEN.listeners.size > 0) ASK_OPEN.pending = false
+    }
+
+    function takePendingAskOpen() {
+      const pending = ASK_OPEN.pending
+      ASK_OPEN.pending = false
+      return pending
+    }
+
+    function requestAskToggle() {
+      for (const listener of [...ASK_TOGGLE.listeners]) {
+        try {
+          listener()
+        } catch {
+          /* a stale listener must not break the shortcut */
+        }
+      }
+    }
+
+    function requestNoteOpen(path, options) {
+      const request = { path, history: options?.history === true }
+      NOTE_OPEN.pending = request
+      let delivered = false
+      for (const listener of [...NOTE_OPEN.listeners]) {
+        try {
+          listener(request)
+          delivered = true
+        } catch {
+          /* a stale listener must not break the click */
+        }
+      }
+      if (delivered) NOTE_OPEN.pending = null
+    }
+
+    function subscribeNoteOpen(listener) {
+      NOTE_OPEN.listeners.add(listener)
+      return () => NOTE_OPEN.listeners.delete(listener)
+    }
+
+    function takePendingNoteOpen() {
+      const request = NOTE_OPEN.pending
+      NOTE_OPEN.pending = null
+      return request
+    }
+
+    /** Open the workbench on one note, whichever main panel is showing. */
+    function openNoteInWorkbench(ctx, path, options) {
+      if (typeof path !== 'string' || path.trim().length === 0) return
+      requestNoteOpen(path.trim(), options)
+      const layout = typeof ctx.get === 'function' ? ctx.get('layout') : undefined
+      if (layout !== undefined && layout !== null && typeof layout.selectPanel === 'function') {
+        layout.selectPanel(NS)
+      }
+    }
+
+    const NOTE_TOOL_TITLE_KEYS = {
+      notebook_read: 'chatReadNote',
+      notebook_write: 'chatWriteNote',
+      notebook_list: 'chatListNotes',
+      notebook_search: 'chatSearchNotes',
+    }
+
+    /** Model-supplied arguments of any Tool block stage; null while preparing. */
+    function toolBlockArgs(block) {
+      if (block === null || typeof block !== 'object' || block.phase === 'preparing') return null
+      const call = 'kind' in block ? block.call : block
+      const raw = call !== null && typeof call === 'object' && typeof call.argsRaw === 'string' ? call.argsRaw : ''
+      if (raw.length === 0) return null
+      try {
+        const value = JSON.parse(raw)
+        return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : null
+      } catch {
+        return null
+      }
+    }
+
+    /** The single text result of a settled Tool call; empty while running. */
+    function toolBlockText(block) {
+      if (block === null || typeof block !== 'object' || !('kind' in block)) return ''
+      const content = Array.isArray(block.content) ? block.content : []
+      return content
+        .filter(
+          (part) =>
+            part !== null && typeof part === 'object' && part.type === 'text' && typeof part.text === 'string',
+        )
+        .map((part) => part.text)
+        .join('\n')
+    }
+
+    function noteNameFromPath(path) {
+      const base = String(path ?? '').split('/').pop() ?? ''
+      return base.replace(/\.(md|markdown|mdown|mkd)$/i, '') || base
+    }
+
+    /** Key for the ask panel's per-note conversation cache. */
+    function askThreadKeyFor(path) {
+      return `note:${path ?? ''}`
+    }
+
+    /** Directory prefix for a new note: an explicit target wins, else the open note's. */
+    function noteDirFor(selectedPath, targetDir) {
+      if (typeof targetDir === 'string') {
+        return targetDir.length === 0 ? '' : `${targetDir.replace(/\/+$/, '')}/`
+      }
+      if (typeof selectedPath !== 'string' || selectedPath.length === 0) return ''
+      const cut = selectedPath.lastIndexOf('/')
+      return cut < 0 ? '' : selectedPath.slice(0, cut + 1)
+    }
+
+    /** A note title from a model answer's first meaningful line. */
+    function askAnswerTitle(text, fallback) {
+      for (const raw of String(text ?? '').split('\n')) {
+        const line = raw
+          .trim()
+          .replace(/^#{1,6}\s+/, '')
+          .replace(/^[-*+>]\s+/, '')
+          .replace(/^\d+[.)]\s+/, '')
+          .replace(/[*_`]/g, '')
+          .trim()
+        if (line.length === 0) continue
+        return line.slice(0, 60)
+      }
+      return fallback
+    }
+
+    /** The note name behind one citation (`[[a#b]]`, `[[a|alias]]`, `a.md`). */
+    function citationNoteName(raw) {
+      return parseWikiLink(String(raw ?? '').split('|')[0]).name
+    }
+
+    /** Read one SSE response and hand every `data:` JSON frame to `onEvent`. */
+    async function readSse(response, onEvent) {
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      for (;;) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        let cut = buffer.indexOf('\n\n')
+        while (cut >= 0) {
+          const frame = buffer.slice(0, cut)
+          buffer = buffer.slice(cut + 2)
+          for (const line of frame.split('\n')) {
+            if (!line.startsWith('data: ')) continue
+            let event
+            try {
+              event = JSON.parse(line.slice(6))
+            } catch {
+              continue
+            }
+            await onEvent(event)
+          }
+          cut = buffer.indexOf('\n\n')
+        }
+      }
+    }
+
+    /** Collapse browser selection whitespace into one prompt-sized string. */
+    function normalizeSelectionText(text) {
+      return String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, 800)
+    }
+
+    /** Index of the last user turn, or -1 (the retry anchor of one thread). */
+    function lastUserIndex(thread) {
+      const list = Array.isArray(thread) ? thread : []
+      for (let index = list.length - 1; index >= 0; index -= 1) {
+        if (list[index]?.role === 'user') return index
+      }
+      return -1
+    }
+
+    /** Insert blocks right after one block, or at the end when it is gone. */
+    function insertAfterBlock(blocks, blockId, additions) {
+      const list = Array.isArray(blocks) ? blocks.slice() : []
+      const extra = Array.isArray(additions) ? additions : []
+      const index = blockId === null || blockId === undefined ? -1 : list.findIndex((block) => block.id === blockId)
+      if (index < 0) return [...list, ...extra]
+      return [...list.slice(0, index + 1), ...extra, ...list.slice(index + 1)]
+    }
+
+    /** Last parenthesised value of the first result line, e.g. `(1.2 KB)`. */
+    function resultSuffix(text) {
+      const firstLine = text.split('\n', 1)[0] ?? ''
+      const match = /\(([^()]+)\)\s*$/.exec(firstLine)
+      return match === null ? '' : match[1]
+    }
+
+    function previewOf(text) {
+      const lines = text.split('\n').slice(0, 12).join('\n')
+      return lines.length > 900 ? `${lines.slice(0, 900)}…` : lines
+    }
+
+    /**
+     * One row model for the four notebook tools: title, note or query summary,
+     * a short suffix, the expandable preview and the note to open. Pure so the
+     * Node test can check the formats the Host's tool results actually use.
+     */
+    function chatNoteToolModel(toolName, block, t) {
+      const args = toolBlockArgs(block) ?? {}
+      const text = toolBlockText(block)
+      const settled = block !== null && typeof block === 'object' && 'kind' in block
+      const state = settled
+        ? block.isError === true
+          ? 'error'
+          : 'ok'
+        : block !== null && typeof block === 'object' && block.phase === 'preparing'
+          ? 'preparing'
+          : 'running'
+      const rawPath = typeof args.path === 'string' ? args.path.trim() : ''
+      const path = rawPath.length > 0 ? rawPath : null
+      const title = t(NOTE_TOOL_TITLE_KEYS[toolName] ?? 'chatReadNote')
+      let summary = ''
+      let suffix = ''
+      let body = ''
+      const results = []
+      if (toolName === 'notebook_list') {
+        summary =
+          typeof args.folder === 'string' && args.folder.trim().length > 0 ? args.folder.trim() : t('chatAllNotes')
+        const count = /—\s*(\d+)\s+note\(s\)/.exec(text)
+        suffix = count === null ? '' : t('chatMatches', { count: count[1] })
+        body = text.split('\n').slice(1).join('\n')
+      } else if (toolName === 'notebook_search') {
+        summary = typeof args.query === 'string' ? args.query.trim() : ''
+        const count = /^(\d+)\s+match/.exec(text)
+        suffix =
+          count !== null
+            ? t('chatMatches', { count: count[1] })
+            : text.startsWith('No matches')
+              ? t('chatMatches', { count: '0' })
+              : ''
+        const lines = text.split('\n').slice(1)
+        for (const line of lines) {
+          const match = /^(.+?):(\d+):\s?(.*)$/.exec(line)
+          if (match === null) continue
+          results.push({ path: match[1], line: Number(match[2]), text: match[3].slice(0, 200) })
+          if (results.length >= 20) break
+        }
+        body = lines.join('\n')
+      } else if (toolName === 'notebook_write') {
+        summary = path === null ? '' : noteNameFromPath(path)
+        const modeLabel = t(
+          args.mode === 'append'
+            ? 'chatModeAppend'
+            : args.mode === 'create'
+              ? 'chatModeCreate'
+              : 'chatModeReplace',
+        )
+        suffix = state === 'ok' ? [modeLabel, resultSuffix(text)].filter(Boolean).join(' · ') : ''
+        body = typeof args.content === 'string' ? args.content : ''
+      } else {
+        summary = path === null ? '' : noteNameFromPath(path)
+        suffix = state === 'ok' ? resultSuffix(text) : ''
+        body = text.replace(/^#[^\n]*\n+/, '')
+      }
+      if (state === 'preparing' || state === 'running') suffix = t('chatRunning')
+      else if (state === 'error') {
+        suffix = t('chatFailed')
+        body = text
+      }
+      const preview = state === 'preparing' || state === 'running' ? '' : previewOf(body.trim())
+      return { title, summary, suffix, state, path, preview, results }
+    }
+
+    /** The chat row for notebook_read / _write / _list / _search. */
+    function NotebookToolRow({ toolName, block, t: translate, useDisclosure, onOpenNote }) {
+      const { expanded, toggle } = useDisclosure()
+      // The slot supplies `t` through the registration's locale; keep a raw-key
+      // fallback so a host change can never break the whole chat row.
+      const t = typeof translate === 'function' ? translate : (key) => key
+      const model = chatNoteToolModel(toolName, block, t)
+      const expandable = model.preview.length > 0 || model.results.length > 0
+      const open = expanded && expandable
+      const onKeyDown = (event) => {
+        if (!expandable) return
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          toggle()
+        }
+      }
+      return h(
+        'div',
+        { className: 'nb-chat-tool', 'data-tool': toolName, 'data-state': model.state },
+        h(
+          'div',
+          {
+            className: 'nb-chat-tool-row',
+            role: expandable ? 'button' : undefined,
+            tabIndex: expandable ? 0 : undefined,
+            'aria-expanded': expandable ? open : undefined,
+            onClick: expandable ? toggle : undefined,
+            onKeyDown: expandable ? onKeyDown : undefined,
+          },
+          h('span', { className: 'nb-chat-tool-leading' }, h(NotebookGlyph, { size: 14 })),
+          h('span', { className: 'nb-chat-tool-title' }, model.title),
+          model.summary.length > 0 ? h('span', { className: 'nb-chat-tool-sep', 'aria-hidden': 'true' }) : null,
+          model.summary.length > 0
+            ? h('span', { className: 'nb-chat-tool-summary', title: model.path ?? model.summary }, model.summary)
+            : null,
+          model.suffix.length > 0 ? h('span', { className: 'nb-chat-tool-suffix' }, model.suffix) : null,
+          model.path !== null && model.state !== 'preparing'
+            ? h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'nb-chat-tool-open',
+                  title: t('chatOpenInNotebook'),
+                  onClick: (event) => {
+                    event.stopPropagation()
+                    onOpenNote(model.path)
+                  },
+                },
+                t('chatOpen'),
+              )
+            : null,
+          model.path !== null && model.state === 'ok' && toolName === 'notebook_write'
+            ? h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'nb-chat-tool-open',
+                  title: t('chatHistory'),
+                  onClick: (event) => {
+                    event.stopPropagation()
+                    onOpenNote(model.path, { history: true })
+                  },
+                },
+                t('chatHistory'),
+              )
+            : null,
+        ),
+        open
+          ? model.results.length > 0
+            ? h(
+                'div',
+                { className: 'nb-chat-tool-results' },
+                model.results.map((item) =>
+                  h(
+                    'button',
+                    {
+                      key: `${item.path}:${item.line}`,
+                      type: 'button',
+                      className: 'nb-chat-tool-result',
+                      title: `${item.path}:${item.line}`,
+                      onClick: (event) => {
+                        event.stopPropagation()
+                        onOpenNote(item.path)
+                      },
+                    },
+                    h(
+                      'span',
+                      { className: 'nb-chat-tool-result-path' },
+                      `${noteNameFromPath(item.path)}:${item.line}`,
+                    ),
+                    h('span', { className: 'nb-chat-tool-result-text' }, item.text),
+                  ),
+                ),
+              )
+            : h('div', { className: 'nb-chat-tool-body' }, model.preview)
+          : null,
+      )
+    }
+
+    /** Switch the main panel to the notebook, whichever panel is showing. */
+    function openNotebookPanel(ctx) {
+      const layout = typeof ctx.get === 'function' ? ctx.get('layout') : undefined
+      if (layout !== undefined && layout !== null && typeof layout.selectPanel === 'function') {
+        layout.selectPanel(NS)
+      }
+    }
+
+    /** The Host folder picker behind the notebook's Settings row. */
+    async function pickVaultDirectory(ctx) {
+      const workspace = typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : undefined
+      if (workspace === undefined || workspace === null || typeof workspace.pickDirectory !== 'function') return null
+      return workspace.pickDirectory()
+    }
+
+    /**
+     * The composer menu lives on document.body: the docked composer clips its
+     * own descendants, so a menu rendered inside the tool row would be cut off.
+     */
+    function showComposerMenu({ anchor, t, onOpen, onAsk, onInsert }) {
+      if (typeof document === 'undefined' || anchor === null || anchor === undefined) return null
+      const rect = anchor.getBoundingClientRect()
+      const menu = document.createElement('div')
+      menu.className = 'nb-composer-menu'
+      menu.setAttribute('role', 'menu')
+      let closed = false
+      const close = () => {
+        if (closed) return
+        closed = true
+        document.removeEventListener('mousedown', onPointerDown, true)
+        document.removeEventListener('keydown', onKeyDown, true)
+        window.removeEventListener('resize', close)
+        window.removeEventListener('scroll', close, true)
+        menu.remove()
+      }
+      const onPointerDown = (event) => {
+        if (menu.contains(event.target) || anchor.contains(event.target)) return
+        close()
+      }
+      const onKeyDown = (event) => {
+        if (event.key === 'Escape') close()
+      }
+      for (const [label, action] of [
+        [t('menuOpenNotebook'), onOpen],
+        [t('menuAskAi'), onAsk],
+        [t('menuInsertNote'), onInsert],
+      ]) {
+        const item = document.createElement('button')
+        item.type = 'button'
+        item.className = 'nb-composer-menu-item'
+        item.setAttribute('role', 'menuitem')
+        item.textContent = label
+        item.addEventListener('click', () => {
+          close()
+          if (typeof action === 'function') action()
+        })
+        menu.appendChild(item)
+      }
+      document.body.appendChild(menu)
+      menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8))}px`
+      menu.style.top = `${Math.max(8, rect.top - menu.offsetHeight - 8)}px`
+      document.addEventListener('mousedown', onPointerDown, true)
+      document.addEventListener('keydown', onKeyDown, true)
+      window.addEventListener('resize', close)
+      window.addEventListener('scroll', close, true)
+      return close
+    }
+
+    /** Notebook entry in the composer tool row: open the panel or insert a note. */
+    function NotebookComposerButton({ t, locale, inputActions, openPanel, openAsk }) {
+      useLocaleTick(locale)
+      const buttonRef = React.useRef(null)
+      const closeRef = React.useRef(null)
+      React.useEffect(
+        () => () => {
+          if (closeRef.current !== null) closeRef.current()
+        },
+        [],
+      )
+      const insertCurrentNote = async () => {
+        try {
+          const data = await apiGet('/current')
+          if (typeof data?.path !== 'string' || data.path.length === 0) {
+            openPanel()
+            return
+          }
+          const text = `${data.path} `
+          if (inputActions === null || inputActions === undefined) return
+          if (typeof inputActions.insertText !== 'function' || typeof inputActions.captureInsertion !== 'function') {
+            return
+          }
+          const span = inputActions.captureInsertion()
+          if (span !== undefined && inputActions.insertText(text, span) === false) {
+            // The caret moved while /current was loading: capture it once more
+            // rather than replacing whatever the user has typed since.
+            const retry = inputActions.captureInsertion()
+            if (retry !== undefined) inputActions.insertText(text, retry)
+          }
+        } catch {
+          openPanel()
+        }
+      }
+      const toggle = () => {
+        if (closeRef.current !== null) {
+          closeRef.current()
+          closeRef.current = null
+          return
+        }
+        if (buttonRef.current === null) return
+        closeRef.current = showComposerMenu({
+          anchor: buttonRef.current,
+          t,
+          onOpen: () => {
+            closeRef.current = null
+            openPanel()
+          },
+          onAsk: () => {
+            closeRef.current = null
+            openAsk()
+          },
+          onInsert: () => {
+            closeRef.current = null
+            insertCurrentNote()
+          },
+        })
+      }
+      return h(
+        'button',
+        {
+          ref: buttonRef,
+          type: 'button',
+          className: 'nb-composer-btn',
+          title: t('panelTitle'),
+          'aria-label': t('panelTitle'),
+          'aria-haspopup': 'menu',
+          onClick: toggle,
+        },
+        h(NotebookGlyph, { size: 16 }),
+      )
+    }
+
+    /** Settings → General row: the vault folder, picked through the Host. */
+    function VaultSettingRow({ t, locale, pickDirectory }) {
+      useLocaleTick(locale)
+      const [status, setStatus] = React.useState(null)
+      const [error, setError] = React.useState(null)
+      const [pending, setPending] = React.useState(false)
+      const pollRef = React.useRef(null)
+      React.useEffect(
+        () => () => {
+          if (pollRef.current !== null) clearInterval(pollRef.current)
+        },
+        [],
+      )
+      React.useEffect(() => {
+        let disposed = false
+        apiGet('/status')
+          .then((data) => {
+            if (!disposed) setStatus(data)
+          })
+          .catch((failure) => {
+            if (!disposed) setError(failure.message)
+          })
+        return () => {
+          disposed = true
+        }
+      }, [])
+      const apply = async (path) => {
+        if (pending) return
+        setPending(true)
+        setError(null)
+        try {
+          await apiPost('/vault', { path })
+          const expectedMode = path.length === 0 ? 'obsidian' : 'config'
+          let tries = 0
+          if (pollRef.current !== null) clearInterval(pollRef.current)
+          pollRef.current = setInterval(async () => {
+            tries += 1
+            try {
+              const data = await apiGet('/status')
+              const settled =
+                (data.configuredBy ?? '') === expectedMode && (expectedMode === 'obsidian' || data.path === path)
+              if (settled || tries >= 12) {
+                clearInterval(pollRef.current)
+                pollRef.current = null
+                setStatus(data)
+                setPending(false)
+                if (settled) {
+                  VAULT_CHANGED.pending = true
+                  document.dispatchEvent(new CustomEvent('dsh-notebook:vault-changed'))
+                }
+              }
+            } catch {
+              if (tries >= 12) {
+                clearInterval(pollRef.current)
+                pollRef.current = null
+                setPending(false)
+              }
+            }
+          }, 600)
+        } catch (failure) {
+          setError(failure.message)
+          setPending(false)
+        }
+      }
+      const writable = status === null || status.configWritable !== false
+      const choose = async () => {
+        if (pending || !writable || typeof pickDirectory !== 'function') return
+        try {
+          const path = await pickDirectory()
+          if (typeof path !== 'string' || path.length === 0) return
+          await apply(path)
+        } catch (failure) {
+          setError(failure !== null && failure !== undefined ? failure.message : String(failure))
+        }
+      }
+      const statusText =
+        status === null
+          ? ''
+          : status.path === null || status.path === undefined
+            ? t('settingsNoVault')
+            : `${status.path}${status.configuredBy === 'obsidian' ? ` · ${t('settingsDetected')}` : ''}`
+      return h(
+        'div',
+        { className: 'nb-set-row' },
+        h(
+          'div',
+          { className: 'nb-set-main' },
+          h('div', { className: 'nb-set-title' }, t('settingsVaultTitle')),
+          h(
+            'div',
+            { className: 'nb-set-sub', title: statusText },
+            pending ? t('settingsApplying') : statusText,
+          ),
+          h('div', { className: 'nb-set-hint' }, writable ? t('settingsRestart') : t('settingsUnavailable')),
+        ),
+        h(
+          'div',
+          { className: 'nb-set-actions' },
+          h(
+            'button',
+            { type: 'button', className: 'nb-set-btn', disabled: pending || !writable, onClick: choose },
+            t('settingsPick'),
+          ),
+          h(
+            'button',
+            { type: 'button', className: 'nb-set-btn', disabled: pending || !writable, onClick: () => apply('') },
+            t('settingsAuto'),
+          ),
+        ),
+        error !== null ? h('div', { className: 'nb-set-error' }, error) : null,
+      )
+    }
 
     function NotebookGlyph({ size = 22, active }) {
       return h(
@@ -3236,6 +4529,16 @@ window.__ModuleLoader__.load({
       if (bytes < 1024) return `${bytes} B`
       if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
       return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    }
+
+    function formatShortDate(ms) {
+      const time = Number(ms)
+      if (!Number.isFinite(time) || time <= 0) return ''
+      try {
+        return new Date(time).toLocaleDateString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' })
+      } catch {
+        return ''
+      }
     }
 
     function formatHistoryTime(ms) {
@@ -4081,6 +5384,55 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /**
+     * What the agent should know about the block being edited: the nearest
+     * heading above it, its kind, and its current text. Null for an empty block
+     * (nothing worth describing) or a block that no longer exists.
+     */
+    function focusPayloadFor(blocks, blockId) {
+      const list = Array.isArray(blocks) ? blocks : []
+      const index = list.findIndex((block) => block.id === blockId)
+      if (index < 0) return null
+      const block = list[index]
+      const text = String(block.text ?? '').trim().slice(0, 500)
+      if (text.length === 0) return null
+      let heading = ''
+      for (let cursor = index; cursor >= 0; cursor -= 1) {
+        const candidate = list[cursor]
+        if (candidate.type === 'heading1' || candidate.type === 'heading2' || candidate.type === 'heading3') {
+          heading = String(candidate.text ?? '').trim().slice(0, 120)
+          break
+        }
+      }
+      return { heading, kind: String(block.type ?? 'paragraph'), text }
+    }
+
+    /**
+     * How the panel reacts to a note file that changed on disk: an unsaved or
+     * saving editor never discards its own state, editing gets a prompt, and a
+     * clean idle page reloads silently.
+     */
+    function noteSyncDecision({ saved, editing }) {
+      if (!saved) return 'ignore'
+      return editing ? 'warn' : 'reload'
+    }
+
+    /** A save refused for a stale mtime gets the reload banner, not a toast. */
+    function saveFailureKind(code) {
+      return code === 'conflict' ? 'sync' : 'notice'
+    }
+
+    /** The active locale id as `en` / `zh`, for Host prompts. */
+    function activeLocaleId(locale) {
+      try {
+        const snapshot = typeof locale?.getSnapshot === 'function' ? locale.getSnapshot() : locale?.getLocale?.()
+        const id = typeof snapshot === 'string' ? snapshot : snapshot?.active
+        return typeof id === 'string' && id.toLowerCase().startsWith('en') ? 'en' : 'zh'
+      } catch {
+        return 'zh'
+      }
+    }
+
     function Workbench({ t, locale }) {
       useLocaleTick(locale)
       const [status, setStatus] = React.useState(null)
@@ -4128,6 +5480,35 @@ window.__ModuleLoader__.load({
       const [customFont, setCustomFont] = React.useState('')
       const [fontStatus, setFontStatus] = React.useState({})
       const [reading, setReading] = React.useState(false)
+      const [folderBodyOpen, setFolderBodyOpen] = React.useState(false)
+      const [syncRemote, setSyncRemote] = React.useState(null)
+      const [askOpen, setAskOpen] = React.useState(() => {
+        try {
+          return window.localStorage.getItem(`${NS}:ask-open`) === '1'
+        } catch {
+          return false
+        }
+      })
+      const [askThreads, setAskThreads] = React.useState(() => {
+        const seed = {}
+        for (const [key, thread] of ASK_THREADS) seed[key] = thread
+        return seed
+      })
+      const [askInput, setAskInput] = React.useState('')
+      const [askBusy, setAskBusy] = React.useState(false)
+      const [askError, setAskError] = React.useState(null)
+      const [askFlash, setAskFlash] = React.useState(null)
+      const [askSelection, setAskSelection] = React.useState('')
+      const [askModel, setAskModel] = React.useState('')
+      const [vaultError, setVaultError] = React.useState(null)
+      const [askMode, setAskMode] = React.useState(() => {
+        try {
+          return window.localStorage.getItem(`${NS}:ask-mode`) === 'agent' ? 'agent' : 'note'
+        } catch {
+          return 'note'
+        }
+      })
+      const askThread = selected === null ? [] : (askThreads[askThreadKeyFor(selected)] ?? [])
       const [vaultTemplates, setVaultTemplates] = React.useState(null)
       const [propsTagList, setPropsTagList] = React.useState([])
       const [propsTagDraft, setPropsTagDraft] = React.useState('')
@@ -4173,6 +5554,375 @@ window.__ModuleLoader__.load({
       const blockSelectionRef = React.useRef(null)
       const frontmatterRef = React.useRef('')
       const dragRef = React.useRef(null)
+      // The chat tool cards can ask this panel for a note while it is open;
+      // the ref keeps the latest openNote closure out of the subscription.
+      const openNoteRef = React.useRef(null)
+      openNoteRef.current = openNote
+      const openHistoryRef = React.useRef(null)
+      openHistoryRef.current = openHistoryFor
+      // The sync poll and the focus reporter run from closures created once, so
+      // they read the live editor state through refs instead of stale props.
+      const saveStateRef = React.useRef('saved')
+      saveStateRef.current = saveState
+      const syncDismissedRef = React.useRef(0)
+      const reloadFromDiskRef = React.useRef(null)
+      reloadFromDiskRef.current = reloadFromDisk
+      const askAbortRef = React.useRef(null)
+      const askBusyRef = React.useRef(false)
+      const askThreadRef = React.useRef(null)
+      const askInputRef = React.useRef(null)
+      const askFlashTimer = React.useRef(null)
+
+      React.useEffect(
+        () =>
+          subscribeNoteOpen((request) => {
+            if (openNoteRef.current === null) return
+            void Promise.resolve(openNoteRef.current(request.path)).then(() => {
+              if (request.history === true && openHistoryRef.current !== null) openHistoryRef.current(request.path)
+            })
+          }),
+        [],
+      )
+
+      React.useEffect(() => {
+        const toggle = () => setAskOpen((open) => !open)
+        const open = () => setAskOpen(true)
+        ASK_TOGGLE.listeners.add(toggle)
+        ASK_OPEN.listeners.add(open)
+        if (takePendingAskOpen()) setAskOpen(true)
+        return () => {
+          ASK_TOGGLE.listeners.delete(toggle)
+          ASK_OPEN.listeners.delete(open)
+        }
+      }, [])
+
+      // Tell the Host which block is being edited, so the agent's prompt context
+      // can resolve "这段 / 这里" to the actual paragraph. Debounced: typing
+      // updates it at most every ~700ms.
+      React.useEffect(() => {
+        if (selected === null || editingId === null) return undefined
+        const payload = focusPayloadFor(blocks, editingId)
+        if (payload === null) return undefined
+        const timer = setTimeout(() => {
+          apiPost('/focus', { path: selected, ...payload }).catch(() => {})
+        }, 700)
+        return () => clearTimeout(timer)
+      }, [editingId, blocks, selected])
+
+      // The agent (or Obsidian, or another window) can rewrite the open note.
+      // Poll a cheap stat: a clean idle page reloads by itself, a page with the
+      // caret in it asks first, and unsaved edits keep the conflict protection.
+      React.useEffect(() => {
+        if (selected === null) return undefined
+        let disposed = false
+        let running = false
+        const tick = async () => {
+          if (disposed || running || document.hidden) return
+          running = true
+          try {
+            const stat = await apiGet(`/stat?path=${encodeURIComponent(selected)}`)
+            if (disposed || stat.exists !== true || stat.mtimeMs === mtimeRef.current) return
+            if (stat.mtimeMs === syncDismissedRef.current) return
+            const decision = noteSyncDecision({
+              saved: saveStateRef.current === 'saved',
+              editing: editingIdRef.current !== null,
+            })
+            if (decision === 'reload') await reloadFromDiskRef.current()
+            else if (decision === 'warn') setSyncRemote(stat.mtimeMs)
+          } catch {
+            /* a restarting Host is not a content change */
+          } finally {
+            running = false
+          }
+        }
+        const timer = setInterval(tick, 3000)
+        return () => {
+          disposed = true
+          clearInterval(timer)
+        }
+      }, [selected])
+
+      /**
+       * Re-read the open note from disk without saving over it: used when the
+       * file changed underneath the panel. Undo history restarts because the
+       * snapshots before the external change are no longer this document.
+       */
+      async function reloadFromDisk() {
+        const path = selectedRef.current
+        if (path === null) return
+        try {
+          const data = await apiGet(`/read?path=${encodeURIComponent(path)}`)
+          if (path !== selectedRef.current) return
+          const split = splitFrontmatter(data.content)
+          const parsed = parseBlocks(split.body)
+          frontmatterRef.current = split.frontmatter
+          setFrontmatter(split.frontmatter)
+          baselineRef.current = composeContent(split.frontmatter, serializeBlocks(parsed))
+          mtimeRef.current = data.mtimeMs
+          updateBlocks(parsed, { record: false })
+          historyRef.current = { past: [], future: [], lastKey: null, lastAt: 0 }
+          syncDismissedRef.current = 0
+          setSyncRemote(null)
+          setEditingId(null)
+          setSaveState('saved')
+        } catch (error) {
+          setNotice({ kind: 'error', text: error.message })
+        }
+      }
+
+      // Each note keeps its own thread, so switching back finds the answers
+      // again; only the draft and an in-flight answer belong to the old note.
+      React.useEffect(() => {
+        setAskInput('')
+        setAskError(null)
+        setAskBusy(false)
+        setAskSelection('')
+        if (askAbortRef.current !== null) {
+          askAbortRef.current.abort()
+          askAbortRef.current = null
+        }
+      }, [selected])
+
+      React.useEffect(() => {
+        try {
+          window.localStorage.setItem(`${NS}:ask-open`, askOpen ? '1' : '0')
+        } catch {
+          /* preferences are best-effort */
+        }
+      }, [askOpen])
+
+      React.useEffect(() => {
+        try {
+          window.localStorage.setItem(`${NS}:ask-mode`, askMode)
+        } catch {
+          /* preferences are best-effort */
+        }
+      }, [askMode])
+
+      // The selection a question may be about: captured when the panel opens
+      // (a button click keeps the document selection), then kept up to date
+      // without being cleared by typing into the ask box.
+      const captureAskSelection = () => {
+        try {
+          const selection = typeof window.getSelection === 'function' ? window.getSelection() : null
+          if (selection === null || selection === undefined || selection.isCollapsed === true) return ''
+          const text = normalizeSelectionText(selection.toString())
+          if (text.length === 0) return ''
+          const anchor = selection.anchorNode
+          const element =
+            anchor === null || anchor === undefined ? null : anchor.nodeType === 1 ? anchor : anchor.parentElement
+          if (element === null || typeof element.closest !== 'function' || element.closest('.nb-doc') === null) return ''
+          return text
+        } catch {
+          return ''
+        }
+      }
+
+      React.useEffect(() => {
+        if (!askOpen) return undefined
+        const element = askInputRef.current
+        if (element !== null) element.focus()
+        setAskSelection((previous) => (previous.length > 0 ? previous : captureAskSelection()))
+        const onSelectionChange = () => {
+          const next = captureAskSelection()
+          if (next.length > 0) setAskSelection(next)
+        }
+        document.addEventListener('selectionchange', onSelectionChange)
+        return () => document.removeEventListener('selectionchange', onSelectionChange)
+      }, [askOpen])
+
+      React.useEffect(
+        () => () => {
+          if (askAbortRef.current !== null) askAbortRef.current.abort()
+          if (askFlashTimer.current !== null) clearTimeout(askFlashTimer.current)
+        },
+        [],
+      )
+
+      React.useEffect(() => {
+        const element = askThreadRef.current
+        if (element !== null) element.scrollTop = element.scrollHeight
+      }, [askThread])
+
+      function updateAskThread(path, update) {
+        setAskThreads((previous) => {
+          const key = askThreadKeyFor(path)
+          const next = update(previous[key] ?? [])
+          rememberAskThread(key, next)
+          return { ...previous, [key]: next }
+        })
+      }
+
+      function updateAskAnswer(path, text) {
+        updateAskThread(path, (previous) => {
+          const next = previous.slice()
+          for (let index = next.length - 1; index >= 0; index -= 1) {
+            if (next[index].role === 'assistant') {
+              next[index] = { role: 'assistant', text }
+              return next
+            }
+          }
+          return previous
+        })
+      }
+
+      function flashAsk(type, index) {
+        setAskFlash({ type, index })
+        if (askFlashTimer.current !== null) clearTimeout(askFlashTimer.current)
+        askFlashTimer.current = setTimeout(() => setAskFlash(null), 1400)
+      }
+
+      function copyAsk(text) {
+        try {
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            navigator.clipboard.writeText(text).catch(() => {})
+          }
+        } catch {
+          /* clipboard unavailable */
+        }
+      }
+
+      /** Append one answer to the open note as real blocks (undoable). */
+      function insertAsk(text) {
+        const parsed = parseBlocks(text)
+        if (parsed.length === 0) return false
+        updateBlocks(insertAfterBlock(blocksRef.current, editingIdRef.current, parsed))
+        setSaveState('unsaved')
+        return true
+      }
+
+      function startAskTurn(path, question, history) {
+        updateAskThread(path, (previous) => [
+          ...previous,
+          { role: 'user', text: question },
+          { role: 'assistant', text: '' },
+        ])
+        void runAsk(path, question, history)
+      }
+
+      async function sendAsk(override) {
+        const question = (typeof override === 'string' ? override : askInput).trim()
+        if (question.length === 0 || askBusyRef.current || selected === null) return
+        const path = selected
+        const history = askThread
+          .filter((message) => message.text.length > 0)
+          .slice(-8)
+          .map((message) => ({ role: message.role, text: message.text }))
+        setAskInput('')
+        setAskError(null)
+        startAskTurn(path, question, history)
+      }
+
+      /** Re-run the last question without adding a second copy of it. */
+      function retryAsk() {
+        if (askBusyRef.current || selected === null) return
+        const path = selected
+        const thread = askThreads[askThreadKeyFor(path)] ?? []
+        const index = lastUserIndex(thread)
+        if (index < 0) return
+        const question = thread[index].text
+        const history = thread
+          .slice(0, index)
+          .filter((message) => message.text.length > 0)
+          .slice(-8)
+          .map((message) => ({ role: message.role, text: message.text }))
+        setAskError(null)
+        updateAskThread(path, (previous) => [
+          ...previous.slice(0, index),
+          { role: 'user', text: question },
+          { role: 'assistant', text: '' },
+        ])
+        void runAsk(path, question, history)
+      }
+
+      async function runAsk(path, question, history) {
+        if (askBusyRef.current) return
+        askBusyRef.current = true
+        setAskBusy(true)
+        const controller = new AbortController()
+        askAbortRef.current = controller
+        let answer = ''
+        const agentMode = askMode === 'agent'
+        const setAnswerSteps = (steps) => {
+          updateAskThread(path, (previous) => {
+            const next = previous.slice()
+            for (let index = next.length - 1; index >= 0; index -= 1) {
+              if (next[index].role === 'assistant') {
+                next[index] = { ...next[index], steps }
+                return next
+              }
+            }
+            return previous
+          })
+        }
+        const bumpAnswerStep = () => {
+          updateAskThread(path, (previous) => {
+            const next = previous.slice()
+            for (let index = next.length - 1; index >= 0; index -= 1) {
+              if (next[index].role === 'assistant') {
+                next[index] = { ...next[index], steps: (Number(next[index].steps) || 0) + 1 }
+                return next
+              }
+            }
+            return previous
+          })
+        }
+        try {
+          const response = await fetch(`${API}${agentMode ? '/ask/agent' : '/ask'}`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              path,
+              question,
+              history: agentMode ? undefined : history,
+              locale: activeLocaleId(locale),
+              selection: askSelection,
+            }),
+            signal: controller.signal,
+          })
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error((payload !== null && payload.error) || `HTTP ${response.status}`)
+          }
+          await readSse(response, (event) => {
+            if (event.type === 'meta') {
+              setAskModel([event.provider, event.model].filter(Boolean).join('/'))
+              return
+            }
+            if (event.type === 'step') {
+              bumpAnswerStep()
+              return
+            }
+            if (event.type === 'answer' && typeof event.text === 'string') {
+              answer = event.text
+              updateAskAnswer(path, answer)
+              if (Array.isArray(event.steps) && event.steps.length > 0) setAnswerSteps(event.steps.length)
+              return
+            }
+            if (event.type === 'delta' && typeof event.text === 'string') {
+              answer += event.text
+              updateAskAnswer(path, answer)
+              return
+            }
+            if (event.type === 'error') {
+              throw new Error(String(event.error ?? '模型调用失败。'))
+            }
+          })
+        } catch (error) {
+          if (error !== null && error !== undefined && error.name !== 'AbortError') {
+            setAskError(error.message ?? String(error))
+            updateAskAnswer(path, answer)
+          }
+        } finally {
+          askBusyRef.current = false
+          setAskBusy(false)
+          if (askAbortRef.current === controller) askAbortRef.current = null
+        }
+      }
+
+      function stopAsk() {
+        if (askAbortRef.current !== null) askAbortRef.current.abort()
+      }
 
       const currentTitle =
         selected === null
@@ -4351,12 +6101,45 @@ window.__ModuleLoader__.load({
           const data = await apiGet('/list')
           setNotes(Array.isArray(data.notes) ? data.notes : [])
           setStatus(data.vault ?? null)
+          setVaultError(null)
           return true
         } catch (error) {
+          // A missing vault gets its own first-run screen instead of a toast
+          // over an empty sidebar; other failures keep the toast only.
+          setVaultError(error.code === 'no_vault' ? error.message : null)
           setNotice({ kind: 'error', text: error.message })
           return false
         }
       }, [])
+
+      // The Settings row switched the vault: drop the old page and reload from
+      // the new folder instead of leaving a note from the previous vault open.
+      React.useEffect(() => {
+        const onVaultChanged = () => {
+          try {
+            window.localStorage.removeItem(LAST_NOTE_KEY)
+            window.localStorage.removeItem(TABS_KEY)
+          } catch {
+            /* preferences are best-effort */
+          }
+          selectedRef.current = null
+          blocksRef.current = []
+          mtimeRef.current = 0
+          setSelected(null)
+          setBlocks([])
+          setTabs([])
+          setRecent([])
+          setEditingId(null)
+          setSaveState('saved')
+          void loadList()
+        }
+        if (VAULT_CHANGED.pending) {
+          VAULT_CHANGED.pending = false
+          onVaultChanged()
+        }
+        window.addEventListener('dsh-notebook:vault-changed', onVaultChanged)
+        return () => window.removeEventListener('dsh-notebook:vault-changed', onVaultChanged)
+      }, [loadList])
 
       React.useEffect(() => {
         let disposed = false
@@ -4390,15 +6173,21 @@ window.__ModuleLoader__.load({
           } catch {
             /* preferences are best-effort */
           }
-          // Reopen the page the user last had open, like Notion does, when it
-          // still exists in the vault.
+          // A chat tool card may have asked for a note before this panel
+          // mounted; that request outranks the remembered last page.
+          // Otherwise reopen the page the user last had open, like Notion
+          // does, when it still exists in the vault.
           try {
-            const saved = window.localStorage.getItem(LAST_NOTE_KEY)
-            if (saved !== null && saved.length > 0) {
+            const requested = takePendingNoteOpen()
+            const target = requested !== null ? requested.path : window.localStorage.getItem(LAST_NOTE_KEY)
+            if (target !== null && target.length > 0) {
               const exists = await apiGet('/list')
-                .then((data) => (Array.isArray(data.notes) ? data.notes.some((note) => note.path === saved) : false))
+                .then((data) => (Array.isArray(data.notes) ? data.notes.some((note) => note.path === target) : false))
                 .catch(() => false)
-              if (exists && !disposed) await openNote(saved)
+              if (exists && !disposed) {
+                await openNote(target)
+                if (requested !== null && requested.history === true) await openHistoryFor(target)
+              }
             }
             if (window.localStorage.getItem(WIDE_KEY) === '1') setWide(true)
             if (window.localStorage.getItem(ZEN_KEY) === '1') setZenMode(true)
@@ -4641,7 +6430,11 @@ window.__ModuleLoader__.load({
           setNotice(null)
         } catch (error) {
           setSaveState('error')
-          setNotice({ kind: 'error', text: error.message })
+          if (saveFailureKind(error !== null && error !== undefined ? error.code : undefined) === 'sync') {
+            setSyncRemote(-1)
+          } else {
+            setNotice({ kind: 'error', text: error.message })
+          }
         }
       }
 
@@ -4721,6 +6514,9 @@ window.__ModuleLoader__.load({
           setEditingId(null)
           setFocusRequest(null)
           setMenuFor(null)
+          setFolderBodyOpen(false)
+          setSyncRemote(null)
+          syncDismissedRef.current = 0
           setSaveState('saved')
           setNotice(null)
           setSearch('')
@@ -4879,13 +6675,32 @@ window.__ModuleLoader__.load({
         if (text.length === 0) return
         setAiPanel({ ...panel, loading: true, error: '', result: '' })
         try {
-          const payload = await apiPost('/ai', {
-            task: panel.task,
-            text,
-            locale: String(locale ?? '').startsWith('en') ? 'en' : 'zh',
+          const response = await fetch(`${API}/ai/stream`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ task: panel.task, text, locale: activeLocaleId(locale) }),
           })
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error((payload !== null && payload.error) || `HTTP ${response.status}`)
+          }
+          let streamed = ''
+          let streamFailure = null
+          await readSse(response, (event) => {
+            if (event.type === 'delta' && typeof event.text === 'string') {
+              streamed += event.text
+              setAiPanel((current) => (current === null ? current : { ...current, result: streamed }))
+              return
+            }
+            if (event.type === 'error') {
+              streamFailure = String(event.error ?? '模型调用失败。')
+              return
+            }
+            if (event.type === 'done' && typeof event.text === 'string') streamed = event.text
+          })
+          if (streamFailure !== null) throw new Error(streamFailure)
           setAiPanel((current) =>
-            current === null ? current : { ...current, loading: false, result: String(payload.text ?? '') },
+            current === null ? current : { ...current, loading: false, result: streamed },
           )
         } catch (error) {
           setAiPanel((current) =>
@@ -5883,12 +7698,9 @@ window.__ModuleLoader__.load({
         setFocusRequest({ id: created.id, offset: 0 })
       }
 
-      async function createNoteWith(baseName, body) {
+      async function createNoteWith(baseName, body, targetDir) {
         await saveNow(blocksRef.current)
-        const dir =
-          selectedRef.current === null
-            ? ''
-            : selectedRef.current.slice(0, selectedRef.current.lastIndexOf('/') + 1)
+        const dir = noteDirFor(selectedRef.current, targetDir)
         let name = baseName
         let attempt = 1
         while (attempt <= 50) {
@@ -5924,14 +7736,14 @@ window.__ModuleLoader__.load({
         }
       }
 
-      async function createNote(templateId) {
+      async function createNote(templateId, targetDir) {
         const template = NOTE_TEMPLATES.find((item) => item.id === templateId) ?? NOTE_TEMPLATES[0]
         const baseName = template.id === 'blank' ? t('untitled') : t(template.titleKey)
-        await createNoteWith(baseName, t(template.bodyKey))
+        await createNoteWith(baseName, t(template.bodyKey), targetDir)
       }
 
-      async function openTemplates() {
-        setDialog({ kind: 'template' })
+      async function openTemplates(targetFolder) {
+        setDialog({ kind: 'template', folder: typeof targetFolder === 'string' ? targetFolder : null })
         if (vaultTemplates !== null) return
         try {
           const templateDir =
@@ -5947,7 +7759,7 @@ window.__ModuleLoader__.load({
         }
       }
 
-      async function useVaultTemplate(template, mode) {
+      async function useVaultTemplate(template, mode, targetDir) {
         setDialog(null)
         try {
           const data = await apiGet(`/read?path=${encodeURIComponent(template.path)}`)
@@ -5955,7 +7767,7 @@ window.__ModuleLoader__.load({
           if (mode === 'button') {
             await createSubPageFromContent(name, splitFrontmatter(data.content).body)
           } else {
-            await createNoteWith(name, data.content)
+            await createNoteWith(name, data.content, targetDir)
           }
         } catch (error) {
           setNotice({ kind: 'error', text: error.message })
@@ -6357,12 +8169,17 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
 
       async function openHistory() {
         if (selected === null) return
+        await openHistoryFor(selected)
+      }
+
+      async function openHistoryFor(path) {
+        if (typeof path !== 'string' || path.length === 0) return
         setTitleMenu(false)
         setHistoryPreview(null)
-        setHistory({ path: selected, entries: [], loading: true })
+        setHistory({ path, entries: [], loading: true })
         setDialog({ kind: 'history' })
         try {
-          const data = await apiGet(`/history?path=${encodeURIComponent(selected)}`)
+          const data = await apiGet(`/history?path=${encodeURIComponent(path)}`)
           setHistory({
             path: data.path,
             entries: Array.isArray(data.entries) ? data.entries : [],
@@ -6480,6 +8297,19 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         return hidden
       }, [blocks, collapsedHeadings])
 
+      // A page that presents its folder — either `type: folder` or a body that
+      // is only links to sibling notes — renders the live directory above the
+      // blocks; a detected link list hides its own blocks (the original list).
+      const folderPage = React.useMemo(
+        () => (selected === null ? null : folderPageFor(frontmatter, selected, blocks)),
+        [frontmatter, selected, blocks],
+      )
+      const folderEntries = React.useMemo(
+        () => (folderPage === null ? null : folderEntriesFor(notes, folderPage.folder, selected)),
+        [folderPage, notes, selected],
+      )
+      const folderHidesBody = folderPage !== null && folderPage.linkBody === true && !folderBodyOpen
+
       const blockSelectionIds = React.useMemo(() => {
         if (blockSelection === null) return new Set()
         const ids = blocks.map((block) => block.id)
@@ -6512,6 +8342,12 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
               const cut = selected.lastIndexOf('/')
               return cut < 0 ? (status !== null && status.name !== null ? status.name : '') : `${selected.slice(0, cut)} / `
             })()
+
+      // Whether the open page pins its folder-page behavior in frontmatter
+      // (`type: folder`), as opposed to being detected from its link body.
+      const explicitFolderPage = folderPageConfigFor(frontmatter, selected ?? '') !== null
+      // The block being edited, shown as the ask panel's context line.
+      const askFocus = editingId === null ? null : focusPayloadFor(blocks, editingId)
 
       const sidePanel = h(
         'aside',
@@ -6726,6 +8562,21 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
             ? h(
                 'button',
                 {
+                  className: `nb-icon-btn${askOpen ? ' on' : ''}`,
+                  title: t('askAi'),
+                  'aria-label': t('askAi'),
+                  onMouseDown: () => {
+                    if (!askOpen) setAskSelection(captureAskSelection())
+                  },
+                  onClick: () => setAskOpen((open) => !open),
+                },
+                '✨',
+              )
+            : null,
+          selected !== null
+            ? h(
+                'button',
+                {
                   className: 'nb-icon-btn',
                   title: zen ? t('exitZen') : t('zenMode'),
                   'aria-label': zen ? t('exitZen') : t('zenMode'),
@@ -6847,6 +8698,19 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                         t('exportPdf'),
                       ),
                       h('button', { className: 'nb-menu-item', onClick: openProps }, t('propsTitle')),
+                      h(
+                        'button',
+                        {
+                          className: 'nb-menu-item',
+                          onClick: () => {
+                            setTitleMenu(false)
+                            updateFrontmatter(
+                              withFrontmatterValue(frontmatterRef.current, 'type', explicitFolderPage ? '' : 'folder'),
+                            )
+                          },
+                        },
+                        explicitFolderPage ? t('folderPageOff') : t('folderPageOn'),
+                      ),
                       h('button', { className: 'nb-menu-item', onClick: openHistory }, t('historyTitle')),
                       h(
                         'button',
@@ -7007,6 +8871,35 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
               ),
             )
           : null,
+        syncRemote !== null
+          ? h(
+              'div',
+              { className: 'nb-notice nb-sync' },
+              h('span', { className: 'nb-sync-text' }, t('syncExternal')),
+              h(
+                'button',
+                {
+                  className: 'nb-sync-action',
+                  onClick: () => {
+                    reloadFromDiskRef.current?.()
+                  },
+                },
+                t('syncReload'),
+              ),
+              h(
+                'button',
+                {
+                  className: 'nb-icon-btn',
+                  onClick: () => {
+                    syncDismissedRef.current = syncRemote
+                    setSyncRemote(null)
+                  },
+                  'aria-label': t('cancel'),
+                },
+                '×',
+              ),
+            )
+          : null,
         selected === null
           ? h(
               'div',
@@ -7019,17 +8912,29 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                 onTouchStart: handleDocTouchStart,
                 onTouchEnd: handleDocTouchEnd,
               },
-              h(
-                'div',
-                { className: 'nb-empty' },
-                h('div', { className: 'nb-empty-title' }, t('emptyTitle')),
-                h('div', { className: 'nb-empty-text' }, t('emptyHint')),
-                h(
-                  'button',
-                  { className: 'nb-empty-btn', onClick: () => openTemplates() },
-                  t('newNote'),
-                ),
-              ),
+              vaultError !== null
+                ? h(
+                    'div',
+                    { className: 'nb-empty' },
+                    h('div', { className: 'nb-empty-title' }, t('vaultEmptyTitle')),
+                    h('div', { className: 'nb-empty-text' }, t('vaultEmptyText')),
+                    h(
+                      'div',
+                      { className: 'nb-empty-error' },
+                      t('vaultEmptyError', { message: vaultError }),
+                    ),
+                  )
+                : h(
+                    'div',
+                    { className: 'nb-empty' },
+                    h('div', { className: 'nb-empty-title' }, t('emptyTitle')),
+                    h('div', { className: 'nb-empty-text' }, t('emptyHint')),
+                    h(
+                      'button',
+                      { className: 'nb-empty-btn', onClick: () => openTemplates() },
+                      t('newNote'),
+                    ),
+                  ),
             )
           : h(
               'div',
@@ -7229,7 +9134,23 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                       onCreate: createCollectionRow,
                     })
                   : null,
-                h(
+                folderEntries !== null
+                  ? h(FolderView, {
+                      key: `folder:${folderPage.folder}`,
+                      t,
+                      folder: folderPage.folder,
+                      entries: folderEntries,
+                      hasBody: blocks.length > 0,
+                      bodyOpen: folderBodyOpen,
+                      onToggleBody: () => setFolderBodyOpen((open) => !open),
+                      onOpen: (path) => openNote(path),
+                      onReload: loadList,
+                      onCreate: () => openTemplates(folderPage.folder),
+                    })
+                  : null,
+                folderHidesBody
+                  ? null
+                  : h(
                   'div',
                   { className: 'nb-blocks' },
                   blocks
@@ -7428,6 +9349,300 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         h('style', null, CSS),
         sidePanel,
         mainPanel,
+        askOpen && selected !== null
+          ? h(
+              'aside',
+              {
+                className: 'nb-ask',
+                'aria-label': t('askAi'),
+                onKeyDown: (event) => {
+                  if (event.key === 'Escape') {
+                    event.stopPropagation()
+                    setAskOpen(false)
+                  }
+                },
+              },
+              h(
+                'div',
+                { className: 'nb-ask-head' },
+                h('span', { className: 'nb-ask-title' }, '✨ ', t('askAi')),
+                askModel.length > 0
+                  ? h('span', { className: 'nb-ask-model', title: askModel }, askModel)
+                  : null,
+                askThread.length > 0
+                  ? h(
+                      'button',
+                      {
+                        className: 'nb-icon-btn',
+                        title: t('askClear'),
+                        'aria-label': t('askClear'),
+                        onClick: () => {
+                          updateAskThread(selected, () => [])
+                          setAskError(null)
+                        },
+                      },
+                      '⟲',
+                    )
+                  : null,
+                h(
+                  'button',
+                  {
+                    className: 'nb-icon-btn',
+                    title: t('close'),
+                    'aria-label': t('close'),
+                    onClick: () => setAskOpen(false),
+                  },
+                  '×',
+                ),
+              ),
+              h(
+                'div',
+                { className: 'nb-ask-context' },
+                h(
+                  'div',
+                  { className: 'nb-ask-about', title: selected },
+                  t('askAbout', { title: noteNameFromPath(selected) }),
+                ),
+                askSelection.length > 0
+                  ? h(
+                      'div',
+                      { className: 'nb-ask-selection' },
+                      h(
+                        'span',
+                        {
+                          className: 'nb-ask-selection-text',
+                          title: askSelection,
+                        },
+                        t('askSelection', { text: askSelection }),
+                      ),
+                      h(
+                        'button',
+                        {
+                          type: 'button',
+                          className: 'nb-ask-mini',
+                          'aria-label': t('close'),
+                          onClick: () => setAskSelection(''),
+                        },
+                        '×',
+                      ),
+                    )
+                  : null,
+                askFocus !== null
+                  ? h(
+                      'div',
+                      { className: 'nb-ask-focus', title: askFocus.text },
+                      t('askFocus', {
+                        text: `${askFocus.heading.length > 0 ? `${askFocus.heading} · ` : ''}${askFocus.text}`,
+                      }),
+                    )
+                  : null,
+                h(
+                  'div',
+                  { className: 'nb-ask-modes' },
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: `nb-ask-mode${askMode === 'note' ? ' on' : ''}`,
+                      disabled: askBusy,
+                      onClick: () => setAskMode('note'),
+                    },
+                    t('askModeNote'),
+                  ),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: `nb-ask-mode${askMode === 'agent' ? ' on' : ''}`,
+                      disabled: askBusy,
+                      onClick: () => setAskMode('agent'),
+                    },
+                    t('askModeAgent'),
+                  ),
+                ),
+              ),
+              h(
+                'div',
+                { className: 'nb-ask-thread', ref: askThreadRef },
+                askThread.length === 0
+                  ? h(
+                      'div',
+                      { className: 'nb-ask-empty' },
+                      h('div', null, askMode === 'agent' ? t('askEmptyAgent') : t('askEmpty')),
+                      h(
+                        'div',
+                        { className: 'nb-ask-quick' },
+                        h(
+                          'button',
+                          {
+                            type: 'button',
+                            className: 'nb-ask-chip',
+                            disabled: askBusy,
+                            onClick: () => void sendAsk(t('askQuickSummary')),
+                          },
+                          t('askQuickSummary'),
+                        ),
+                        h(
+                          'button',
+                          {
+                            type: 'button',
+                            className: 'nb-ask-chip',
+                            disabled: askBusy,
+                            onClick: () => void sendAsk(t('askQuickTodos')),
+                          },
+                          t('askQuickTodos'),
+                        ),
+                        askSelection.length > 0
+                          ? h(
+                              'button',
+                              {
+                                type: 'button',
+                                className: 'nb-ask-chip',
+                                disabled: askBusy,
+                                onClick: () => void sendAsk(t('askQuickExplain')),
+                              },
+                              t('askQuickExplain'),
+                            )
+                          : null,
+                      ),
+                    )
+                  : askThread.map((message, index) =>
+                      h(
+                        'div',
+                        {
+                          key: `${index}:${message.role}`,
+                          className: `nb-ask-msg ${message.role}`,
+                        },
+                        h(
+                          'div',
+                          { className: 'nb-ask-role' },
+                          message.role === 'user' ? t('askYou') : t('askAgent'),
+                        ),
+                        message.role === 'assistant'
+                          ? message.text.length > 0
+                            ? h('div', {
+                                className: 'nb-ask-text nb-ask-md',
+                                dangerouslySetInnerHTML: { __html: answerHtml(message.text) },
+                                onClick: (event) => {
+                                  const target = event.target
+                                  const anchor =
+                                    target !== null && typeof target.closest === 'function'
+                                      ? target.closest('.nb-ask-note')
+                                      : null
+                                  if (anchor === null) return
+                                  event.preventDefault()
+                                  const raw = String(anchor.getAttribute('data-note') ?? '')
+                                  const note = findWikiTarget(notes, citationNoteName(raw))
+                                  if (note === null) {
+                                    setNotice({ kind: 'error', text: t('askNoteMissing', { name: raw }) })
+                                    return
+                                  }
+                                  void openNote(note.path)
+                                },
+                              })
+                            : h('div', { className: 'nb-ask-text' }, askBusy ? t('askThinking') : '')
+                          : h('div', { className: 'nb-ask-text' }, message.text),
+                        message.role === 'assistant' && message.steps > 0
+                          ? h('div', { className: 'nb-ask-steps' }, t('askSteps', { count: message.steps }))
+                          : null,
+                        message.role === 'assistant' && message.text.length > 0
+                          ? h(
+                              'div',
+                              { className: 'nb-ask-msg-actions' },
+                              h(
+                                'button',
+                                {
+                                  type: 'button',
+                                  className: 'nb-ask-mini',
+                                  onClick: () => {
+                                    copyAsk(message.text)
+                                    flashAsk('copy', index)
+                                  },
+                                },
+                                askFlash !== null && askFlash.type === 'copy' && askFlash.index === index
+                                  ? t('askCopied')
+                                  : t('askCopy'),
+                              ),
+                              h(
+                                'button',
+                                {
+                                  type: 'button',
+                                  className: 'nb-ask-mini',
+                                  onClick: () => {
+                                    if (insertAsk(message.text)) flashAsk('insert', index)
+                                  },
+                                },
+                                askFlash !== null && askFlash.type === 'insert' && askFlash.index === index
+                                  ? t('askInserted')
+                                  : t('askInsert'),
+                              ),
+                              h(
+                                'button',
+                                {
+                                  type: 'button',
+                                  className: 'nb-ask-mini',
+                                  onClick: () => {
+                                    void createNoteWith(askAnswerTitle(message.text, t('askUntitled')), message.text)
+                                    flashAsk('save', index)
+                                  },
+                                },
+                                askFlash !== null && askFlash.type === 'save' && askFlash.index === index
+                                  ? t('askSaved')
+                                  : t('askSave'),
+                              ),
+                            )
+                          : null,
+                      ),
+                    ),
+              ),
+              askError !== null
+                ? h(
+                    'div',
+                    { className: 'nb-ask-error' },
+                    h('span', { className: 'nb-ask-error-text' }, askError),
+                    h(
+                      'button',
+                      { type: 'button', className: 'nb-ask-mini', onClick: retryAsk },
+                      t('askRetry'),
+                    ),
+                  )
+                : null,
+              h(
+                'div',
+                { className: 'nb-ask-compose' },
+                h('textarea', {
+                  ref: askInputRef,
+                  className: 'nb-ask-input',
+                  value: askInput,
+                  placeholder: askMode === 'agent' ? t('askPlaceholderAgent') : t('askPlaceholder'),
+                  rows: 2,
+                  onChange: (event) => setAskInput(event.target.value),
+                  onKeyDown: (event) => {
+                    if (event.key === 'Enter' && event.shiftKey === false) {
+                      event.preventDefault()
+                      void sendAsk()
+                    }
+                  },
+                }),
+                h(
+                  'div',
+                  { className: 'nb-ask-actions' },
+                  askBusy
+                    ? h('button', { type: 'button', className: 'nb-ask-btn', onClick: stopAsk }, t('askStop'))
+                    : h(
+                        'button',
+                        {
+                          type: 'button',
+                          className: 'nb-ask-btn primary',
+                          disabled: askInput.trim().length === 0,
+                          onClick: () => void sendAsk(),
+                        },
+                        t('askSend'),
+                      ),
+                ),
+              ),
+            )
+          : null,
         zen === true
           ? h(
               'button',
@@ -7488,7 +9703,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                         return source.length > 240 ? `${source.slice(0, 240)}…` : source
                       })(),
                     ),
-                aiPanel.loading === true
+                aiPanel.loading === true && aiPanel.result.length === 0
                   ? h('div', { className: 'nb-ai-result loading' }, t('aiGenerating'))
                   : aiPanel.error.length > 0
                     ? h('div', { className: 'nb-ai-result error' }, aiPanel.error)
@@ -7497,6 +9712,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                           className: 'nb-input nb-ai-result',
                           value: aiPanel.result,
                           rows: 6,
+                          readOnly: aiPanel.loading === true,
                           onChange: (event) => setAiPanel({ ...aiPanel, result: event.target.value }),
                         })
                       : null,
@@ -7846,6 +10062,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                     ['code', '</>', t('fmtCode'), 'nb-toolbar-code'],
                     ['link', '🔗', t('fmtLink'), ''],
                     ['clear', '⌫', t('fmtClear'), ''],
+                    ['ask', '✨', t('askAi'), 'nb-toolbar-ask'],
                   ].map(([kind, label, title, extra]) =>
                     h(
                       'button',
@@ -7859,6 +10076,13 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                           if (kind === 'link') {
                             setLinkInput(true)
                             setLinkValue('')
+                            return
+                          }
+                          if (kind === 'ask') {
+                            const text = captureAskSelection()
+                            if (text.length > 0) setAskSelection(text)
+                            setAskOpen(true)
+                            setSelection(null)
                             return
                           }
                           formatSelection(kind)
@@ -7985,7 +10209,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                               className: 'nb-template-item',
                               onClick: () => {
                                 if (dialog.source === 'button') createSubPageFromTemplate(template.id)
-                                else createNote(template.id)
+                                else createNote(template.id, dialog.folder ?? undefined)
                               },
                             },
                             t(template.titleKey),
@@ -8003,7 +10227,12 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                                     key: template.path,
                                     className: 'nb-template-item',
                                     title: template.path,
-                                    onClick: () => useVaultTemplate(template, dialog.source === 'button' ? 'button' : ''),
+                                    onClick: () =>
+                                      useVaultTemplate(
+                                        template,
+                                        dialog.source === 'button' ? 'button' : '',
+                                        dialog.folder ?? undefined,
+                                      ),
                                   },
                                   template.name,
                                 ),
@@ -8643,6 +10872,81 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), `${NS}: dictionaries`)
       const t = ctx.locale.bind(NS)
 
+      // The chat rows live outside the workbench, so their styles cannot ride
+      // on the panel's <style> element: install one shared tag for the page.
+      ctx.effect(() => {
+        if (typeof document === 'undefined') return undefined
+        const tagId = `${NS}/chat-tool.css`
+        if (document.querySelector(`style[data-plugin-css="${tagId}"]`) !== null) return undefined
+        const tag = document.createElement('style')
+        tag.dataset.plugin = NS
+        tag.dataset.pluginCss = tagId
+        tag.textContent = CHAT_TOOL_CSS
+        document.head.appendChild(tag)
+        return () => tag.remove()
+      }, `${NS}: chat tool styles`)
+
+      const openFromChat = (path) => openNoteInWorkbench(ctx, path)
+      for (const toolName of Object.keys(NOTE_TOOL_TITLE_KEYS)) {
+        ctx.slots.inject('tool.call.toolview', () =>
+          ctx.slots.register(
+            { name: 'tool.call.toolview', key: toolName, locale: NS },
+            (props) => h(NotebookToolRow, { ...props, onOpenNote: openFromChat }),
+          ),
+        )
+      }
+
+      // A DSH shortcut toggles the ask panel while the workbench is mounted.
+      if (typeof ctx.inject === 'function') {
+        ctx.inject(['shortcuts'], (scope) => {
+          scope.effect(() => {
+            try {
+              return scope.shortcuts.register({
+                id: `${NS}.ask`,
+                label: () => t('askAi'),
+                defaults: {
+                  'desktop:macos': { code: 'KeyJ', modifiers: ['primary', 'alt'] },
+                  'desktop:windows': { code: 'KeyJ', modifiers: ['primary', 'alt'] },
+                  'desktop:linux': { code: 'KeyJ', modifiers: ['primary', 'alt'] },
+                },
+                regions: ['page', 'editable'],
+                resolve: () => ({ status: 'handled', run: () => requestAskToggle() }),
+              })
+            } catch {
+              // A conflicting default must not take the whole plugin down.
+              return () => {}
+            }
+          }, `${NS}: ask shortcut`)
+        })
+      }
+
+      // Settings → General: the vault folder, with the Host's folder picker.
+      ctx.slots.inject('settings.general.item', () =>
+        ctx.slots.register({ name: 'settings.general.item', id: `${NS}:vault`, order: 18 }, () =>
+          h(VaultSettingRow, {
+            t,
+            locale: ctx.locale,
+            pickDirectory: () => pickVaultDirectory(ctx),
+          }),
+        ),
+      )
+
+      // Composer tool row: jump to the notebook or insert the open note's path.
+      ctx.slots.inject('conversation.input.left', () =>
+        ctx.slots.register({ name: 'conversation.input.left', id: `${NS}:composer`, order: 30 }, (props) =>
+          h(NotebookComposerButton, {
+            ...props,
+            t,
+            locale: ctx.locale,
+            openPanel: () => openNotebookPanel(ctx),
+            openAsk: () => {
+              requestAskOpen()
+              openNotebookPanel(ctx)
+            },
+          }),
+        ),
+      )
+
       ctx.slots.inject('sidebar.panellist', () =>
         ctx.slots.register(
           {
@@ -8698,12 +11002,45 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         flattenTree,
         splitBlockId,
         collectionConfigFor,
+        folderOfPath,
+        linkOnlyTarget,
+        resolveNoteLink,
+        autoFolderPageFor,
+        folderPageConfigFor,
+        folderPageFor,
+        folderEntriesFor,
+        sortFolderNotes,
+        FolderView,
+        formatShortDate,
+        focusPayloadFor,
+        noteSyncDecision,
+        saveFailureKind,
+        activeLocaleId,
+        answerHtml,
+        normalizeSelectionText,
+        insertAfterBlock,
+        lastUserIndex,
+        rememberAskThread,
+        citationNoteName,
+        noteDirFor,
+        askAnswerTitle,
+        ASK_THREADS,
         collectionColumns,
         filterCollectionRows,
         sortCollectionRows,
         groupCollectionRows,
         isTemplateHref,
         isBlankBlockText,
+        chatNoteToolModel,
+        toolBlockArgs,
+        toolBlockText,
+        noteNameFromPath,
+        resultSuffix,
+        requestNoteOpen,
+        requestAskOpen,
+        takePendingAskOpen,
+        subscribeNoteOpen,
+        takePendingNoteOpen,
         EMOJI_SHORTCODES,
         removeTagFromList,
         withFrontmatterValue,

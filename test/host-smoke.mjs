@@ -113,13 +113,24 @@ async function request(pathname, init) {
   } catch {
     body = text
   }
-  return { status: response.status, body, text }
+  return { status: response.status, body, text, headers: response.headers }
 }
 
 function get(pathname, params) {
   const url = new URL(pathname, baseUrl)
   for (const [key, value] of Object.entries(params ?? {})) url.searchParams.set(key, String(value))
   return request(url.pathname + url.search)
+}
+
+function sseEvents(text) {
+  return String(text)
+    .split('\n\n')
+    .filter((frame) => frame.trim().length > 0)
+    .map((frame) => {
+      const line = frame.split('\n').find((item) => item.startsWith('data: '))
+      return line === undefined ? null : JSON.parse(line.slice(6))
+    })
+    .filter((event) => event !== null)
 }
 
 function post(pathname, payload, extraHeaders = {}) {
@@ -140,8 +151,16 @@ const tools = new Map()
 
 const promptContexts = new Map()
 const commandDefs = new Map()
+const configEdits = []
+
+const configEditor = {
+  async edit(entry, change) {
+    configEdits.push({ entryId: entry?.id, config: change({ vaultPath: '', maxNoteBytes: 1 }) })
+  },
+}
 
 const ctx = {
+  fiber: { entry: { id: 'include:dsh-notebook' } },
   effect(callback, label) {
     const dispose = callback()
     disposers.push({ label: String(label ?? ''), dispose })
@@ -186,7 +205,16 @@ const ctx = {
     listModels: async () => [{ provider: 'mock', id: 'mock-model', name: 'Mock model' }],
     async *stream(options) {
       aiCalls.push(options)
-      if (String(options.system ?? '').includes('写作 Agent')) {
+      if (String(options.system ?? '').includes('检索助手')) {
+        const step = aiCalls.filter((call) => String(call.system ?? '').includes('检索助手')).length
+        // First a forbidden write, then the answer: the route must refuse the
+        // write without touching the vault.
+        yield {
+          type: 'text-delta',
+          index: 0,
+          text: step === 1 ? '{"tool":"write","path":"只读.md","content":"不应该写入"}' : '{"done":"只读回答"}',
+        }
+      } else if (String(options.system ?? '').includes('写作 Agent')) {
         const step = aiCalls.filter((call) => String(call.system ?? '').includes('写作 Agent')).length
         // Two actions in one reply must still take just the first object.
         yield {
@@ -202,6 +230,7 @@ const ctx = {
     },
   },
   get(name) {
+    if (name === 'configEditor') return configEditor
     if (name === 'agentDefaultModel') {
       return { currentSelection: () => ({ provider: 'mock', model: 'mock-model' }) }
     }
@@ -546,6 +575,100 @@ async function main() {
     expectOk(await post('/notebook/api/current', { path: '笔记/01 工作/第三版.md' }), 'restore current')
   })
 
+  await check('the edited block becomes agent context and clears on a note switch', async () => {
+    expectOk(await post('/notebook/api/current', { path: '大纲/含大纲.md' }), 'focus: set current')
+    const focus = expectOk(
+      await post('/notebook/api/focus', {
+        path: '大纲/含大纲.md',
+        heading: '小节一',
+        kind: 'paragraph',
+        text: '  这一段是用户正在改的。  ',
+      }),
+      'focus set',
+    )
+    assert.equal(focus.focus.heading, '小节一', JSON.stringify(focus))
+    assert.equal(focus.focus.text, '这一段是用户正在改的。', JSON.stringify(focus))
+    const current = expectOk(await get('/notebook/api/current'), 'current with focus')
+    assert.equal(current.focus.kind, 'paragraph', JSON.stringify(current))
+    const definition = promptContexts.get('dsh-notebook:current-note')
+    const text = definition.text()
+    assert(text.includes('「小节一」下'), JSON.stringify(text))
+    assert(text.includes('这一段是用户正在改的。'), JSON.stringify(text))
+    assert(text.includes('「这段 / 这里 / 当前块」'), JSON.stringify(text))
+
+    // A focus recorded for another note is ignored instead of leaking.
+    expectOk(await post('/notebook/api/focus', { path: '别处.md', text: '不该出现' }), 'focus wrong note')
+    const unchanged = expectOk(await get('/notebook/api/current'), 'current after wrong note')
+    assert.equal(unchanged.focus.text, '这一段是用户正在改的。', JSON.stringify(unchanged))
+
+    // Opening a different note drops the old focus.
+    expectOk(await post('/notebook/api/current', { path: '笔记/欢迎.md' }), 'switch note')
+    const cleared = expectOk(await get('/notebook/api/current'), 'current after switch')
+    assert.equal(cleared.focus, null, JSON.stringify(cleared))
+    const afterSwitch = definition.text()
+    assert(!afterSwitch.includes('这一段是用户正在改的。'), JSON.stringify(afterSwitch))
+    expectOk(await post('/notebook/api/current', { path: '笔记/01 工作/第三版.md' }), 'restore current')
+  })
+
+  await check('GET /api/stat reports the open note mtime without its body', async () => {
+    const read = expectOk(await get('/notebook/api/read', { path: '日常.md' }), 'read for stat')
+    const stat = expectOk(await get('/notebook/api/stat', { path: '日常.md' }), 'stat')
+    assert.equal(stat.exists, true, JSON.stringify(stat))
+    assert.equal(stat.mtimeMs, read.mtimeMs, JSON.stringify(stat))
+    assert.equal(stat.size, read.size, JSON.stringify(stat))
+    const missing = expectOk(await get('/notebook/api/stat', { path: '没有这篇.md' }), 'stat missing')
+    assert.equal(missing.exists, false, JSON.stringify(missing))
+    const escaped = await get('/notebook/api/stat', { path: '../outside-secret.md' })
+    assert.equal(escaped.status, 400, JSON.stringify(escaped))
+  })
+
+  await check('POST /api/vault saves the folder through the config editor', async () => {
+    const ok = await post('/notebook/api/vault', { path: VAULT })
+    assert.equal(ok.status, 200, ok.text)
+    // The config edit runs after the response so the restart cannot eat it.
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    assert.equal(configEdits.length, 1, `expected 1 config edit, got ${configEdits.length}`)
+    assert.equal(configEdits[0].entryId, 'include:dsh-notebook', JSON.stringify(configEdits[0]))
+    assert.equal(configEdits[0].config.vaultPath, VAULT, JSON.stringify(configEdits[0].config))
+
+    const auto = await post('/notebook/api/vault', { path: '' })
+    assert.equal(auto.status, 200, auto.text)
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    assert.equal(configEdits.length, 2, `expected 2 config edits, got ${configEdits.length}`)
+    assert.equal(configEdits[1].config.vaultPath, '', JSON.stringify(configEdits[1].config))
+    assert.equal(configEdits[1].config.maxNoteBytes, 1, 'other config fields must be preserved')
+
+    const missing = await post('/notebook/api/vault', { path: '/definitely/not/a/folder' })
+    assert.equal(missing.status, 404, missing.text)
+    assert.equal(configEdits.length, 2, 'a refused path must not be persisted')
+  })
+
+  await check('POST /api/ask streams an SSE answer for the open note', async () => {
+    aiCalls.length = 0
+    const response = await fetch(`${baseUrl}/notebook/api/ask`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        path: '笔记/欢迎.md',
+        question: '这篇笔记讲了什么？',
+        history: [],
+        selection: '这是用户选中的文字',
+      }),
+    })
+    assert.equal(response.status, 200, `status ${response.status}`)
+    assert.match(response.headers.get('content-type') ?? '', /text\/event-stream/)
+    const text = await response.text()
+    assert.match(text, /"type":"meta"/, text)
+    assert.match(text, /"provider":"mock"/, text)
+    assert.match(text, /"type":"delta"/, text)
+    assert.match(text, /"type":"done"/, text)
+    const systems = aiCalls.map((call) => String(call.system ?? ''))
+    assert(systems.some((system) => system.includes('这是用户选中的文字')), 'selection missing from the prompt')
+    assert(systems.some((system) => system.includes('选中的')), 'selection guidance missing from the prompt')
+    const empty = await post('/notebook/api/ask', { path: '笔记/欢迎.md', question: '   ' })
+    assert.equal(empty.status, 400, empty.text)
+  })
+
   await check('/note shows and switches the current note', async () => {
     const definition = commandDefs.get('note')
     assert.notEqual(definition, undefined, 'note command not registered')
@@ -580,6 +703,21 @@ async function main() {
     assert.equal(result.kind, 'success', JSON.stringify(result))
     const stat = await fsp.stat(join(VAULT, '命令新建.md'))
     assert.equal(stat.isFile(), true)
+  })
+
+  await check('/note ask answers through the read-only agent', async () => {
+    const definition = commandDefs.get('note')
+    aiCalls.length = 0
+    const result = await definition.handler({ rawInput: 'ask 这篇笔记讲了什么', agent: { id: 'test' } })
+    assert.equal(result.kind, 'success', JSON.stringify(result))
+    assert.equal(result.text, '只读回答', JSON.stringify(result))
+    assert(
+      aiCalls.some((call) => String(call.system ?? '').includes('不能修改任何文件')),
+      'the command must use the read-only agent',
+    )
+    const empty = await definition.handler({ rawInput: 'ask', agent: { id: 'test' } })
+    assert.equal(empty.kind, 'error', JSON.stringify(empty))
+    aiCalls.length = 0
   })
 
   await check('/note agent starts a native Harness sub Agent', async () => {
@@ -640,6 +778,30 @@ async function main() {
     aiCalls.length = 0
   })
 
+  await check('POST /api/ask/agent streams read-only steps and refuses writes', async () => {
+    aiCalls.length = 0
+    const response = await post('/notebook/api/ask/agent', { path: '笔记/欢迎.md', question: '库里有哪些相关笔记？' })
+    assert.equal(response.status, 200, response.text)
+    assert.match(response.headers.get('content-type') ?? '', /text\/event-stream/)
+    const events = sseEvents(response.text)
+    const meta = events.find((event) => event.type === 'meta')
+    const answer = events.find((event) => event.type === 'answer')
+    const steps = events.filter((event) => event.type === 'step')
+    assert(meta !== undefined && meta.provider === 'mock', JSON.stringify(events))
+    assert(answer !== undefined && answer.text === '只读回答', JSON.stringify(events))
+    assert(steps.length === 1 && steps[0].tool === 'write' && steps[0].ok === false, JSON.stringify(steps))
+    assert(events[events.length - 1].type === 'done', JSON.stringify(events))
+    assert(
+      aiCalls.some((call) => String(call.system ?? '').includes('不能修改任何文件')),
+      'read-only system prompt missing',
+    )
+    const notWritten = await fsp.stat(join(VAULT, '只读.md')).then(() => true, () => false)
+    assert.equal(notWritten, false, 'a refused write must not touch the vault')
+    const empty = expectReject(await post('/notebook/api/ask/agent', { question: '  ' }), 'ask agent empty')
+    assert.equal(empty.code, 'empty_question', JSON.stringify(empty))
+    aiCalls.length = 0
+  })
+
   await check('POST /api/ai/agent rejects an empty instruction', async () => {
     const empty = expectReject(await post('/notebook/api/ai/agent', { instruction: '   ' }), 'empty instruction')
     assert.equal(empty.code, 'empty_instruction', JSON.stringify(empty))
@@ -657,6 +819,21 @@ async function main() {
     assert.equal(call.model, 'mock-model')
     assert.equal(call.messages[0].content[0].text, '原文内容')
     assert(call.system.length > 10, 'system prompt missing')
+    aiCalls.length = 0
+  })
+
+  await check('POST /api/ai/stream streams the AI panel result', async () => {
+    aiCalls.length = 0
+    const response = await post('/notebook/api/ai/stream', { task: 'rewrite', text: '原文内容', locale: 'zh' })
+    assert.equal(response.status, 200, response.text)
+    assert.match(response.headers.get('content-type') ?? '', /text\/event-stream/)
+    const events = sseEvents(response.text)
+    assert(events[0]?.type === 'meta' && events[0].provider === 'mock', JSON.stringify(events))
+    assert(events.some((event) => event.type === 'delta'), JSON.stringify(events))
+    const done = events.find((event) => event.type === 'done')
+    assert(done !== undefined && done.text.startsWith('AI: '), JSON.stringify(events))
+    const empty = await post('/notebook/api/ai/stream', { task: 'rewrite', text: '   ' })
+    assert.equal(empty.status, 400, empty.text)
     aiCalls.length = 0
   })
 
@@ -771,22 +948,32 @@ async function main() {
   // Agent tools (called directly, same vault service)
   // -------------------------------------------------------------------------
 
-  await check('tool notebook_list returns a non-empty string with note paths', async () => {
+  await check('tool notebook_list summarizes folders and lists direct notes', async () => {
     const output = await tools.get('notebook_list').execute({}, { signal })
     assert.equal(typeof output, 'string')
-    assert.ok(output.length > 0)
     assert.match(output, /Vault:/)
-    assert.match(output, /笔记\/欢迎\.md/)
-    assert.match(output, /笔记\/项目\/设计\.md/)
+    assert.match(output, /Folders \(/)
+    assert.match(output, /笔记\/ — \d+ note\(s\)/)
+    assert.match(output, /日常\.md/)
     assert.doesNotMatch(output, /\.obsidian/)
+    // Direct listing does not dump the whole subtree.
+    assert.doesNotMatch(output, /笔记\/欢迎\.md/)
+    const recursive = await tools.get('notebook_list').execute({ recursive: true }, { signal })
+    assert.match(recursive, /笔记\/欢迎\.md/)
+    assert.match(recursive, /笔记\/项目\/设计\.md/)
   })
 
-  await check('tool notebook_list honors the folder argument', async () => {
+  await check('tool notebook_list honors the folder argument and the print limit', async () => {
     const output = await tools.get('notebook_list').execute({ folder: '笔记' }, { signal })
     assert.equal(typeof output, 'string')
     assert.match(output, /欢迎\.md/)
-    assert.match(output, /设计\.md/)
+    assert.match(output, /项目\//)
     assert.doesNotMatch(output, /日常\.md/)
+    const recursive = await tools.get('notebook_list').execute({ folder: '笔记', recursive: true }, { signal })
+    assert.match(recursive, /项目\/设计\.md/)
+    const capped = await tools.get('notebook_list').execute({ recursive: true, limit: 1 }, { signal })
+    assert.match(capped, /Notes \(1 of \d+\)/, capped)
+    assert.match(capped, /list truncated/, capped)
   })
 
   await check('tool notebook_read returns the note content', async () => {
