@@ -17,7 +17,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 export const name = 'dsh-notebook'
-export const inject = ['tools', 'webServer', 'llm', 'systemPrompt', 'commands']
+export const inject = ['tools', 'webServer', 'llm', 'systemPrompt', 'commands', 'sessions']
 
 const NS = 'dsh-notebook'
 
@@ -1137,19 +1137,50 @@ export function apply(ctx, rawConfig) {
   // ---- Live note, /note command, and agent-style AI (all via Host services) ----
   let currentNote = null
 
-  function setCurrentNote(path) {
+  /**
+   * Remember the note the panel is editing and read enough of it to describe
+   * itself in the prompt context (title + first headings).
+   */
+  async function setCurrentNote(path) {
     if (typeof path !== 'string' || path.length === 0) return
-    currentNote = { path, updatedAt: Date.now() }
+    const entry = { path, updatedAt: Date.now(), title: '', outline: [] }
+    currentNote = entry
+    try {
+      const note = await vault.read(path)
+      const body = String(note.content ?? '')
+      const lines = body.split(/\r\n|\r|\n/)
+      const outline = []
+      for (const line of lines) {
+        const match = /^(#{1,4})\s+(.+)$/.exec(line.trim())
+        if (match === null) continue
+        outline.push(`${'  '.repeat(match[1].length - 1)}- ${match[2].trim().slice(0, 60)}`)
+        if (outline.length >= 12) break
+      }
+      const heading = /^#\s+(.+)$/m.exec(body)
+      entry.title =
+        heading !== null
+          ? heading[1].trim().slice(0, 80)
+          : String(path).split('/').pop().replace(/\.md$/i, '')
+      entry.outline = outline
+    } catch {
+      /* the note may be gone; the path alone is still useful */
+    }
   }
 
   function currentNotePromptText() {
     if (currentNote === null) return ''
     const age = Math.max(0, Math.round((Date.now() - currentNote.updatedAt) / 1000))
-    return [
+    const parts = [
       '## 当前笔记本（DSH Notebook）',
-      `用户正在 DSH 的笔记本面板中编辑笔记「${currentNote.path}」（${age} 秒前打开）。`,
-      '需要读取或修改它时使用 notebook_read / notebook_write 工具；改动后简短说明改了什么。',
-    ].join('\n')
+      currentNote.title.length > 0
+        ? `用户正在 DSH 的笔记本面板中编辑笔记「${currentNote.path}」（标题：${currentNote.title}，${age} 秒前打开）。`
+        : `用户正在 DSH 的笔记本面板中编辑笔记「${currentNote.path}」（${age} 秒前打开）。`,
+    ]
+    if (currentNote.outline.length > 0) {
+      parts.push('这篇笔记的大纲：', ...currentNote.outline)
+    }
+    parts.push('需要读取或修改它时使用 notebook_read / notebook_write 工具；改动后简短说明改了什么。')
+    return parts.join('\n')
   }
 
   if (ctx.systemPrompt !== undefined && typeof ctx.systemPrompt.context === 'function') {
@@ -1164,29 +1195,112 @@ export function apply(ctx, rawConfig) {
     )
   }
 
+  /** `/note save [标题]`: write the current conversation into a vault note. */
+  async function saveConversationNote(invocation, title) {
+    let session = null
+    try {
+      const store = typeof ctx.get === 'function' ? ctx.get('sessions') : undefined
+      if (store !== undefined && typeof store.get === 'function' && invocation?.agent?.id !== undefined) {
+        session = store.get(invocation.agent.id)
+      }
+    } catch {
+      session = null
+    }
+    if (session === null || session === undefined) {
+      return { kind: 'error', text: '读不到当前会话内容，暂时无法保存对话。' }
+    }
+    let messages = []
+    try {
+      messages = session.deriveMessages()
+    } catch {
+      messages = []
+    }
+    const turns = []
+    for (const message of messages) {
+      if (message.role !== 'user' && message.role !== 'assistant') continue
+      const text = (Array.isArray(message.content) ? message.content : [])
+        .filter((block) => block !== null && block.type === 'text')
+        .map((block) => String(block.text ?? ''))
+        .join('\n')
+        .trim()
+      if (text.length === 0) continue
+      turns.push(message.role === 'user' ? `**我：**\n\n${text}` : `**助手：**\n\n${text}`)
+    }
+    if (turns.length === 0) {
+      return { kind: 'error', text: '当前会话还没有可保存的对话。' }
+    }
+    const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ')
+    const name = title.length > 0 ? title : `对话记录 ${stamp}`
+    const body = turns.slice(-20).join('\n\n---\n\n')
+    const content = `---\nsource: conversation\nsession: ${String(invocation.agent.id)}\n---\n\n# ${name}\n\n${body}\n`
+    for (let attempt = 1; attempt <= 50; attempt += 1) {
+      const path = attempt === 1 ? `${name}.md` : `${name} ${attempt}.md`
+      try {
+        const result = await vault.write(path, content, 'create')
+        return { kind: 'success', text: `已把最近 ${Math.min(turns.length, 20)} 条对话保存成笔记：${result.path ?? path}` }
+      } catch (error) {
+        if (error.code !== 'note_exists') return { kind: 'error', text: error.message }
+      }
+    }
+    return { kind: 'error', text: '同名笔记太多了，换一个标题再试。' }
+  }
+
+  /** `/note new [标题]`: create an empty note in the vault root. */
+  async function createNoteFromCommand(title) {
+    const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ')
+    const name = title.length > 0 ? title : `新笔记 ${stamp}`
+    for (let attempt = 1; attempt <= 50; attempt += 1) {
+      const path = attempt === 1 ? `${name}.md` : `${name} ${attempt}.md`
+      try {
+        const result = await vault.write(path, '', 'create')
+        return { kind: 'success', text: `已新建笔记：${result.path ?? path}` }
+      } catch (error) {
+        if (error.code !== 'note_exists') return { kind: 'error', text: error.message }
+      }
+    }
+    return { kind: 'error', text: '同名笔记太多了，换一个标题再试。' }
+  }
+
   if (ctx.commands !== undefined && typeof ctx.commands.register === 'function') {
     ctx.effect(
       () =>
         ctx.commands.register({
           definitionId: 'dsh-notebook:note',
           name: 'note',
-          description: 'Notebook: show the note open in the panel, or switch it with a name',
-          input: { hint: '<笔记名，可省略>' },
+          description:
+            'Notebook: 显示当前笔记；/note <名字> 切换；/note save [标题] 保存对话；/note new [标题] 新建笔记',
+          input: { hint: '<名字> | save [标题] | new [标题]' },
           handler: async (invocation) => {
             const raw = typeof invocation?.rawInput === 'string' ? invocation.rawInput.trim() : ''
             if (raw.length === 0) {
               return currentNote === null
                 ? { kind: 'success', text: '笔记本还没有打开任何笔记，先在笔记面板里打开一篇。' }
-                : { kind: 'success', text: `当前笔记：${currentNote.path}` }
+                : {
+                    kind: 'success',
+                    text: `当前笔记：${currentNote.path}${currentNote.title.length > 0 ? `（${currentNote.title}）` : ''}`,
+                  }
+            }
+            const [verbRaw, ...restWords] = raw.split(/\s+/)
+            const verb = String(verbRaw ?? '').toLowerCase()
+            const rest = restWords.join(' ').trim()
+            if (verb === 'save') return saveConversationNote(invocation, rest)
+            if (verb === 'new') return createNoteFromCommand(rest)
+            if (verb === 'open') {
+              return currentNote === null
+                ? { kind: 'error', text: '笔记本还没有打开任何笔记。' }
+                : {
+                    kind: 'success',
+                    text: `当前笔记：${currentNote.path}。点侧栏的「笔记本」图标即可回到面板。`,
+                  }
             }
             const listed = await vault.list('')
-            const needle = raw.toLowerCase()
+            const needle = verb === 'note' ? rest.toLowerCase() : raw.toLowerCase()
             const matches = listed.notes.filter(
               (note) =>
                 note.name.toLowerCase().includes(needle) || note.path.toLowerCase().includes(needle),
             )
             if (matches.length === 0) {
-              return { kind: 'error', text: `没有找到包含「${raw}」的笔记。` }
+              return { kind: 'error', text: `没有找到包含「${needle}」的笔记。` }
             }
             if (matches.length > 1) {
               return {
@@ -1194,7 +1308,7 @@ export function apply(ctx, rawConfig) {
                 text: `匹配到多篇笔记，请用更完整的名字：\n${matches.slice(0, 8).map((note) => note.path).join('\n')}`,
               }
             }
-            setCurrentNote(matches[0].path)
+            await setCurrentNote(matches[0].path)
             return {
               kind: 'success',
               text: `已切换当前笔记：${matches[0].path}。之后的对话里我会知道你在看这篇。`,
@@ -1217,17 +1331,44 @@ export function apply(ctx, rawConfig) {
     '规则：先 read 再 write；只改用户提到的笔记；内容用 Markdown；最终说明用中文，简短列出改动。',
   ].join('\n')
 
+  /**
+   * Take the first complete JSON object from a model reply. Models sometimes
+   * emit several actions at once, so the brace that closes depth 0 ends the
+   * candidate (string literals inside `content` are skipped).
+   */
   function parseAiAction(content) {
     const raw = String(content ?? '').trim()
     const start = raw.indexOf('{')
-    const end = raw.lastIndexOf('}')
-    if (start < 0 || end <= start) return null
-    try {
-      const parsed = JSON.parse(raw.slice(start, end + 1))
-      return parsed !== null && typeof parsed === 'object' ? parsed : null
-    } catch {
-      return null
+    if (start < 0) return null
+    let depth = 0
+    let inString = false
+    let escaped = false
+    for (let index = start; index < raw.length; index += 1) {
+      const char = raw[index]
+      if (inString) {
+        if (escaped) escaped = false
+        else if (char === '\\') escaped = true
+        else if (char === '"') inString = false
+        continue
+      }
+      if (char === '"') {
+        inString = true
+        continue
+      }
+      if (char === '{') depth += 1
+      else if (char === '}') {
+        depth -= 1
+        if (depth === 0) {
+          try {
+            const parsed = JSON.parse(raw.slice(start, index + 1))
+            return parsed !== null && typeof parsed === 'object' ? parsed : null
+          } catch {
+            return null
+          }
+        }
+      }
     }
+    return null
   }
 
   async function aiToolCall(call) {
@@ -1370,14 +1511,21 @@ export function apply(ctx, rawConfig) {
               sendJson(res, 200, {
                 ok: true,
                 path: currentNote === null ? null : currentNote.path,
+                title: currentNote === null ? null : currentNote.title,
+                outline: currentNote === null ? [] : currentNote.outline,
                 updatedAt: currentNote === null ? null : currentNote.updatedAt,
               })
               return
             }
             if (req.method === 'POST' && path === '/api/current') {
               const body = await readJsonBody(req)
-              setCurrentNote(body.path)
-              sendJson(res, 200, { ok: true, path: currentNote === null ? null : currentNote.path })
+              await setCurrentNote(body.path)
+              sendJson(res, 200, {
+                ok: true,
+                path: currentNote === null ? null : currentNote.path,
+                title: currentNote === null ? null : currentNote.title,
+                outline: currentNote === null ? [] : currentNote.outline,
+              })
               return
             }
             if (req.method === 'POST' && path === '/api/ai/agent') {

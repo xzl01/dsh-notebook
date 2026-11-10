@@ -188,7 +188,12 @@ const ctx = {
       aiCalls.push(options)
       if (String(options.system ?? '').includes('写作 Agent')) {
         const step = aiCalls.filter((call) => String(call.system ?? '').includes('写作 Agent')).length
-        yield { type: 'text-delta', index: 0, text: step === 1 ? '{"tool":"list"}' : '{"done":"整理完成"}' }
+        // Two actions in one reply must still take just the first object.
+        yield {
+          type: 'text-delta',
+          index: 0,
+          text: step === 1 ? '{"tool":"list"}\n{"tool":"list"}' : '{"done":"整理完成"}',
+        }
       } else {
         yield { type: 'text-delta', index: 0, text: 'AI: ' }
         yield { type: 'text-delta', index: 0, text: `(${options.system.slice(0, 4)})` }
@@ -199,6 +204,16 @@ const ctx = {
   get(name) {
     if (name === 'agentDefaultModel') {
       return { currentSelection: () => ({ provider: 'mock', model: 'mock-model' }) }
+    }
+    if (name === 'sessions') {
+      return {
+        get: () => ({
+          deriveMessages: () => [
+            { role: 'user', content: [{ type: 'text', text: '你好' }] },
+            { role: 'assistant', content: [{ type: 'text', text: '在的，需要我改笔记吗？' }] },
+          ],
+        }),
+      }
     }
     return undefined
   },
@@ -277,7 +292,7 @@ async function main() {
 
   await check('plugin exports apply() and the Host services it consumes', () => {
     assert.equal(typeof apply, 'function', 'apply must be exported as a function')
-    assert.deepEqual(plugin.inject, ['tools', 'webServer', 'llm', 'systemPrompt', 'commands'])
+    assert.deepEqual(plugin.inject, ['tools', 'webServer', 'llm', 'systemPrompt', 'commands', 'sessions'])
   })
 
   assert.equal(typeof apply, 'function', 'cannot continue without apply()')
@@ -496,12 +511,25 @@ async function main() {
     assert.equal(read.path, '笔记/01 工作/第三版.md', JSON.stringify(read))
   })
 
-  await check('the current note is injected into the prompt context', () => {
+  await check('the current note context includes the title and outline', async () => {
+    expectOk(
+      await post('/notebook/api/create', {
+        path: '大纲/含大纲.md',
+        content: '# 总标题\n\n## 小节一\n\n正文\n\n## 小节二\n',
+      }),
+      'create outline note',
+    )
+    const set = expectOk(await post('/notebook/api/current', { path: '大纲/含大纲.md' }), 'set outline note')
+    assert.equal(set.title, '总标题', JSON.stringify(set))
+    assert(set.outline.length >= 3, JSON.stringify(set.outline))
     const definition = promptContexts.get('dsh-notebook:current-note')
     assert.notEqual(definition, undefined, 'prompt context not registered')
     const text = definition.text()
-    assert(text.includes('笔记/01 工作/第三版.md'), JSON.stringify(text))
+    assert(text.includes('大纲/含大纲.md'), JSON.stringify(text))
+    assert(text.includes('总标题'), JSON.stringify(text))
+    assert(text.includes('小节一'), JSON.stringify(text))
     assert(text.includes('notebook_read'), JSON.stringify(text))
+    expectOk(await post('/notebook/api/current', { path: '笔记/01 工作/第三版.md' }), 'restore current')
   })
 
   await check('/note shows and switches the current note', async () => {
@@ -518,6 +546,26 @@ async function main() {
     assert.equal(missing.kind, 'error', JSON.stringify(missing))
     // restore the current note for later checks
     expectOk(await post('/notebook/api/current', { path: '笔记/01 工作/第三版.md' }), 'restore current')
+  })
+
+  await check('/note save writes the conversation into a note', async () => {
+    const definition = commandDefs.get('note')
+    const result = await definition.handler({ rawInput: 'save 会话存档', agent: { id: 'test' } })
+    assert.equal(result.kind, 'success', JSON.stringify(result))
+    assert(result.text.includes('会话存档'), JSON.stringify(result))
+    const content = await fsp.readFile(join(VAULT, '会话存档.md'), 'utf8')
+    assert(content.includes('**我：**'), content)
+    assert(content.includes('在的，需要我改笔记吗？'), content)
+    assert(content.includes('source: conversation'), content)
+    assert(content.includes('session: test'), content)
+  })
+
+  await check('/note new creates an empty note', async () => {
+    const definition = commandDefs.get('note')
+    const result = await definition.handler({ rawInput: 'new 命令新建', agent: { id: 'test' } })
+    assert.equal(result.kind, 'success', JSON.stringify(result))
+    const stat = await fsp.stat(join(VAULT, '命令新建.md'))
+    assert.equal(stat.isFile(), true)
   })
 
   await check('POST /api/ai/agent runs a tool loop through the Harness model', async () => {

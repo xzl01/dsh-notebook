@@ -441,6 +441,8 @@ window.__ModuleLoader__.load({
       aiAgent: 'Agent 整理',
       aiRun: '执行',
       aiAgentPlaceholder: '用一句话说明要做什么，例如：把这篇笔记整理成小节并补 3 条摘要',
+      aiAgentSnapshotHint: 'Agent 会直接改写笔记；每次写入前已自动留版本快照。',
+      aiOpenHistory: '查看版本历史',
       copy: '复制',
       copied: '已复制',
       graphEmpty: '这篇笔记还没有链接关系',
@@ -667,6 +669,8 @@ window.__ModuleLoader__.load({
       aiAgent: 'Agent',
       aiRun: 'Run',
       aiAgentPlaceholder: 'Describe the task, e.g. restructure this note into sections and add 3 summary points',
+      aiAgentSnapshotHint: 'The agent edits your note directly; a version snapshot is kept before every write.',
+      aiOpenHistory: 'Open version history',
       copy: 'Copy',
       copied: 'Copied',
       graphEmpty: 'This note has no links yet',
@@ -1060,6 +1064,7 @@ window.__ModuleLoader__.load({
 .nb-ai-task:hover { border-color: var(--nb-accent); color: var(--nb-accent); }
 .nb-ai-task.on { border-color: var(--nb-accent); color: var(--nb-accent); background: var(--nb-accent-soft); font-weight: 600; }
 .nb-ai-instruction { width: 100%; box-sizing: border-box; min-height: 72px; padding: 10px; font-size: 13px; line-height: 1.6; resize: vertical; }
+.nb-ai-snapshot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; color: var(--nb-text-3); }
 .nb-ai-source { max-height: 96px; overflow: auto; padding: 8px 10px; background: var(--nb-panel); border-radius: var(--nb-radius-s); font-size: 12px; color: var(--nb-text-3); white-space: pre-wrap; }
 .nb-ai-result { width: 100%; box-sizing: border-box; min-height: 130px; padding: 10px; font-size: 13px; line-height: 1.6; }
 .nb-ai-result.loading, .nb-ai-result.error { min-height: auto; padding: 12px; background: var(--nb-panel); border-radius: var(--nb-radius-s); font-size: 12.5px; color: var(--nb-text-3); }
@@ -7495,6 +7500,24 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                           onChange: (event) => setAiPanel({ ...aiPanel, result: event.target.value }),
                         })
                       : null,
+                aiPanel.task === 'agent' && aiPanel.result.length > 0
+                  ? h(
+                      'div',
+                      { className: 'nb-ai-snapshot' },
+                      h('span', null, t('aiAgentSnapshotHint')),
+                      h(
+                        'button',
+                        {
+                          className: 'nb-btn',
+                          onClick: () => {
+                            setAiPanel(null)
+                            openHistory()
+                          },
+                        },
+                        t('aiOpenHistory'),
+                      ),
+                    )
+                  : null,
                 h(
                   'div',
                   { className: 'nb-modal-actions' },

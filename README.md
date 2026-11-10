@@ -130,8 +130,13 @@ Host 通过 `ctx.llm` 与 `agentDefaultModel` 解析当前默认模型（没有�
   完成后自动写回笔记并刷新面板。实测能把一篇散记整理成「摘要 + 小节」结构。
 - **当前笔记注入 Agent 上下文**：打开任意笔记时面板会把路径上报给 Host，Host 通过
   `systemPrompt.context` 注入「用户正在编辑 xxx」的上下文——对话里的 Agent 因此知道你正在看哪篇。
-- **`/note` 命令**：在对话里输入 `/note` 显示当前笔记；`/note 名字` 切换当前笔记（唯一匹配时），
-  之后 Agent 的上下文随之切换。
+- **`/note` 命令**：
+  - `/note` 显示当前笔记；`/note 名字` 切换当前笔记（唯一匹配时），Agent 上下文随之切换；
+  - `/note save [标题]` 把当前会话最近 20 条对话**保存成一篇笔记**（frontmatter 记录来源与 session id）；
+  - `/note new [标题]` 在笔记库根目录新建一篇空笔记。
+- **写前快照**：任何写入（含 AI Agent 改写）前都会在 `.dsh-notebook-history/` 留一份旧内容快照；
+  Agent 结果面板会提示这一点，并提供「查看版本历史」直接回滚。
+- **上下文增强**：注入给模型的不只是路径，还有笔记标题与最多 12 条大纲；`/api/current` 也返回这些信息。
 - 输入上限 8000 字符、单次 60 秒超时、任务白名单校验；未配置模型或调用失败会以错误提示返回。
 
 ## 集合视图（L3：文件级数据库）
@@ -218,7 +223,7 @@ Host 通过 `ctx.llm` 与 `agentDefaultModel` 解析当前默认模型（没有�
 
 ```bash
 node test/client-smoke.mjs        # Client：工厂、slot 注册、Markdown/HTML/diff/表格等纯函数，67 项
-node test/host-smoke.mjs          # Host：mock ctx + 真实 HTTP server + 临时笔记库，51 项
+node test/host-smoke.mjs          # Host：mock ctx + 真实 HTTP server + 临时笔记库，53 项
 node test/host-attachments.mjs    # Host：图片上传 / 读取 / 配置 / 安全拒绝，10 项
 node test/host-history.mjs        # Host：版本快照 / 恢复 / 拒绝，8 项
 ```
