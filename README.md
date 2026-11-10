@@ -134,16 +134,6 @@ Marp 的模板 class、`<!-- fit -->`、导出 PPTX 尚未实现——需要的�
   加/移除封面；其他 frontmatter 字段保存时原样保留。
 - `⋯` →「快捷键」查看全部快捷键。
 
-## 主页（仪表盘）
-
-打开面板但没选笔记时显示一个 Notion 风格主页：
-
-- 按时间的问候（早上好 / 下午好 / 晚上好）+ 日期 + 三个统计（笔记数、待整理闪念、收藏数）
-- 四个快捷操作：新建笔记（模板）、记闪念、快速打开（Ctrl/Cmd+P）、同步（显示当前 provider 状态）
-- 最近编辑（按修改时间取 6 篇，显示目录与相对时间）
-- 闪念收件箱卡片（待整理数量 + 一键记录/打开）
-- 收藏 chips 与顶层目录卡片（按数量排序，点击进入）
-
 ## AI 能力（用 DSH 自己的模型）
 
 插件不自带 API key、不新增 provider 配置——所有 AI 调用都走 Harness 自己的模型服务：
@@ -432,7 +422,7 @@ Agent 也能用 `notebook_sync` 查看状态、测试连接、触发一次同步
 ## 开发与测试
 
 ```bash
-node test/client-smoke.mjs        # Client：工厂、slot 注册、对话笔记卡片、目录页、聚焦/同步判定、问 AI、命令面板、保存视图/条件过滤、嵌入锚点、写作热力网格、Markdown/HTML/diff 等纯函数，99 项
+node test/client-smoke.mjs        # Client：工厂、slot 注册、对话笔记卡片、目录页、聚焦/同步判定、问 AI、命令面板、保存视图/条件过滤、嵌入锚点、写作热力网格、Markdown/HTML/diff 等纯函数，96 项
 node test/host-smoke.mjs          # Host：mock ctx + 真实 HTTP server + 临时笔记库 + configEditor mock，69 项（含引用摘要与语义检索）
 node test/host-attachments.mjs    # Host：图片上传 / 读取 / 配置 / 安全拒绝，10 项
 node test/host-history.mjs        # Host：版本快照 / 恢复 / 拒绝，8 项
