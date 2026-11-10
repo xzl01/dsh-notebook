@@ -15,6 +15,8 @@ import { promises as fsp, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { createFlashService, FLASH_CATEGORIES } from './flash.js'
+import { createSyncService } from './sync.js'
 
 export const name = 'dsh-notebook'
 export const inject = ['tools', 'webServer', 'llm', 'systemPrompt', 'commands', 'sessions']
@@ -34,6 +36,7 @@ const MAX_SEARCH_FILES = 2000
 const MAX_HTTP_BODY_BYTES = 32 * 1024 * 1024
 const DEFAULT_TEMPLATE_DIR = '模板'
 const DEFAULT_ATTACHMENT_DIR = '附件'
+const DEFAULT_FLASH_DIR = '闪念'
 const DEFAULT_MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024
 /** Optional AI actions, all routed through the Harness's own model configuration. */
 const AI_MAX_INPUT = 8000
@@ -82,6 +85,9 @@ const AI_TASKS = {
 }
 
 const HISTORY_DIR_NAME = '.dsh-notebook-history'
+const STATS_DIR_NAME = '.dsh-notebook'
+const STATS_FILE_NAME = 'writing.json'
+const STATS_VERSION = 1
 const HISTORY_LIMIT = 20
 
 /** Attachment extensions the workbench may store and serve. */
@@ -135,6 +141,13 @@ const CONFIG_JSON_SCHEMA = {
       title: 'Attachment folder',
       description: 'Vault-relative folder where pasted images are stored.',
     },
+    flashDir: {
+      type: 'string',
+      default: DEFAULT_FLASH_DIR,
+      title: 'Flash folder (闪念)',
+      description:
+        'Vault-relative folder that collects quick-captured flashes. Each flash is one Markdown note, so Obsidian, search and sync see it too.',
+    },
     maxAttachmentBytes: {
       type: 'number',
       default: DEFAULT_MAX_ATTACHMENT_BYTES,
@@ -185,6 +198,10 @@ function normalizeConfig(raw, issues = []) {
         ? input.attachmentDir.trim().replace(/^\/+|\/+$/g, '')
         : DEFAULT_ATTACHMENT_DIR,
     maxAttachmentBytes: positive(input.maxAttachmentBytes, DEFAULT_MAX_ATTACHMENT_BYTES),
+    flashDir:
+      typeof input.flashDir === 'string' && input.flashDir.trim().length > 0
+        ? input.flashDir.trim().replace(/^\/+|\/+$/g, '')
+        : DEFAULT_FLASH_DIR,
   }
   return config
 }
@@ -430,6 +447,13 @@ async function walkNotes(dir, root, out, limit) {
   }
 }
 
+/** Local calendar day (`YYYY-MM-DD`) — the heatmap follows the user's day, not UTC. */
+function localDateKey(ms) {
+  const date = new Date(Number(ms) || Date.now())
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) return '?'
   if (bytes < 1024) return `${bytes} B`
@@ -439,9 +463,10 @@ function formatBytes(bytes) {
 
 /**
  * The vault service. One instance per plugin activation; every method is the
- * operation both callers share.
+ * operation both callers share. `hooks.onWrite` lets the sync engine notice a
+ * note the panel or the model just saved.
  */
-function createVault(config) {
+function createVault(config, hooks = {}) {
   const configured = config.vaultPath.length > 0 ? expandHome(config.vaultPath) : detectObsidianVault()
   const root = configured !== null && configured !== undefined ? resolve(configured) : null
   let openError = null
@@ -553,6 +578,114 @@ function createVault(config) {
     }
   }
 
+  // ---- Writing heatmap -------------------------------------------------
+  // One small JSON file inside the vault records characters added per local
+  // day. History cannot be reconstructed from file mtimes (a copied vault puts
+  // every note on the same day), so the log starts the first time we count.
+  const statsFile = () => join(root, STATS_DIR_NAME, STATS_FILE_NAME)
+  let writingLog = null
+  let writingQueue = Promise.resolve()
+
+  async function loadWritingLog() {
+    if (writingLog !== null) return writingLog
+    const empty = { version: STATS_VERSION, days: {} }
+    try {
+      const parsed = JSON.parse(await fsp.readFile(statsFile(), 'utf8'))
+      if (
+        parsed !== null &&
+        typeof parsed === 'object' &&
+        parsed.version === STATS_VERSION &&
+        parsed.days !== null &&
+        typeof parsed.days === 'object'
+      ) {
+        writingLog = { version: STATS_VERSION, days: parsed.days }
+      } else {
+        writingLog = empty
+      }
+    } catch {
+      writingLog = empty
+    }
+    // First run: seed today from notes saved today, so the widget is not blank
+    // on the day the feature appears. Only notes touched today are read.
+    if (writingLog === empty && Object.keys(writingLog.days).length === 0) {
+      try {
+        const notes = []
+        await walkNotes(root, root, notes, config.maxIndexFiles)
+        const startOfDay = new Date()
+        startOfDay.setHours(0, 0, 0, 0)
+        let todayChars = 0
+        for (const note of notes) {
+          if (note.mtimeMs < startOfDay.getTime()) continue
+          const content = await fsp.readFile(join(root, note.path), 'utf8').catch(() => null)
+          if (content !== null) todayChars += content.length
+        }
+        if (todayChars > 0) {
+          writingLog.days[localDateKey(startOfDay.getTime())] = todayChars
+          await saveWritingLog()
+        }
+      } catch {
+        /* seeding is best effort */
+      }
+    }
+    return writingLog
+  }
+
+  async function saveWritingLog() {
+    if (writingLog === null) return
+    try {
+      await fsp.mkdir(dirname(statsFile()), { recursive: true })
+      await fsp.writeFile(statsFile(), JSON.stringify(writingLog), 'utf8')
+    } catch {
+      /* statistics must never fail a save */
+    }
+  }
+
+  /** Count characters added by one save; deleting text does not subtract. */
+  function recordWriting(added) {
+    const chars = Math.round(Number(added))
+    if (!Number.isFinite(chars) || chars <= 0) return writingQueue
+    writingQueue = writingQueue
+      .then(async () => {
+        const log = await loadWritingLog()
+        const key = localDateKey(Date.now())
+        log.days[key] = (log.days[key] ?? 0) + chars
+        await saveWritingLog()
+      })
+      .catch(() => {})
+    return writingQueue
+  }
+
+  async function writingStats() {
+    if (root === null) {
+      return { days: {}, total: 0, activeDays: 0, streak: 0, best: null, recordedSince: null }
+    }
+    const log = await loadWritingLog()
+    const entries = Object.entries(log.days)
+      .filter(([key, value]) => /^\d{4}-\d{2}-\d{2}$/.test(key) && Number.isFinite(Number(value)) && Number(value) > 0)
+      .map(([date, chars]) => [date, Math.round(Number(chars))])
+      .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    const total = entries.reduce((sum, [, chars]) => sum + chars, 0)
+    const best = entries.reduce((top, [date, chars]) => (top === null || chars > top.chars ? { date, chars } : top), null)
+    // A streak that includes today is current; otherwise start from yesterday,
+    // so the number stays sensible until the day is over.
+    const byDate = new Map(entries)
+    let streak = 0
+    let cursor = new Date()
+    if (!byDate.has(localDateKey(cursor.getTime()))) cursor.setDate(cursor.getDate() - 1)
+    while (byDate.has(localDateKey(cursor.getTime()))) {
+      streak += 1
+      cursor.setDate(cursor.getDate() - 1)
+    }
+    return {
+      days: Object.fromEntries(entries),
+      total,
+      activeDays: entries.length,
+      streak,
+      best,
+      recordedSince: entries.length > 0 ? entries[0][0] : null,
+    }
+  }
+
   async function read(path) {
     const base = requireRoot()
     const { abs, rel } = resolveNotePath(base, path)
@@ -640,11 +773,21 @@ function createVault(config) {
       const current = await fsp.readFile(abs, 'utf8')
       next = current.length === 0 || current.endsWith('\n') ? `${current}${content}` : `${current}\n${content}`
     }
+    let previousChars = 0
     if (existing !== null) {
       const previous = await fsp.readFile(abs, 'utf8').catch(() => null)
-      if (previous !== null) await saveHistorySnapshot(base, rel, previous).catch(() => {})
+      if (previous !== null) {
+        previousChars = previous.length
+        await saveHistorySnapshot(base, rel, previous).catch(() => {})
+      }
     }
     const stats = await writeAtomic(abs, next)
+    await recordWriting(next.length - previousChars)
+    try {
+      hooks.onWrite?.(rel)
+    } catch {
+      /* an auto-sync hook must never fail the save */
+    }
     return { path: rel, mode, ...stats }
   }
 
@@ -700,6 +843,7 @@ function createVault(config) {
       vaultPath: root,
       templateDir: config.templateDir,
       attachmentDir: config.attachmentDir,
+      flashDir: config.flashDir,
       maxNoteBytes: config.maxNoteBytes,
       maxAttachmentBytes: config.maxAttachmentBytes,
       maxIndexFiles: config.maxIndexFiles,
@@ -952,8 +1096,30 @@ function createVault(config) {
     }
   }
 
+  /** The first bytes of a note: enough for frontmatter and a preview. */
+  async function head(path, bytes = 2048) {
+    const base = requireRoot()
+    const { abs, rel } = resolveNotePath(base, path)
+    await assertInsideVault(abs, rel)
+    const stats = await statOrNull(abs)
+    if (stats === null || !stats.isFile()) {
+      throw new NotebookError(`The note does not exist: ${rel}`, 'missing_note')
+    }
+    const length = Math.max(1, Math.min(Math.floor(Number(bytes) || 2048), stats.size))
+    let handle = null
+    try {
+      handle = await fsp.open(abs, 'r')
+      const buffer = Buffer.alloc(length)
+      await handle.read(buffer, 0, length, 0)
+      return { path: rel, head: buffer.toString('utf8'), size: stats.size, mtimeMs: Math.round(stats.mtimeMs) }
+    } finally {
+      if (handle !== null) await handle.close().catch(() => {})
+    }
+  }
+
   return {
     root,
+    head,
     vaultInfo,
     status,
     list,
@@ -972,6 +1138,7 @@ function createVault(config) {
     fields,
     parents,
     backlinks,
+    writingStats,
   }
 }
 
@@ -1059,11 +1226,12 @@ function readJsonBody(req, limit = MAX_HTTP_BODY_BYTES) {
 }
 
 function failure(res, error) {
-  if (error instanceof NotebookError) {
+  if (error instanceof NotebookError || error?.name === 'SyncError' || error?.name === 'FlashError') {
     sendJson(res, error.code === 'missing_note' || error.code === 'no_vault' ? 404 : 400, {
       ok: false,
       error: error.message,
       code: error.code,
+      ...(typeof error.detail === 'string' ? { detail: error.detail } : {}),
     })
     return
   }
@@ -1073,7 +1241,14 @@ function failure(res, error) {
 
 export function apply(ctx, rawConfig) {
   const config = normalizeConfig(rawConfig)
-  const vault = createVault(config)
+  // The sync engine is created after the vault, but the vault's save hook only
+  // fires later, so the late-bound reference is safe.
+  let sync = null
+  const vault = createVault(config, { onWrite: () => sync?.notifyWrite() })
+  sync = createSyncService({ root: vault.root })
+  const flash = createFlashService({ vault, dir: config.flashDir })
+  /** Panel builds that asked for sync status, newest last; exposed for diagnosis. */
+  const syncClients = Object.create(null)
   const label = (text) => `${NS}: ${text}`
   let gate = null
   try {
@@ -1360,7 +1535,10 @@ export function apply(ctx, rawConfig) {
         '用户说「这段 / 这里 / 当前块」时指的就是它。',
       )
     }
-    parts.push('需要读取或修改笔记时使用 notebook_read / notebook_write 工具；改动后简短说明改了什么。')
+    parts.push(
+      '需要读取或修改笔记时使用 notebook_read / notebook_write 工具；改动后简短说明改了什么。',
+      '用户消息里的 `@[[路径]]` 表示引用了一篇笔记；需要内容时用 notebook_read 读取该路径。',
+    )
     return parts.join('\n')
   }
 
@@ -1373,6 +1551,31 @@ export function apply(ctx, rawConfig) {
           text: () => currentNotePromptText(),
         }),
       label('current note prompt context'),
+    )
+  }
+
+  /**
+   * Tell the model about the flash inbox: it is the difference between a chat
+   * that forgets an idea and one where the user finds it later.
+   */
+  const flashPromptText = () =>
+    vault.root === null
+      ? ''
+      : `用户有一个「闪念」收件箱（笔记库里的 ${config.flashDir}/ 文件夹，用来收纳零散的想法片段）。` +
+        '当他在聊天里冒出一个以后想继续发展的想法、待办或灵感——而不是在提问、排错或讨论实现细节——' +
+        '你可以直接调用 notebook_flash（action: capture）记下来；用户说「记一下 / 帮我记 / 别忘了我刚说的」时同样处理。' +
+        'text 用用户原话（可稍作整理），category 从 随记/想法/待办/灵感/摘录 中按语义选一个。' +
+        '不要为普通问答、代码、命令输出或寒暄建闪念；每次回复最多记一条，记完用一句话说明，不要长篇解释。'
+
+  if (ctx.systemPrompt !== undefined && typeof ctx.systemPrompt.context === 'function') {
+    ctx.effect(
+      () =>
+        ctx.systemPrompt.context({
+          name: 'dsh-notebook:flash',
+          order: 46,
+          text: flashPromptText,
+        }),
+      label('flash prompt context'),
     )
   }
 
@@ -1573,6 +1776,68 @@ export function apply(ctx, rawConfig) {
         }),
       label('note command'),
     )
+  }
+
+  /** `/flash <想法>`: capture from the chat without leaving the conversation. */
+  async function recordFlashCommand(invocation) {
+    const raw = typeof invocation?.rawInput === 'string' ? invocation.rawInput.trim() : ''
+    try {
+      if (raw.length === 0) {
+        const summary = await flash.summary()
+        const recent = await flash.list({ status: 'inbox', limit: 5 })
+        const lines = [
+          `闪念收件箱：${summary.counts.inbox} 条待整理（共 ${summary.counts.total} 条），位置 ${summary.dir}/`,
+        ]
+        for (const item of recent.items) {
+          lines.push(
+            `· ${new Date(item.createdMs).toLocaleString('zh-CN')} [${item.category}] ${item.preview.slice(0, 60)}`,
+          )
+        }
+        if (recent.items.length === 0) {
+          lines.push('用法：/flash <想法>，或 /flash <分类> <想法>（随记/想法/待办/灵感/摘录）')
+        }
+        return { kind: 'success', text: lines.join('\n') }
+      }
+      const words = raw.split(/\s+/)
+      const category = FLASH_CATEGORIES.includes(words[0]) && words.length > 1 ? words.shift() : undefined
+      const text = words.join(' ').trim()
+      if (text.length === 0) {
+        return { kind: 'error', text: '用法：/flash <想法>，或 /flash <分类> <想法>' }
+      }
+      const created = await flash.create({ text, category })
+      return { kind: 'success', text: `已记下闪念 → ${created.path}（${created.category}）` }
+    } catch (error) {
+      return { kind: 'error', text: `记闪念失败：${(error && error.message) || error}` }
+    }
+  }
+
+  if (ctx.commands !== undefined && typeof ctx.commands.register === 'function') {
+    ctx.effect(
+      () =>
+        ctx.commands.register({
+          definitionId: 'dsh-notebook:flash',
+          name: 'flash',
+          description: '闪念：/flash <想法> 记一条；/flash <分类> <想法> 指定分类；/flash 查看收件箱',
+          input: { hint: '<想法> | <分类> <想法>' },
+          handler: recordFlashCommand,
+        }),
+      label('flash command'),
+    )
+    // A Chinese alias is nice to type; if the Host rejects non-ASCII command
+    // names, the English one still works.
+    ctx.effect(() => {
+      try {
+        return ctx.commands.register({
+          definitionId: 'dsh-notebook:闪念',
+          name: '闪念',
+          description: '闪念：/闪念 <想法> 记一条',
+          input: { hint: '<想法>' },
+          handler: recordFlashCommand,
+        })
+      } catch {
+        return () => {}
+      }
+    }, label('flash alias command'))
   }
 
   const AI_AGENT_MAX_STEPS = 6
@@ -2045,6 +2310,268 @@ export function apply(ctx, rawConfig) {
     if (res.writableEnded !== true) res.end()
   }
 
+  /* ---------------- semantic recall (local ranking + model expansion) ---------------- */
+
+  /**
+   * Character bigrams for Chinese plus latin words. Used both to index note
+   * heads and to break a query into searchable pieces: "系统升级坏了" still
+   * matches a note that only says "升级" and "回滚".
+   */
+  function recallTokens(text) {
+    const lower = String(text ?? '').toLowerCase()
+    const tokens = new Set()
+    for (const match of lower.matchAll(/[a-z0-9][a-z0-9_-]{1,}/g)) tokens.add(match[0])
+    for (const run of lower.replace(/[^\u3400-\u9fff]+/g, ' ').split(' ')) {
+      if (run.length === 1) tokens.add(run)
+      for (let index = 0; index + 2 <= run.length; index += 1) tokens.add(run.slice(index, index + 2))
+    }
+    return [...tokens]
+  }
+
+  function countHits(haystack, needle) {
+    if (needle.length === 0) return 0
+    let count = 0
+    let at = 0
+    while ((at = haystack.indexOf(needle, at)) !== -1) {
+      count += 1
+      at += needle.length
+      if (count >= 4) break
+    }
+    return count
+  }
+
+  function recallSnippet(text, terms) {
+    const lower = text.toLowerCase()
+    for (const term of terms) {
+      const at = lower.indexOf(term.toLowerCase())
+      if (at < 0) continue
+      const start = Math.max(0, at - 40)
+      return text.slice(start, start + 160).replace(/\s+/g, ' ').trim()
+    }
+    return text.replace(/\s+/g, ' ').trim().slice(0, 140)
+  }
+
+  /** Note heads (8 KB) cached until the vault's file list or mtimes change. */
+  const recallCache = { signature: '', docs: [] }
+
+  async function recallDocs() {
+    if (vault.root === null) return []
+    const notes = []
+    await walkNotes(vault.root, vault.root, notes, Math.min(config.maxIndexFiles, 1200))
+    const signature = `${notes.length}:${notes.reduce((max, note) => Math.max(max, note.mtimeMs), 0)}`
+    if (recallCache.signature === signature && recallCache.docs.length > 0) return recallCache.docs
+    const docs = []
+    for (const note of notes) {
+      const head = await vault.head(note.path, 8192).catch(() => null)
+      if (head === null) continue
+      const body = head.head.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '')
+      if (body.trim().length === 0) continue
+      docs.push({ path: note.path, text: body, lower: body.toLowerCase() })
+    }
+    recallCache.signature = signature
+    recallCache.docs = docs
+    return docs
+  }
+
+  /** One expansion attempt; returns terms plus why it produced none. */
+  async function expandOnce(route, query, attempt) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15000)
+    let reply = ''
+    let finish = null
+    try {
+      for await (const chunk of ctx.llm.stream({
+        provider: route.provider,
+        model: route.model,
+        system:
+          attempt === 0
+            ? '你是检索助手。把用户的查询改写成 6-10 个语义相关的检索词：同义词、近义词、上位词、常见别称、相关概念。' +
+              '只输出这些词，用中文逗号分隔，不要编号、不要解释、不要引号。'
+            : '只输出 6 个与用户查询意思相关的检索词，用中文逗号分隔。不要任何其他文字。',
+        messages: [{ role: 'user', content: [{ type: 'text', text: query }] }],
+        maxTokens: 600,
+        temperature: attempt === 0 ? 0.2 : 0.1,
+        signal: controller.signal,
+      })) {
+        if (chunk.type === 'text-delta') reply += chunk.text
+        else if (chunk.type === 'finish') finish = chunk.reason.kind
+      }
+    } catch (error) {
+      return { terms: [], error: String((error && error.message) || error) }
+    } finally {
+      clearTimeout(timer)
+    }
+    const seen = new Set()
+    const terms = []
+    for (const raw of reply.split(/[,，、\n]/)) {
+      const term = raw
+        .trim()
+        .replace(/^[\s"'「」【】\[\]()\d.、-]+/, '')
+        .replace(/[\s"'「」【】\[\]()]+$/, '')
+      if (term.length < 2 || term.length > 20 || seen.has(term)) continue
+      seen.add(term)
+      terms.push(term)
+      if (terms.length >= 12) break
+    }
+    return {
+      terms,
+      error: terms.length > 0 ? null : `empty expansion (finish=${finish ?? 'none'}, reply=${reply.trim().slice(0, 60)})`,
+    }
+  }
+
+  /** Ask the configured model for synonyms and related terms; [] when unavailable. */
+  async function expandRecallQuery(route, query) {
+    if (route === null || ctx.llm === undefined) {
+      return { terms: [], error: route === null ? 'no model route' : 'no llm service' }
+    }
+    let lastError = null
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await expandOnce(route, query, attempt)
+      if (result.terms.length > 0) return result
+      lastError = result.error
+    }
+    return { terms: [], error: lastError }
+  }
+
+  /** Pull the first JSON array out of a model reply. */
+  function firstJsonArray(text) {
+    const raw = String(text ?? '')
+    const start = raw.indexOf('[')
+    const end = raw.lastIndexOf(']')
+    if (start < 0 || end <= start) return null
+    try {
+      const parsed = JSON.parse(raw.slice(start, end + 1))
+      return Array.isArray(parsed) ? parsed : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Second pass: let the model judge the shortlist. Term matching alone cannot
+   * tell "系统升级坏了" from a note that merely repeats 系统 and 故障; the model
+   * can, and returns the few that actually answer the query.
+   */
+  async function rerankRecall(route, query, candidates) {
+    if (candidates.length < 2 || ctx.llm === undefined) return null
+    const rows = candidates
+      .slice(0, 10)
+      .map((entry, index) => `${index + 1}. ${entry.path}\n${entry.snippet.slice(0, 180)}`)
+      .join('\n\n')
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15000)
+    let reply = ''
+    try {
+      for await (const chunk of ctx.llm.stream({
+        provider: route.provider,
+        model: route.model,
+        system:
+          '你是检索重排器。根据用户查询，从候选笔记里挑出真正相关的最多 5 条。' +
+          '只输出 JSON 数组，例如 [{"i":2,"why":"讲的就是这个"}]；没有相关笔记时输出 []。' +
+          'i 是候选编号，why 不超过 20 字。不要输出其他内容。',
+        messages: [{ role: 'user', content: [{ type: 'text', text: `查询：${query}\n\n候选：\n${rows}` }] }],
+        maxTokens: 500,
+        temperature: 0.1,
+        signal: controller.signal,
+      })) {
+        if (chunk.type === 'text-delta') reply += chunk.text
+      }
+    } catch {
+      return null
+    } finally {
+      clearTimeout(timer)
+    }
+    const parsed = firstJsonArray(reply)
+    if (parsed === null) return null
+    const picked = []
+    for (const row of parsed) {
+      const index = Number(row?.i)
+      if (!Number.isInteger(index) || index < 1 || index > candidates.length) continue
+      const candidate = candidates[index - 1]
+      if (candidate === undefined || picked.some((entry) => entry.path === candidate.path)) continue
+      picked.push({
+        ...candidate,
+        why: typeof row?.why === 'string' ? row.why.slice(0, 40) : '',
+      })
+      if (picked.length >= 5) break
+    }
+    return picked.length > 0 ? picked : null
+  }
+
+  /**
+   * Rank notes by meaning as far as this stack allows: the model widens the
+   * query with related terms, then a local weighted match ranks note heads.
+   * No embedding model is available in the Host, so this is described honestly
+   * as term expansion + fuzzy ranking rather than vector search.
+   */
+  async function semanticSearch(rawQuery, limit = 8, options = {}) {
+    const query = String(rawQuery ?? '').trim()
+    if (query.length === 0) throw new NotebookError('A search query is required.', 'missing_query')
+    if (query.length > 300) throw new NotebookError('The query is too long.', 'query_too_long')
+    if (vault.root === null) throw new NotebookError('No vault is configured.', 'no_vault')
+    const route = options.expand === false ? null : await resolveModelRoute().catch(() => null)
+    const expansion = route === null ? { terms: [], error: 'expansion disabled' } : await expandRecallQuery(route, query)
+    const expansions = expansion.terms
+    const terms = []
+    const weights = new Map()
+    const addTerm = (term, weight) => {
+      const key = String(term ?? '').toLowerCase()
+      if (key.length === 0 || weights.has(key)) return
+      weights.set(key, weight)
+      terms.push({ term, weight })
+    }
+    addTerm(query, 4)
+    for (const expansion of expansions) addTerm(expansion, 2)
+    // A related phrase rarely appears verbatim: its pieces are what match.
+    for (const expansion of expansions) {
+      for (const token of recallTokens(expansion)) addTerm(token, 1.2)
+    }
+    for (const token of recallTokens(query)) addTerm(token, 1)
+    const docs = await recallDocs()
+    // A term that appears in most notes ("系统", "问题") says little. One
+    // document-frequency pass over the candidates makes rare terms win.
+    const docFreq = new Map()
+    for (const { term } of terms) {
+      const key = term.toLowerCase()
+      let count = 0
+      for (const doc of docs) if (doc.lower.includes(key)) count += 1
+      docFreq.set(key, count)
+    }
+    const scored = []
+    for (const doc of docs) {
+      let score = 0
+      for (const { term, weight } of terms) {
+        const key = term.toLowerCase()
+        const hits = countHits(doc.lower, key)
+        if (hits === 0) continue
+        const idf = Math.log(1 + docs.length / (1 + docFreq.get(key)))
+        score += weight * idf * Math.min(3, hits)
+      }
+      if (score === 0) continue
+      const queryTokens = recallTokens(query).filter((token) => token.length >= 2)
+      const covered = queryTokens.filter((token) => doc.lower.includes(token)).length
+      if (covered > 1) score *= 1 + Math.min(1.5, covered / Math.max(4, queryTokens.length))
+      const damping = Math.sqrt(Math.max(1, doc.lower.length / 1200))
+      scored.push({ path: doc.path, score: score / damping, snippet: recallSnippet(doc.text, [query, ...expansions]) })
+    }
+    scored.sort((a, b) => b.score - a.score)
+    const max = Math.max(1, Math.min(30, Number(limit) || 8))
+    const lexical = scored.slice(0, Math.max(max, 10)).map((entry) => ({
+      ...entry,
+      score: Math.round(entry.score * 10) / 10,
+    }))
+    const reranked = route === null ? null : await rerankRecall(route, query, lexical)
+    return {
+      query,
+      expanded: expansions,
+      expansionError: expansion.error,
+      terms: terms.map((entry) => entry.term),
+      reranked: reranked !== null,
+      results: (reranked ?? lexical).slice(0, max),
+      scanned: docs.length,
+    }
+  }
+
   /**
    * The config editor plus this row's Loader entry, or null when the profile
    * cannot persist plugin configuration. `ctx.fiber.entry` is the normal path;
@@ -2182,6 +2709,10 @@ export function apply(ctx, rawConfig) {
               await aiStream(req, res, body)
               return
             }
+            if (req.method === 'GET' && path === '/api/stats/writing') {
+              sendJson(res, 200, { ok: true, ...(await vault.writingStats()) })
+              return
+            }
             if (req.method === 'GET' && path === '/api/fields') {
               sendJson(res, 200, {
                 ok: true,
@@ -2268,6 +2799,78 @@ export function apply(ctx, rawConfig) {
             if (req.method === 'POST' && path === '/api/delete') {
               const body = await readJsonBody(req)
               sendJson(res, 200, { ok: true, ...(await vault.remove(body.path)) })
+              return
+            }
+            if (req.method === 'GET' && path === '/api/recall') {
+              const query = url.searchParams.get('q') ?? ''
+              const limit = Number(url.searchParams.get('limit') ?? '') || 8
+              const expand = url.searchParams.get('expand') !== '0'
+              sendJson(res, 200, {
+                ok: true,
+                ...(await semanticSearch(query, limit, { expand })),
+              })
+              return
+            }
+            if (req.method === 'GET' && path === '/api/flash/summary') {
+              sendJson(res, 200, { ok: true, ...(await flash.summary()) })
+              return
+            }
+            if (req.method === 'GET' && path === '/api/flash/list') {
+              sendJson(res, 200, {
+                ok: true,
+                ...(await flash.list({
+                  status: url.searchParams.get('status') ?? undefined,
+                  category: url.searchParams.get('category') ?? '',
+                  query: url.searchParams.get('q') ?? '',
+                  limit: Number(url.searchParams.get('limit') ?? '') || undefined,
+                })),
+              })
+              return
+            }
+            if (req.method === 'POST' && path === '/api/flash/create') {
+              const body = await readJsonBody(req)
+              sendJson(res, 200, { ok: true, flash: await flash.create(body) })
+              return
+            }
+            if (req.method === 'POST' && path === '/api/flash/update') {
+              const body = await readJsonBody(req)
+              sendJson(res, 200, { ok: true, flash: await flash.update(body.path, body) })
+              return
+            }
+            if (req.method === 'POST' && path === '/api/flash/flags') {
+              const body = await readJsonBody(req)
+              sendJson(res, 200, { ok: true, ...(await flash.setFlags(body.path, body)) })
+              return
+            }
+            if (req.method === 'GET' && path === '/api/flash/random') {
+              sendJson(res, 200, { ok: true, flash: await flash.random() })
+              return
+            }
+            if (req.method === 'GET' && path === '/api/sync/status') {
+              const client = url.searchParams.get('client')
+              if (client !== null && client.length > 0 && client.length <= 40) {
+                syncClients[client] = (syncClients[client] ?? 0) + 1
+                const seen = Object.keys(syncClients)
+                if (seen.length > 8) delete syncClients[seen[0]]
+              }
+              sendJson(res, 200, { ok: true, ...(await sync.status()), clients: { ...syncClients } })
+              return
+            }
+            if (req.method === 'POST' && path === '/api/sync/settings') {
+              const body = await readJsonBody(req)
+              sendJson(res, 200, { ok: true, ...(await sync.saveSettings(body?.settings ?? body)) })
+              return
+            }
+            if (req.method === 'POST' && path === '/api/sync/test') {
+              sendJson(res, 200, { ok: true, ...(await sync.testConnection()) })
+              return
+            }
+            if (req.method === 'POST' && path === '/api/sync/run') {
+              // Answer at once and let the run continue: a first sync of a large
+              // vault can outlive an HTTP response, and the panel polls
+              // /api/sync/status for progress and the final result.
+              sync.run({ trigger: 'manual' }).catch(() => {})
+              sendJson(res, 200, { ok: true, ...(await sync.status()) })
               return
             }
             sendJson(res, 404, { ok: false, error: `Unknown notebook route: ${req.method} ${path}`, code: 'no_route' })
@@ -2377,15 +2980,35 @@ export function apply(ctx, rawConfig) {
       ctx.tools.register({
         name: 'notebook_search',
         description:
-          'Search the text of every Markdown note in the user\'s Obsidian vault. Returns matching lines with their ' +
-          'vault-relative path and line number.',
+          'Search the notes in the user\'s Obsidian vault. By default it matches the query text literally and returns ' +
+          'path:line hits. With semantic: true it ranks notes by meaning instead: the model widens the query with ' +
+          'related terms and a local fuzzy match ranks note contents, returning the most relevant notes with a ' +
+          'snippet — use that when the user asks for something "related to" or "about" an idea rather than an exact string.',
         parameters: {
-          query: { type: 'string', description: 'Literal text to find (case-insensitive).', required: true },
-          limit: { type: 'number', description: 'Maximum matches to return (default 50, max 200).' },
+          query: { type: 'string', description: 'Text to find, or the idea to search for when semantic is true.', required: true },
+          limit: { type: 'number', description: 'Maximum results (default 50 literal, 8 semantic; max 200).' },
+          semantic: {
+            type: 'boolean',
+            description: 'Rank by meaning (model-expanded terms + local fuzzy ranking) instead of exact text. Defaults to false.',
+          },
         },
         output: TOOL_OUTPUT,
         isConcurrencySafe: () => true,
         execute: async (args) => {
+          if (args?.semantic === true) {
+            const result = await semanticSearch(args?.query, args?.limit ?? 8)
+            if (result.results.length === 0) {
+              return `No related note for "${result.query}" among ${result.scanned} note(s).`
+            }
+            const lines = result.results.map(
+              (entry) => `${entry.path} (${entry.score})\n    ${entry.snippet}`,
+            )
+            return [
+              `${result.results.length} related note(s) for "${result.query}"` +
+                (result.expanded.length > 0 ? ` — also searched: ${result.expanded.join('、')}` : ''),
+              ...lines,
+            ].join('\n')
+          }
           const result = await vault.search(args?.query, args?.limit)
           if (result.matches.length === 0) return `No matches for "${result.query}" in ${result.scanned} note(s).`
           const lines = result.matches.map((match) => `${match.path}:${match.line}: ${match.text}`)
@@ -2426,6 +3049,122 @@ export function apply(ctx, rawConfig) {
       }),
     )
 
+    disposers.push(
+      ctx.tools.register({
+        name: 'notebook_flash',
+        description:
+          'Capture a fleeting thought (闪念) without deciding where it belongs, or review what is waiting. action ' +
+          '"capture" stores text (plus an optional category) as one Markdown note in the configured flash folder; ' +
+          '"recent" lists the unprocessed inbox newest first; "random" resurfaces one old flash. Use capture whenever ' +
+          'the user says something worth keeping but does not ask for a note.',
+        parameters: {
+          action: {
+            type: 'string',
+            description: 'One of "capture", "recent" or "random". Defaults to "capture" when text is given.',
+            enum: ['capture', 'recent', 'random'],
+          },
+          text: { type: 'string', description: 'The thought to store (required for "capture").' },
+          category: {
+            type: 'string',
+            description: 'Optional category for "capture". Defaults to 随记.',
+            enum: [...FLASH_CATEGORIES],
+          },
+          limit: { type: 'number', description: 'How many flashes "recent" prints (default 10, max 50).' },
+        },
+        output: TOOL_OUTPUT,
+        isConcurrencySafe: () => false,
+        execute: async (args) => {
+          const action =
+            args?.action === 'recent' || args?.action === 'random'
+              ? args.action
+              : typeof args?.text === 'string' && args.text.trim().length > 0
+                ? 'capture'
+                : 'recent'
+          if (action === 'capture') {
+            const flashItem = await flash.create({
+              text: args?.text,
+              category: args?.category,
+            })
+            return `闪念已记下：${flashItem.path}\n分类：${flashItem.category}`
+          }
+          if (action === 'random') {
+            const item = await flash.random()
+            if (item === null) return '闪念夹还是空的。'
+            return `翻到一条 ${new Date(item.createdMs).toLocaleString('zh-CN')} 的闪念 (${item.category})：\n${item.preview}\n\n${item.path}`
+          }
+          const result = await flash.list({ status: 'inbox', limit: Math.min(50, Number(args?.limit) || 10) })
+          if (result.items.length === 0) return '闪念收件箱是空的。'
+          const lines = [`未处理的闪念 ${result.counts.inbox} 条（显示 ${result.items.length} 条）：`]
+          for (const item of result.items) {
+            lines.push(
+              `- ${new Date(item.createdMs).toLocaleString('zh-CN')} [${item.category}] ${item.preview.slice(0, 80)} — ${item.path}`,
+            )
+          }
+          return lines.join('\n')
+        },
+      }),
+    )
+
+    disposers.push(
+      ctx.tools.register({
+        name: 'notebook_sync',
+        description:
+          'Sync the notebook vault with its configured WebDAV folder or git repository. action "status" reports the ' +
+          'configured provider, the tracked file count and the last run; "run" performs one two-way sync — local ' +
+          'edits are uploaded, remote edits are downloaded, and a file edited on both sides keeps the local version ' +
+          'with the remote content saved as a conflict copy; "test" checks the configured server or remote without ' +
+          'touching any note. The vault is the user\'s real folder, so a "run" changes the files they can see.',
+        parameters: {
+          action: {
+            type: 'string',
+            description: 'One of "status", "run" or "test". Defaults to "status".',
+            enum: ['status', 'run', 'test'],
+          },
+        },
+        output: TOOL_OUTPUT,
+        isConcurrencySafe: () => false,
+        execute: async (args) => {
+          const action = args?.action === 'run' || args?.action === 'test' ? args.action : 'status'
+          if (action === 'test') {
+            const probe = await sync.testConnection()
+            return `${probe.provider}: ${probe.message}`
+          }
+          if (action === 'status') {
+            const state = await sync.status()
+            const lines = [
+              `Provider: ${state.provider}`,
+              `Vault: ${state.vault ?? '(none)'}`,
+              `Last sync: ${state.state?.lastSyncAt ? new Date(state.state.lastSyncAt).toLocaleString('zh-CN') : 'never'}`,
+              `Tracked files: ${state.state?.files ?? 0}`,
+            ]
+            const last = state.lastResult
+            if (last !== null && last !== undefined) {
+              lines.push(
+                `Last run: ${last.ok ? 'ok' : 'failed'} — ${last.uploaded} up, ${last.downloaded} down, ` +
+                  `${last.conflicts} conflict(s), ${last.errors?.length ?? 0} error(s)`,
+              )
+              if (last.error) lines.push(`Error: ${last.error.code} — ${last.error.message}`)
+              if (last.notes?.length > 0) lines.push(...last.notes.slice(0, 8).map((note) => `  ${note}`))
+            }
+            return lines.join('\n')
+          }
+          const result = await sync.run({ trigger: 'agent' })
+          const lines = [
+            `Sync ${result.ok ? 'finished' : 'finished with errors'} (${result.provider})`,
+            `  uploaded: ${result.uploaded}, downloaded: ${result.downloaded}`,
+            `  deleted local: ${result.deletedLocal}, deleted remote: ${result.deletedRemote}, conflicts: ${result.conflicts}`,
+            `  bytes: ↑${result.bytesUp} ↓${result.bytesDown}`,
+          ]
+          if (result.notes?.length > 0) lines.push(...result.notes.slice(0, 12).map((note) => `  ${note}`))
+          if (result.errors?.length > 0) {
+            lines.push(`Errors (${result.errors.length}):`)
+            for (const error of result.errors.slice(0, 12)) lines.push(`  ${error.path}: ${error.message}`)
+          }
+          return lines.join('\n')
+        },
+      }),
+    )
+
     return () => {
       for (const dispose of disposers) {
         try {
@@ -2436,4 +3175,11 @@ export function apply(ctx, rawConfig) {
       }
     }
   }, label('agent tools'))
+
+  ctx.effect(
+    () => () => {
+      sync.dispose().catch(() => {})
+    },
+    label('sync service'),
+  )
 }

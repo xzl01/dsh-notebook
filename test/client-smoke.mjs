@@ -134,25 +134,35 @@ check('apply registers the sidebar icon and the main workbench', () => {
   assert(typeof main.component === 'function', 'main panel must be a component')
   const label = panel.options.label()
   assert(typeof label === 'string' && label.length > 0, 'sidebar label is empty')
-  assert(shortcutCommands.length === 1, `expected 1 shortcut, got ${shortcutCommands.length}`)
-  const shortcut = shortcutCommands[0]
-  assert(shortcut.id === 'dsh-notebook.ask', `shortcut id was ${shortcut.id}`)
+  assert(shortcutCommands.length === 2, `expected 2 shortcuts, got ${shortcutCommands.length}`)
+  const shortcut = shortcutCommands.find((entry) => entry.id === 'dsh-notebook.ask')
+  assert(shortcut !== undefined, 'the ask shortcut is missing')
   assert(typeof shortcut.defaults['desktop:macos'] === 'object', 'missing macOS default')
   assert(typeof shortcut.label === 'function' && shortcut.label() === 'askAi', 'shortcut label is wrong')
   const resolution = shortcut.resolve({})
   assert(resolution !== null && resolution.status === 'handled', JSON.stringify(resolution))
   resolution.run()
+  const flashShortcut = shortcutCommands.find((entry) => entry.id === 'dsh-notebook.flash')
+  assert(flashShortcut !== undefined, 'the flash shortcut is missing')
+  assert(flashShortcut.label() === 'flashShortcut', `flash shortcut label was ${flashShortcut.label()}`)
+  const flashResolution = flashShortcut.resolve({})
+  assert(flashResolution !== null && flashResolution.status === 'handled', JSON.stringify(flashResolution))
+  flashResolution.run()
+  assert(
+    captured.module.__internal.takePendingFlashCapture() === true,
+    'the flash shortcut did not request a capture box',
+  )
   captured.panel = panel
   captured.main = main
   captured.registrations = registrations
   return `id=${panel.options.id}, label=${label}, shortcut=${shortcut.id}`
 })
 
-check('apply registers the four notebook chat tool views', () => {
+check('apply registers the five notebook chat tool views', () => {
   const views = captured.registrations.filter((entry) => entry.options.name === 'tool.call.toolview')
   const keys = views.map((entry) => entry.options.key).sort()
   assert(
-    keys.join(',') === 'notebook_list,notebook_read,notebook_search,notebook_write',
+    keys.join(',') === 'notebook_flash,notebook_list,notebook_read,notebook_search,notebook_write',
     `unexpected tool view keys: ${keys.join(',')}`,
   )
   for (const view of views) {
@@ -238,6 +248,25 @@ check('chat tool rows derive note, mode, size and preview from real tool payload
   assert(search.results[0].line === 3, JSON.stringify(search.results[0]))
   assert(search.results[0].text === '待办', JSON.stringify(search.results[0]))
 
+  const flash = chatNoteToolModel(
+    'notebook_flash',
+    settled(
+      'notebook_flash',
+      { action: 'capture', text: '记一条想法' },
+      '闪念已记下：闪念/2026-11-10 14-49-41 记一条想法.md\n分类：想法',
+    ),
+    t,
+  )
+  assert(flash.title === 'chatFlashNote', flash.title)
+  assert(flash.summary === '记一条想法', flash.summary)
+  assert(flash.path === '闪念/2026-11-10 14-49-41 记一条想法.md', String(flash.path))
+  const flashInbox = chatNoteToolModel(
+    'notebook_flash',
+    settled('notebook_flash', { action: 'recent' }, '闪念收件箱：1 条待整理'),
+    t,
+  )
+  assert(flashInbox.summary === 'flashInbox', flashInbox.summary)
+
   const emptySearch = chatNoteToolModel(
     'notebook_search',
     settled('notebook_search', { query: 'zzz' }, 'No matches for "zzz" in 602 note(s).'),
@@ -279,8 +308,16 @@ check('apply registers the settings row and the composer notebook button', () =>
 
   const buttonElement = composer.component({ inputActions: undefined })
   assert(buttonElement !== null && typeof buttonElement === 'object', 'composer button returned nothing')
-  const button = buttonElement.type(buttonElement.props)
-  assert(button !== null && button.props.className === 'nb-composer-btn', 'composer button markup missing')
+  const tree = buttonElement.type(buttonElement.props)
+  // The button lives in a wrapper now: it also hosts the note-citation picker.
+  const button =
+    tree !== null && tree.type === 'div'
+      ? (tree.children ?? []).find((child) => child !== null && child !== undefined && child.type === 'button')
+      : tree
+  assert(
+    button !== null && button !== undefined && button.props.className === 'nb-composer-btn',
+    'composer button markup missing',
+  )
   assert(button.props['aria-label'] === 'panelTitle', `composer aria-label was ${button.props['aria-label']}`)
   return 'vault row + composer button'
 })
@@ -609,6 +646,25 @@ check('frontmatter type: folder pins the page and can point at another folder', 
   ])
   assert(pinnedProse.linkBody === false, 'a pinned page with prose keeps its body')
   return 'pinned + override + link body'
+})
+
+check('the writing heatmap builds GitHub-style columns', () => {
+  const { writingHeatmap, writingLevel } = captured.module.__internal
+  const today = new Date(2026, 10, 10)
+  const days = { '2026-11-10': 100, '2026-11-09': 50, '2026-11-01': 25 }
+  const grid = writingHeatmap(days, 53, today.getTime())
+  assert(grid.weeks.length === 53, `weeks ${grid.weeks.length}`)
+  assert(grid.weeks.every((week) => week.length === 7), 'every column is a full week')
+  const last = grid.weeks[grid.weeks.length - 1]
+  const todayCell = last.find((cell) => cell.date === '2026-11-10')
+  assert(todayCell !== undefined && todayCell.chars === 100, 'today lands in the last column')
+  assert(todayCell.level === 4, 'the busiest day is level 4')
+  assert(last.filter((cell) => cell.future === true).length === 6 - ((today.getDay() + 6) % 7), 'future days are flagged')
+  assert(grid.max === 100, 'max is the busiest day')
+  assert(writingLevel(0, 100) === 0, 'nothing written is level 0')
+  assert(writingLevel(25, 100) === 1 && writingLevel(26, 100) === 2, 'quartile thresholds')
+  assert(writingLevel(75, 100) === 3 && writingLevel(100, 100) === 4, 'higher quartiles')
+  return '53 weeks / levels / future'
 })
 
 check('callout kinds map to icons and cycle in order', () => {
@@ -1945,6 +2001,8 @@ check('Workbench renders a selected note with one block view per block', () => {
   let tabs = 0
   let linkBar = 0
   let find = 0
+  let syncButton = 0
+  let flashEntry = 0
   const walk = (node) => {
     if (node === null || node === undefined) return
     if (Array.isArray(node)) {
@@ -1968,6 +2026,24 @@ check('Workbench renders a selected note with one block view per block', () => {
       node.props.className !== 'nb-tabs'
     ) {
       tabs += 1
+      return
+    }
+    if (
+      node.type === 'button' &&
+      node.props !== undefined &&
+      typeof node.props.className === 'string' &&
+      node.props.className.includes('nb-flash-entry')
+    ) {
+      flashEntry += 1
+      return
+    }
+    if (
+      node.type === 'button' &&
+      node.props !== undefined &&
+      typeof node.props.className === 'string' &&
+      node.props.className.includes('nb-sync-btn')
+    ) {
+      syncButton += 1
       return
     }
     if (node.type === 'div' && node.props !== undefined && node.props.className === 'nb-img-bar') {
@@ -1995,11 +2071,176 @@ check('Workbench renders a selected note with one block view per block', () => {
   assert(tabs === 1, `expected one open tab, found ${tabs}`)
   assert(linkBar === 1, `expected one link bar, found ${linkBar}`)
   assert(find === 1, `expected one find palette, found ${find}`)
+  assert(syncButton === 1, `expected one sync entry point in the top bar, found ${syncButton}`)
+  assert(flashEntry === 1, `expected one flash entry in the sidebar, found ${flashEntry}`)
   assert(
     typeof tree.props?.className === 'string' && tree.props.className.includes('zen'),
     'focus-mode root class missing',
   )
-  return `${found} block views + toolbar + icon row + ghost + tab + link bar + find`
+  return `${found} block views + toolbar + icon row + ghost + tab + link bar + find + sync button + flash entry`
+})
+
+
+check('sync dialog renders provider tabs, fields and the run action', () => {
+  const { SyncDialog, syncFormFromSettings, syncSettingsFromForm } = captured.module.__internal
+  const settings = {
+    provider: 'webdav',
+    webdav: { url: 'https://dav.example.com/me', username: 'u', password: 'p', remotePath: 'notes' },
+    git: { remote: '', branch: '', message: '' },
+    auto: { onSave: true, intervalMinutes: 15 },
+    deletes: 'trash',
+  }
+  const form = syncFormFromSettings(settings)
+  assert(form.webdavUrl === 'https://dav.example.com/me', 'webdav url was not mapped')
+  assert(form.onSave === true && form.interval === '15', 'auto sync settings were not mapped')
+  const round = syncSettingsFromForm(form)
+  assert(round.webdav.password === 'p', 'password was not round-tripped')
+  assert(round.auto.intervalMinutes === 15, 'interval was not round-tripped')
+
+  const textOf = (node) => {
+    if (node === null || node === undefined) return ''
+    if (Array.isArray(node)) return node.map(textOf).join('')
+    if (typeof node === 'string' || typeof node === 'number') return String(node)
+    return textOf(node.children)
+  }
+  const render = (preset) => {
+    resetState([null, preset, null, null, null])
+    const tree = SyncDialog({ t: (key) => key, localeId: 'zh', onClose() {}, onStatus() {}, onDone() {} })
+    const elements = []
+    const walk = (node) => {
+      if (node === null || node === undefined) return
+      if (Array.isArray(node)) return node.forEach(walk)
+      if (typeof node !== 'object') return
+      elements.push(node)
+      walk(node.children)
+    }
+    walk(tree)
+    assert(
+      elements.every((node) => typeof node.type === 'string' || typeof node.type === 'function'),
+      'the sync dialog used an element type this runtime may not provide (Fragment or undefined)',
+    )
+    return elements
+  }
+
+  // The shipped client must not depend on React.Fragment: no other part of this
+  // bundle uses it, and a partial React surface would unmount the whole panel.
+  const savedFragment = React.Fragment
+  React.Fragment = undefined
+  const webdav = render(form)
+  const tabs = webdav.filter((node) => String(node.props?.className ?? '') === 'nb-sync-tab').length
+  const inputs = webdav.filter((node) => node.type === 'input').length
+  const runButton = webdav.find(
+    (node) =>
+      node.type === 'button' &&
+      String(node.props?.className ?? '').includes('nb-btn-primary') &&
+      textOf(node) === 'syncRun',
+  )
+  assert(tabs === 3, `expected three provider tabs, found ${tabs}`)
+  assert(inputs >= 5, `expected the webdav fields, found ${inputs} inputs`)
+  assert(runButton !== undefined, 'the run action is missing')
+  assert(
+    webdav.some(
+      (node) => String(node.props?.className ?? '') === 'nb-modal-title' && textOf(node) === 'syncTitle',
+    ),
+    'the dialog title is missing',
+  )
+
+  const gitForm = syncFormFromSettings({ ...settings, provider: 'git', git: { remote: 'git@x:y.git', branch: 'main', message: '' } })
+  const git = render(gitForm)
+  React.Fragment = savedFragment
+  assert(git.some((node) => textOf(node) === 'syncGitRemote'), 'the git remote field is missing')
+  assert(git.some((node) => textOf(node) === 'syncGitBranch'), 'the git branch field is missing')
+  return 'webdav + git forms, three tabs, run action'
+})
+
+
+check('flash capture and panel render their controls', () => {
+  const { FlashCapture, FlashPanel, flashCategoryLabel, flashCategoryIndex, flashErrorLabel } = captured.module.__internal
+  assert(flashCategoryLabel((key) => key, '灵感') === 'flashCatSpark', 'category label mapping is wrong')
+  assert(flashCategoryIndex('灵感') === 3, 'category index is wrong')
+  assert(flashErrorLabel((key) => key, { code: 'flash_empty' }) === 'flashErrEmpty', 'flash error mapping is wrong')
+
+  const textOf = (node) => {
+    if (node === null || node === undefined) return ''
+    if (Array.isArray(node)) return node.map(textOf).join('')
+    if (typeof node === 'string' || typeof node === 'number') return String(node)
+    return textOf(node.children)
+  }
+  const collect = (tree) => {
+    const elements = []
+    const walk = (node) => {
+      if (node === null || node === undefined) return
+      if (Array.isArray(node)) return node.forEach(walk)
+      if (typeof node !== 'object') return
+      elements.push(node)
+      walk(node.children)
+    }
+    walk(tree)
+    assert(
+      elements.every((node) => typeof node.type === 'string' || typeof node.type === 'function'),
+      'a flash view used an element type this runtime may not provide',
+    )
+    return elements
+  }
+
+  // Capture: text, category, pending, error.
+  resetState(['', '', false, null])
+  const capture = collect(
+    FlashCapture({ t: (key) => key, onClose() {}, onSaved() {} }),
+  )
+  assert(capture.some((node) => node.type === 'textarea'), 'the capture box has no textarea')
+  const chips = capture.filter((node) => String(node.props?.className ?? '') === 'nb-flash-cat-chip')
+  assert(chips.length === 5, `expected five category chips, found ${chips.length}`)
+  assert(
+    capture.some(
+      (node) =>
+        node.type === 'button' &&
+        String(node.props?.className ?? '').includes('nb-btn-primary') &&
+        textOf(node) === 'flashCapture',
+    ),
+    'the capture action is missing',
+  )
+
+  // Panel: status, category, query, data, loading, error, confirmPath.
+  const data = {
+    dir: '闪念',
+    items: [
+      {
+        path: '闪念/一条.md',
+        name: '一条',
+        preview: '整理一下这条闪念',
+        createdMs: Date.parse('2026-11-10T14:00:00+08:00'),
+        category: '想法',
+        tags: ['测试'],
+        pinned: false,
+        done: false,
+      },
+    ],
+    counts: { inbox: 1, done: 0, total: 1 },
+    total: 1,
+    categories: ['随记', '想法', '待办', '灵感', '摘录'],
+    truncated: false,
+  }
+  resetState(['inbox', '', '', data, false, null, null])
+  const panel = collect(
+    FlashPanel({
+      t: (key) => key,
+      localeId: 'zh',
+      revision: 0,
+      onCapture() {},
+      onOpen() {},
+      onClose() {},
+      onChanged() {},
+    }),
+  )
+  const text = panel.map((node) => textOf(node)).join('\n')
+  assert(text.includes('flashTitle'), 'the panel title is missing')
+  assert(text.includes('一条') || text.includes('整理一下这条闪念'), 'the flash card is missing')
+  const tabs = panel.filter((node) => String(node.props?.className ?? '') === 'nb-flash-tab')
+  assert(tabs.length === 3, `expected three status tabs, found ${tabs.length}`)
+  const actions = panel.filter((node) => String(node.props?.className ?? '').includes('nb-flash-action'))
+  assert(actions.length >= 4, `expected pin/done/open/delete actions, found ${actions.length}`)
+  assert(panel.some((node) => node.type === 'input'), 'the panel search box is missing')
 })
 
 console.log('')

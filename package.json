@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-notebook",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Notion-style Markdown notebook for the DeepSeek Harness Web UI, backed by an Obsidian vault, with folder pages, a streaming Ask AI sidebar and agent tools over the same notes.",
   "type": "module",
@@ -12,6 +12,8 @@
   },
   "files": [
     "index.js",
+    "flash.js",
+    "sync.js",
     "client.js",
     "cordis.patch.yml",
     "locale/*.json",

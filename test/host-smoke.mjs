@@ -348,14 +348,15 @@ async function main() {
     assert.equal(route.kind, 'prefix')
     assert.equal(route.path, '/notebook')
     assert.equal(typeof route.handler, 'function')
-    // HTTP routes, agent tools, the /note command, and the prompt context.
-    assert.equal(disposers.length, 4, `expected 4 ctx.effect calls, got ${disposers.length}`)
+    // HTTP routes, agent tools, the /note command, both prompt contexts, the
+    // /flash command (plus its guarded alias), and the sync service.
+    assert.equal(disposers.length, 8, `expected 8 ctx.effect calls, got ${disposers.length}`)
   })
 
-  await check('apply() registers the four notebook tools with complete definitions', () => {
+  await check('apply() registers the six notebook tools with complete definitions', () => {
     assert.deepEqual(
       [...tools.keys()].sort(),
-      ['notebook_list', 'notebook_read', 'notebook_search', 'notebook_write'],
+      ['notebook_flash', 'notebook_list', 'notebook_read', 'notebook_search', 'notebook_sync', 'notebook_write'],
     )
     for (const definition of tools.values()) {
       assert.equal(typeof definition.description, 'string')
@@ -381,6 +382,50 @@ async function main() {
     assert.equal(status.noteCount, 3, `expected 3 notes, got ${status.noteCount}`)
     assert.equal(status.maxNoteBytes, 1048576)
     assert.equal(status.error, null)
+  })
+
+  await check('sync routes expose status, persist settings and explain an unreachable server', async () => {
+    const status = expectOk(await get('/notebook/api/sync/status'), 'sync status')
+    assert.equal(status.provider, 'off')
+    assert.equal(status.busy, false)
+    assert.equal(status.vault, VAULT)
+    const saved = expectOk(
+      await post('/notebook/api/sync/settings', {
+        settings: {
+          provider: 'webdav',
+          webdav: { url: 'http://127.0.0.1:9/dav', username: 'u', password: 'p' },
+        },
+      }),
+      'sync settings',
+    )
+    assert.equal(saved.settings.provider, 'webdav')
+    assert.equal(saved.settings.webdav.url, 'http://127.0.0.1:9/dav')
+    const stored = JSON.parse(await fsp.readFile(join(VAULT, '.dsh-notebook', 'sync.json'), 'utf8'))
+    assert.equal(stored.webdav.password, 'p')
+    const failed = await post('/notebook/api/sync/test')
+    assert.equal(failed.status, 400, `expected 400, got ${failed.status} ${failed.text}`)
+    assert.equal(failed.body.ok, false)
+    assert.equal(failed.body.code, 'webdav_unreachable')
+    expectOk(await post('/notebook/api/sync/settings', { settings: { provider: 'off' } }), 'sync off')
+    const back = expectOk(await get('/notebook/api/sync/status'), 'sync status again')
+    assert.equal(back.provider, 'off')
+  })
+
+  await check('POST /api/sync/run starts a run and records the failure reason', async () => {
+    const started = expectOk(await post('/notebook/api/sync/run'), 'sync run')
+    assert.equal(started.ok, true)
+    let last = null
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const status = expectOk(await get('/notebook/api/sync/status'), 'sync status while idle')
+      if (status.busy === false && status.lastResult !== null && status.lastResult !== undefined) {
+        last = status.lastResult
+        break
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    assert(last !== null, 'the run result was never recorded')
+    assert.equal(last.ok, false)
+    assert.equal(last.error?.code, 'sync_not_configured')
   })
 
   await check('GET /api/list finds all notes and skips .obsidian', async () => {
@@ -479,6 +524,30 @@ async function main() {
   // -------------------------------------------------------------------------
   // Mutating HTTP routes
   // -------------------------------------------------------------------------
+
+  await check('GET /api/stats/writing counts characters added by saves', async () => {
+    const now = new Date()
+    const stamp = (value) => String(value).padStart(2, '0')
+    const today = `${now.getFullYear()}-${stamp(now.getMonth() + 1)}-${stamp(now.getDate())}`
+    const first = await post('/notebook/api/write', {
+      path: '笔记/写作热力.md',
+      content: '写作热力测试内容一二三四五六七八九十',
+    })
+    assert.equal(first.status, 200, first.text)
+    const counted = await request('/notebook/api/stats/writing')
+    assert.equal(counted.status, 200, counted.text)
+    const days = counted.body.days ?? {}
+    assert((days[today] ?? 0) >= 18, JSON.stringify(days))
+    assert(counted.body.total >= 18, JSON.stringify(counted.body))
+    assert.equal(counted.body.activeDays >= 1, true, JSON.stringify(counted.body))
+    await post('/notebook/api/write', {
+      path: '笔记/写作热力.md',
+      content: '写作热力测试内容一二三四五六七八九十',
+    })
+    const again = await request('/notebook/api/stats/writing')
+    assert((again.body.days?.[today] ?? 0) === (days[today] ?? 0), 'an unchanged save adds nothing')
+    return `${days[today]} chars on ${today}`
+  })
 
   await check('POST /api/write creates a nested note and returns mtimeMs', async () => {
     const body = expectOk(
@@ -990,6 +1059,26 @@ async function main() {
     assert.equal(typeof output, 'string')
     assert.ok(output.length > 0)
     assert.match(output, /笔记\/欢迎\.md:3:/)
+  })
+
+  await check('GET /api/recall ranks notes by meaning without the exact phrase', async () => {
+    const recall = expectOk(
+      await get('/notebook/api/recall', { q: '设计上的取舍', expand: '0', limit: 5 }),
+      'recall',
+    )
+    assert.equal(recall.query, '设计上的取舍')
+    assert.ok(recall.results.length > 0, JSON.stringify(recall))
+    assert.equal(recall.results[0].path, '笔记/项目/设计.md')
+    assert.ok(recall.results.every((entry) => typeof entry.snippet === 'string' && entry.snippet.length > 0))
+  })
+
+  await check('tool notebook_search semantic mode returns related notes', async () => {
+    const tool = tools.get('notebook_search')
+    const semantic = await tool.execute({ query: 'needle-beta 那篇设计', semantic: true }, { signal })
+    assert.match(semantic, /related note/)
+    assert.match(semantic, /笔记\/项目\/设计\.md/)
+    const literal = await tool.execute({ query: 'needle-beta' }, { signal })
+    assert.match(literal, /笔记\/项目\/设计\.md:3:/)
   })
 
   await check('tool notebook_search reports zero matches for excluded content', async () => {

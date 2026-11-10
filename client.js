@@ -15,9 +15,21 @@ window.__ModuleLoader__.load({
   id: '@local/dsh-notebook',
   factory(require) {
     const React = require('react')
+    // The composer can sit inside a transformed container, where a fixed child
+    // would be positioned relative to it. The cite picker portals to <body>
+    // instead; a loader without react-dom keeps the inline fallback.
+    const ReactDOM = (() => {
+      try {
+        return require('react-dom')
+      } catch {
+        return null
+      }
+    })()
     const h = React.createElement
     const NS = 'dsh-notebook'
     const API = '/notebook/api'
+    /** Sent with the first sync status fetch so the Host can tell which panel build is live. */
+    const SYNC_BUILD = '0.2.0'
     const LAST_NOTE_KEY = `${NS}:last-note`
     const WIDE_KEY = `${NS}:wide`
     const ZEN_KEY = `${NS}:zen`
@@ -437,6 +449,16 @@ window.__ModuleLoader__.load({
       paletteRun: '执行或打开',
       paletteClose: '关闭',
       scPalette: '命令面板（搜索 + 动作）',
+      writingHeatmap: '写作热力',
+      characters: '字',
+      statsTotal: '总计',
+      statsActiveDays: '活跃天数',
+      statsStreak: '连续天数',
+      statsBest: '最高单日',
+      statsLess: '少',
+      statsMore: '多',
+      statsSince: '从 {date} 开始记录',
+      statsEmptyHint: '在笔记本里写作后，这里会逐日亮起来。',
       linkIt: '加链接',
       graphTitle: '关系图谱',
       aiTitle: 'AI 写作助手',
@@ -473,6 +495,7 @@ window.__ModuleLoader__.load({
       chatReadNote: '读取笔记',
       chatWriteNote: '写入笔记',
       chatListNotes: '列出笔记',
+      chatFlashNote: '闪念',
       chatSearchNotes: '搜索笔记',
       chatOpenInNotebook: '在笔记本中打开',
       chatOpen: '打开',
@@ -498,9 +521,107 @@ window.__ModuleLoader__.load({
       folderReload: '刷新列表',
       syncExternal: '这篇笔记在别处被修改了（Agent、Obsidian 或另一个窗口）。',
       syncReload: '重新加载',
+      syncTitle: '同步',
+      syncProvider: '同步方式',
+      syncOff: '关闭',
+      syncWebdav: 'WebDAV',
+      syncGit: 'Git 仓库',
+      syncWebdavUrl: '服务器地址',
+      syncWebdavUrlHint: '带路径的完整地址，例如 https://dav.example.com/remote.php/dav/files/我',
+      syncUsername: '用户名',
+      syncPassword: '密码',
+      syncRemotePath: '远程子目录（可选）',
+      syncGitRemote: '远程仓库（可选）',
+      syncGitRemoteHint: 'SSH 或 HTTPS 地址，凭据沿用本机 git 配置；留空只在本机提交版本',
+      syncGitBranch: '分支',
+      syncGitMessage: '提交信息（可选）',
+      syncAutoSave: '保存笔记后自动同步',
+      syncInterval: '定时同步（分钟，0 关闭）',
+      syncDeletes: '删除处理',
+      syncDeletesTrash: '同步删除，保留备份',
+      syncDeletesKeep: '不传播删除',
+      syncSave: '保存设置',
+      syncTest: '测试连接',
+      syncRun: '立即同步',
+      syncCancel: '取消',
+      syncNever: '还没有同步过',
+      syncLast: '上次同步：{time}',
+      syncTracked: '已跟踪 {count} 个文件',
+      syncRunning: '同步中… {done}/{total}',
+      syncStat: '上传 {up} · 下载 {down} · 冲突 {conflicts} · 删除 {deleted}',
+      syncStatErrors: '，{count} 处错误',
+      syncSettingsSaved: '设置已保存',
+      syncTesting: '正在测试连接…',
+      syncTestOk: '连接正常：{message}',
+      syncRunningNow: '正在同步，请稍候…',
+      syncRunOk: '同步完成',
+      syncRunFail: '同步失败',
+      syncNoVault: '还没有笔记库：先到 设置 → 通用 → 笔记本笔记库 里选一个目录。',
+      syncHintWebdav:
+        '双向同步：本地改动上传，远端改动下载。两边都改过的笔记保留本地版本，远端内容另存为「冲突」副本；删除会移到回收站或先做备份。',
+      syncHintGit: '把笔记库当作 git 工作区：先提交本地改动，再拉取远端分支（rebase），最后推送。第一次同步会初始化仓库。',
+      syncErrAuth: 'WebDAV 认证失败（401）：用户名或密码不对',
+      syncErrForbidden: 'WebDAV 拒绝写入（403）：账号可能只读，或目录不允许 PUT/MKCOL',
+      syncErrNotFound: 'WebDAV 路径不存在（404）',
+      syncErrUnreachable: '连不上 WebDAV 服务器',
+      syncErrTimeout: 'WebDAV 请求超时',
+      syncErrUrl: 'WebDAV 地址格式不对',
+      syncErrQuota: 'WebDAV 空间不足（507）',
+      syncErrGitAuth: 'git 凭据被拒绝：请配置 SSH key 或 credential helper',
+      syncErrGitUnreachable: '连不上 git 远程仓库',
+      syncErrGitConflict: 'git 冲突：远端和本地改了同一处',
+      syncErrGitMissing: '找不到 git 命令',
+      syncErrTooManyDeletes: '这次同步要删除的文件过多，已停止（什么都没删）',
+      syncErrIncomplete: '同步设置不完整',
+      syncErrLocalChanged: '同步期间本地文件被改动，已跳过',
+      syncErrTooLarge: '文件超过 64 MB，已跳过',
+      syncLoadFailed: '打不开同步设置：{message}',
+      syncRetry: '重试',
+      flashTitle: '闪念',
+      flashCapture: '记一笔',
+      flashPlaceholder: '脑子里闪过什么，先记下来…',
+      flashHint: '回车记下 · Shift+回车换行 · Esc 取消',
+      flashSaved: '已记下',
+      flashInbox: '未处理',
+      flashAll: '全部',
+      flashDone: '已完成',
+      flashEmpty: '还没有闪念。想到什么就先记一笔，整理留到以后。',
+      flashEmptyDone: '还没有标记完成的闪念',
+      flashNoMatch: '没有匹配的闪念',
+      flashPending: '{count} 条待整理',
+      flashRandom: '翻旧账',
+      flashRandomEmpty: '还没有可以翻的旧闪念',
+      flashPin: '置顶',
+      flashUnpin: '取消置顶',
+      flashMarkDone: '标记完成',
+      flashMarkInbox: '标记未处理',
+      flashDelete: '删除',
+      flashConfirmDelete: '确认删除',
+      flashOpenNote: '打开笔记',
+      flashSearch: '搜索闪念…',
+      flashCategoryAll: '全部分类',
+      flashCategoryLabel: '分类（可留空）',
+      flashCreated: '记于 {time}',
+      flashOpenFailed: '加载闪念失败：{message}',
+      flashSaveFailed: '没记上：{message}',
+      flashErrEmpty: '写点什么再记',
+      flashErrTooLarge: '这条太长了',
+      flashErrPath: '只能改闪念文件夹里的笔记',
+      flashCatMisc: '随记',
+      flashCatIdea: '想法',
+      flashCatTodo: '待办',
+      flashCatSpark: '灵感',
+      flashCatQuote: '摘录',
+      flashShortcut: '闪念：快速记一笔',
       menuOpenNotebook: '打开笔记本',
       menuAskAi: '问 AI（当前笔记）',
       menuInsertNote: '插入当前笔记',
+      menuCiteNotes: '引用笔记…',
+      citeTitle: '引用笔记',
+      citePlaceholder: '搜索笔记…',
+      citeInsert: '插入 {count} 篇',
+      citeEmpty: '没有匹配的笔记',
+      citeFailed: '加载笔记失败：{message}',
       settingsVaultTitle: '笔记本笔记库',
       settingsPick: '选择目录…',
       settingsAuto: '自动检测',
@@ -747,6 +868,16 @@ window.__ModuleLoader__.load({
       paletteRun: 'run or open',
       paletteClose: 'close',
       scPalette: 'Command palette (search + actions)',
+      writingHeatmap: 'Writing heatmap',
+      characters: 'chars',
+      statsTotal: 'Total',
+      statsActiveDays: 'Active days',
+      statsStreak: 'Streak',
+      statsBest: 'Best day',
+      statsLess: 'Less',
+      statsMore: 'More',
+      statsSince: 'Recording since {date}',
+      statsEmptyHint: 'Write in the notebook and this fills in day by day.',
       linkIt: 'Link',
       graphTitle: 'Graph',
       aiTitle: 'AI writing assistant',
@@ -783,6 +914,7 @@ window.__ModuleLoader__.load({
       chatReadNote: 'Read note',
       chatWriteNote: 'Write note',
       chatListNotes: 'List notes',
+      chatFlashNote: 'Flash',
       chatSearchNotes: 'Search notes',
       chatOpenInNotebook: 'Open in notebook',
       chatOpen: 'Open',
@@ -808,9 +940,108 @@ window.__ModuleLoader__.load({
       folderReload: 'Refresh list',
       syncExternal: 'This note changed outside this panel (agent, Obsidian or another window).',
       syncReload: 'Reload',
+      syncTitle: 'Sync',
+      syncProvider: 'Provider',
+      syncOff: 'Off',
+      syncWebdav: 'WebDAV',
+      syncGit: 'Git repository',
+      syncWebdavUrl: 'Server URL',
+      syncWebdavUrlHint: 'Full address including the folder, e.g. https://dav.example.com/remote.php/dav/files/me',
+      syncUsername: 'Username',
+      syncPassword: 'Password',
+      syncRemotePath: 'Remote subfolder (optional)',
+      syncGitRemote: 'Remote repository (optional)',
+      syncGitRemoteHint: 'SSH or HTTPS URL; credentials come from your git config. Empty commits locally only.',
+      syncGitBranch: 'Branch',
+      syncGitMessage: 'Commit message (optional)',
+      syncAutoSave: 'Sync after saving a note',
+      syncInterval: 'Sync every N minutes (0 = off)',
+      syncDeletes: 'Deletions',
+      syncDeletesTrash: 'Sync deletions, keep backups',
+      syncDeletesKeep: 'Never delete',
+      syncSave: 'Save settings',
+      syncTest: 'Test connection',
+      syncRun: 'Sync now',
+      syncCancel: 'Cancel',
+      syncNever: 'Never synced',
+      syncLast: 'Last sync: {time}',
+      syncTracked: '{count} tracked file(s)',
+      syncRunning: 'Syncing… {done}/{total}',
+      syncStat: '{up} up · {down} down · {conflicts} conflict(s) · {deleted} deleted',
+      syncStatErrors: ', {count} error(s)',
+      syncSettingsSaved: 'Settings saved',
+      syncTesting: 'Testing the connection…',
+      syncTestOk: 'Connection OK: {message}',
+      syncRunningNow: 'Syncing, please wait…',
+      syncRunOk: 'Sync finished',
+      syncRunFail: 'Sync failed',
+      syncNoVault: 'No notebook vault yet: pick a folder under Settings → General → Notebook vault.',
+      syncHintWebdav:
+        'Two-way: local edits upload, remote edits download. A note edited on both sides keeps the local version and saves the remote content as a conflict copy; deletions are moved to the trash or backed up first.',
+      syncHintGit:
+        'The vault is a git working tree: commit local changes, replay the remote branch (rebase), then push. The first sync initializes the repository.',
+      syncErrAuth: 'WebDAV authentication failed (401): check the username and password',
+      syncErrForbidden: 'WebDAV refused the write (403): the account may be read-only or the folder may reject PUT/MKCOL',
+      syncErrNotFound: 'The WebDAV path does not exist (404)',
+      syncErrUnreachable: 'The WebDAV server could not be reached',
+      syncErrTimeout: 'The WebDAV request timed out',
+      syncErrUrl: 'That WebDAV address is not valid',
+      syncErrQuota: 'The WebDAV account is out of space (507)',
+      syncErrGitAuth: 'git credentials were rejected: configure an ssh key or a credential helper',
+      syncErrGitUnreachable: 'The git remote could not be reached',
+      syncErrGitConflict: 'git conflict: the remote and the local copy changed the same lines',
+      syncErrGitMissing: 'The git command was not found',
+      syncErrTooManyDeletes: 'This run would delete too many files, so it stopped before deleting anything',
+      syncErrIncomplete: 'The sync settings are incomplete',
+      syncErrLocalChanged: 'A local file changed during the sync and was skipped',
+      syncErrTooLarge: 'A file is larger than 64 MB and was skipped',
+      syncLoadFailed: 'Could not open the sync settings: {message}',
+      syncRetry: 'Retry',
+      flashTitle: 'Flash',
+      flashCapture: 'Capture',
+      flashPlaceholder: 'Whatever just crossed your mind — jot it down…',
+      flashHint: 'Enter saves · Shift+Enter for a new line · Esc cancels',
+      flashSaved: 'Captured',
+      flashInbox: 'Inbox',
+      flashAll: 'All',
+      flashDone: 'Done',
+      flashEmpty: 'No flashes yet. Capture the thought now, sort it out later.',
+      flashEmptyDone: 'Nothing marked done yet',
+      flashNoMatch: 'No matching flashes',
+      flashPending: '{count} to sort out',
+      flashRandom: 'Resurface',
+      flashRandomEmpty: 'No old flash to resurface yet',
+      flashPin: 'Pin',
+      flashUnpin: 'Unpin',
+      flashMarkDone: 'Mark done',
+      flashMarkInbox: 'Move back to inbox',
+      flashDelete: 'Delete',
+      flashConfirmDelete: 'Confirm delete',
+      flashOpenNote: 'Open note',
+      flashSearch: 'Search flashes…',
+      flashCategoryAll: 'All categories',
+      flashCategoryLabel: 'Category (optional)',
+      flashCreated: 'Captured {time}',
+      flashOpenFailed: 'Could not load flashes: {message}',
+      flashSaveFailed: 'Not saved: {message}',
+      flashErrEmpty: 'Write something first',
+      flashErrTooLarge: 'That flash is too long',
+      flashErrPath: 'Only notes inside the flash folder can be edited',
+      flashCatMisc: 'Misc',
+      flashCatIdea: 'Idea',
+      flashCatTodo: 'To-do',
+      flashCatSpark: 'Spark',
+      flashCatQuote: 'Quote',
+      flashShortcut: 'Flash: quick capture',
       menuOpenNotebook: 'Open notebook',
       menuAskAi: 'Ask AI (current note)',
       menuInsertNote: 'Insert current note',
+      menuCiteNotes: 'Cite notes…',
+      citeTitle: 'Cite notes',
+      citePlaceholder: 'Search notes…',
+      citeInsert: 'Insert {count}',
+      citeEmpty: 'No matching notes',
+      citeFailed: 'Could not load notes: {message}',
       settingsVaultTitle: 'Notebook vault',
       settingsPick: 'Choose folder…',
       settingsAuto: 'Auto-detect',
@@ -893,6 +1124,36 @@ window.__ModuleLoader__.load({
 .nb-root *::-webkit-scrollbar-track { background: transparent; }
 
 /* ── Sidebar ───────────────────────────────────────────── */
+.nb-side-foot { flex: 0 0 auto; padding: 8px; border-top: 1px solid var(--nb-line); }
+.nb-heat-card { display: flex; flex-direction: column; gap: 7px; width: 100%; box-sizing: border-box; border: 1px solid transparent; background: transparent; border-radius: var(--nb-radius-m); padding: 8px; cursor: pointer; text-align: left; transition: background .14s var(--nb-ease), border-color .14s var(--nb-ease); }
+.nb-heat-card:hover { background: var(--nb-hover); border-color: var(--nb-line); }
+.nb-heat-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.nb-heat-title { font-size: 11px; font-weight: 600; color: var(--nb-text-2); }
+.nb-heat-total { font-size: 10.5px; color: var(--nb-text-3); font-variant-numeric: tabular-nums; }
+.nb-heat { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.nb-heat-grid { display: flex; gap: 3px; width: max-content; }
+.nb-heat-week { display: flex; flex-direction: column; gap: 3px; }
+.nb-heat-cell { width: 10px; height: 10px; border-radius: 2px; background: color-mix(in srgb, var(--nb-line) 55%, transparent); }
+.nb-heat.compact .nb-heat-cell { width: 7px; height: 7px; border-radius: 1.5px; }
+.nb-heat-cell[data-level="1"] { background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #1a7f4b) 24%, var(--nb-panel)); }
+.nb-heat-cell[data-level="2"] { background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #1a7f4b) 44%, var(--nb-panel)); }
+.nb-heat-cell[data-level="3"] { background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #1a7f4b) 67%, var(--nb-panel)); }
+.nb-heat-cell[data-level="4"] { background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #1a7f4b) 92%, var(--nb-panel)); }
+.nb-heat-cell[data-future="1"] { background: transparent; }
+.nb-heat-months { display: flex; gap: 3px; height: 12px; font-size: 10px; color: var(--nb-text-3); }
+.nb-heat-month { flex: 0 0 10px; width: 10px; overflow: visible; white-space: nowrap; }
+.nb-modal-card.nb-stats-card { width: min(880px, 96%); max-height: min(86vh, 780px); overflow: auto; gap: 16px; }
+.nb-stats-card .nb-heat { overflow-x: auto; padding-bottom: 2px; }
+.nb-stats-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.nb-stats-title { font-size: 15px; font-weight: 600; letter-spacing: -.01em; color: var(--nb-text); }
+.nb-stats-sub { margin-top: 3px; font-size: 11.5px; color: var(--nb-text-3); }
+.nb-stats-summary { display: flex; gap: 10px; flex-wrap: wrap; }
+.nb-stats-stat { flex: 1 1 140px; min-width: 0; padding: 10px 12px; border-radius: var(--nb-radius-m); background: var(--nb-panel); }
+.nb-stats-value { font-size: 18px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--nb-text); }
+.nb-stats-label { margin-top: 2px; font-size: 11px; color: var(--nb-text-3); }
+.nb-stats-legend { display: flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--nb-text-3); }
+.nb-stats-legend .nb-heat-cell { width: 10px; height: 10px; }
+.nb-stats-empty { font-size: 12px; color: var(--nb-text-3); }
 .nb-side { width: 248px; flex: 0 0 248px; display: flex; flex-direction: column; min-height: 0; background: var(--nb-panel); border-right: 1px solid var(--nb-line); }
 /* Breadcrumb */
 .nb-breadcrumb { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; padding: 2px 0 8px; font-size: 12px; color: var(--nb-text-3); }
@@ -963,14 +1224,15 @@ window.__ModuleLoader__.load({
 .nb-tab:hover .nb-tab-close, .nb-tab.on .nb-tab-close { opacity: 1; }
 .nb-tab-close:hover { background: var(--nb-active); color: var(--nb-text); }
 .nb-save { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: 11.5px; color: var(--nb-text-2); white-space: nowrap; }
-.nb-save::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--dsw-alias-state-success-primary, #1a7f4b); opacity: .75; }
+.nb-save::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--dsw-alias-state-success-primary, #1a7f4b); opacity: .75; transition: background .2s var(--nb-ease); }
 .nb-save[data-state="saving"]::before, .nb-save[data-state="unsaved"]::before { background: var(--dsw-alias-state-warn-primary, #a15c00); }
 .nb-save[data-state="saving"]::before { animation: nb-save-pulse 1.2s var(--nb-ease) infinite; }
 .nb-save[data-state="error"]::before { background: var(--dsw-alias-state-error-primary); }
 .nb-save.error { color: var(--dsw-alias-state-error-primary); }
-.nb-icon-btn { width: 28px; height: 28px; border: none; border-radius: var(--nb-radius-s); background: transparent; color: var(--nb-text-2); cursor: pointer; font-size: 15px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; transition: background .14s var(--nb-ease), color .14s var(--nb-ease); }
+.nb-icon-btn { width: 28px; height: 28px; border: none; border-radius: var(--nb-radius-s); background: transparent; color: var(--nb-text-2); cursor: pointer; font-size: 15px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; transition: background .14s var(--nb-ease), color .14s var(--nb-ease), transform .1s var(--nb-ease); }
 .nb-icon-btn:hover { background: var(--nb-hover); color: var(--nb-text); }
 .nb-notice { flex: 0 0 auto; margin: 8px 18px 0; padding: 8px 12px; border-radius: var(--nb-radius-s); font-size: 12px; background: var(--dsw-alias-state-error-tertiary, var(--nb-hover)); color: var(--dsw-alias-state-error-primary); border: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 18%, transparent); animation: nb-notice-in 180ms var(--nb-ease-out); }
+.nb-notice[data-kind="ok"] { background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #1a7f4b) 7%, var(--nb-card)); color: var(--dsw-alias-state-success-primary, #1a7f4b); border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary, #1a7f4b) 24%, transparent); }
 .nb-notice.nb-sync { display: flex; align-items: center; gap: 10px; background: var(--nb-hover); color: var(--nb-text); border-color: var(--nb-line-2); }
 .nb-sync-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nb-sync-action { flex: none; margin-left: auto; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--nb-line-2); background: var(--nb-card); color: var(--nb-text); font-size: 12px; cursor: pointer; }
@@ -1050,7 +1312,7 @@ window.__ModuleLoader__.load({
 .nb-check { flex: 0 0 auto; width: 18px; height: 18px; margin: 5px 9px 0 1px; padding: 0; border: 1.5px solid var(--nb-line-2); border-radius: 4px; background: var(--nb-card); cursor: pointer; position: relative; transition: background .12s, border-color .12s; }
 .nb-check:hover { border-color: var(--nb-accent); }
 .nb-check.on { background: var(--nb-accent); border-color: var(--nb-accent); }
-.nb-check.on::after { content: ''; position: absolute; left: 4.5px; top: 1.5px; width: 4px; height: 8px; border: solid #fff; border-width: 0 1.6px 1.6px 0; transform: rotate(42deg); }
+.nb-check.on::after { content: ''; position: absolute; left: 4.5px; top: 1.5px; width: 4px; height: 8px; border: solid #fff; border-width: 0 1.6px 1.6px 0; transform: rotate(42deg); animation: nb-tick .16s var(--nb-ease-out); }
 .nb-check-row { display: flex; align-items: flex-start; }
 .nb-check-row .nb-b { padding-left: 2px; }
 
@@ -1076,9 +1338,10 @@ window.__ModuleLoader__.load({
 .nb-block.nb-callout-question, .nb-block.nb-callout-important { --nb-callout-tone: #7c3aed; }
 .nb-block.nb-callout-example { --nb-callout-tone: #4f46e5; }
 .nb-block.nb-callout-quote { --nb-callout-tone: var(--nb-text-3); }
-.nb-type-callout { background: color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 10%, var(--nb-surface)); border: 1px solid color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 20%, transparent); border-radius: var(--nb-radius-m); padding: 7px 12px 7px 8px; margin: 8px 0; }
-.nb-callout-icon { flex: 0 0 auto; width: 26px; height: 26px; margin: 1px 7px 0 1px; padding: 0; border: none; border-radius: var(--nb-radius-s); background: color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 16%, transparent); font-size: 13.5px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background .14s var(--nb-ease); }
-.nb-callout-icon:hover { background: color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 28%, transparent); }
+.nb-type-callout { background-color: color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 10%, var(--nb-surface)); border: 1px solid color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 20%, transparent); border-radius: var(--nb-radius-m); padding: 7px 12px 7px 8px; margin: 8px 0; transition: background-color .28s var(--nb-ease), border-color .28s var(--nb-ease); }
+.nb-callout-icon { flex: 0 0 auto; width: 26px; height: 26px; margin: 1px 7px 0 1px; padding: 0; border: none; border-radius: var(--nb-radius-s); background: color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 16%, transparent); font-size: 13.5px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background .14s var(--nb-ease), transform .16s var(--nb-ease-out); }
+.nb-callout-icon:hover { background: color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 28%, transparent); transform: scale(1.06) rotate(-3deg); }
+.nb-callout-icon:active { transform: scale(.88) rotate(-8deg); }
 .nb-root.reading .nb-callout-icon { cursor: default; }
 .nb-root.reading .nb-callout-icon:hover { background: color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 16%, transparent); }
 .nb-b-callout { padding: 3px 4px; }
@@ -1150,8 +1413,82 @@ window.__ModuleLoader__.load({
 .nb-modal-text { font-size: 12.5px; color: var(--nb-text-2); line-height: 1.65; word-break: break-word; }
 .nb-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 
+/* sync dialog */
+.nb-sync-card { width: min(560px, 100%); max-height: min(86vh, 780px); overflow: auto; }
+.nb-sync-tabs { display: inline-flex; padding: 3px; gap: 2px; background: var(--nb-hover); border-radius: var(--nb-radius-m); align-self: flex-start; }
+.nb-sync-tab { border: none; background: transparent; color: var(--nb-text-2); font-size: 12.5px; font-weight: 500; padding: 6px 14px; border-radius: calc(var(--nb-radius-m) - 2px); cursor: pointer; transition: background .14s var(--nb-ease), color .14s var(--nb-ease); }
+.nb-sync-tab[data-on="1"] { background: var(--nb-card); color: var(--nb-text); box-shadow: 0 1px 2px rgba(16, 24, 40, .12); }
+.nb-sync-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.nb-sync-label { font-size: 11.5px; font-weight: 600; color: var(--nb-text-2); letter-spacing: .01em; }
+.nb-sync-input { height: 32px; box-sizing: border-box; width: 100%; border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-s); background: var(--nb-surface); color: var(--nb-text); padding: 0 10px; font-size: 12.5px; outline: none; transition: border-color .14s, box-shadow .14s; }
+.nb-sync-input:focus { border-color: var(--nb-accent); box-shadow: 0 0 0 3px var(--nb-accent-ring); }
+.nb-sync-hint { font-size: 11px; color: var(--nb-text-2); opacity: .85; line-height: 1.55; }
+.nb-sync-row { display: flex; gap: 10px; }
+.nb-sync-group { display: flex; flex-direction: column; gap: 10px; }
+.nb-sync-row > .nb-sync-field { flex: 1; }
+.nb-sync-check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--nb-text); }
+.nb-sync-status { border: 1px solid var(--nb-line); border-radius: var(--nb-radius-m); padding: 10px 12px; background: var(--nb-surface); display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--nb-text-2); }
+.nb-sync-status[data-kind="error"] { border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary, #c0392b) 45%, var(--nb-line)); }
+.nb-sync-status[data-kind="ok"] { border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary, #1a7f4b) 35%, var(--nb-line)); }
+.nb-sync-meter { height: 4px; border-radius: 2px; background: var(--nb-hover); overflow: hidden; }
+.nb-sync-meter i { display: block; height: 100%; border-radius: 2px; background: var(--nb-accent); transition: width .25s var(--nb-ease); }
+.nb-sync-detail { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.5; color: var(--nb-text-2); white-space: pre-wrap; word-break: break-all; max-height: 132px; overflow: auto; }
+.nb-sync-note { font-size: 12px; line-height: 1.55; }
+.nb-sync-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nb-sync-actions .nb-sync-spacer { flex: 1; }
+.nb-sync-btn { position: relative; }
+.nb-sync-btn::after { content: ''; position: absolute; right: 5px; bottom: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--nb-line-2); }
+.nb-sync-btn[data-state="busy"]::after { background: var(--dsw-alias-state-warn-primary, #a15c00); animation: nb-save-pulse 1.2s var(--nb-ease) infinite; }
+.nb-sync-btn[data-state="error"]::after { background: var(--dsw-alias-state-error-primary, #c0392b); }
+.nb-sync-btn[data-state="idle"]::after { background: var(--dsw-alias-state-success-primary, #1a7f4b); opacity: .8; }
+
+/* flash (闪念) */
+.nb-flash-entry { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; box-sizing: border-box; border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-s); background: var(--nb-card); color: var(--nb-text); font-size: 12.5px; font-weight: 500; cursor: pointer; transition: background .14s var(--nb-ease), border-color .14s; }
+.nb-flash-entry:hover { background: var(--nb-hover); border-color: var(--nb-accent); }
+.nb-tab-flash { color: var(--nb-accent); font-weight: 600; }
+.nb-flash-entry-icon { font-size: 14px; }
+.nb-flash-count { margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; background: var(--nb-accent-soft); color: var(--nb-accent); font-size: 11px; font-weight: 600; }
+.nb-flash { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--nb-bg); }
+.nb-flash-head { display: flex; align-items: center; gap: 10px; padding: 18px 24px 10px; flex-wrap: wrap; }
+.nb-flash-title { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.nb-flash-sub { font-size: 12px; color: var(--nb-text-2); }
+.nb-flash-head .nb-btn { height: 28px; padding: 0 12px; font-size: 12px; }
+.nb-flash-filters { display: flex; align-items: center; gap: 8px; padding: 0 24px 12px; flex-wrap: wrap; border-bottom: 1px solid var(--nb-line); }
+.nb-flash-tab { border: none; background: transparent; color: var(--nb-text-2); font-size: 12.5px; font-weight: 500; padding: 5px 10px; border-radius: var(--nb-radius-s); cursor: pointer; }
+.nb-flash-tab[data-on="1"] { background: var(--nb-accent-soft); color: var(--nb-accent); }
+.nb-flash-cats { display: flex; gap: 6px; flex-wrap: wrap; }
+.nb-flash-cat-chip { border: 1px solid var(--nb-line-2); background: transparent; color: var(--nb-text-2); font-size: 11.5px; padding: 3px 10px; border-radius: 999px; cursor: pointer; transition: background .14s, border-color .14s, color .14s; }
+.nb-flash-cat-chip[data-on="1"] { border-color: var(--nb-accent); color: var(--nb-accent); background: var(--nb-accent-soft); }
+.nb-flash-search { margin-left: auto; width: 190px; height: 28px; box-sizing: border-box; border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-s); background: var(--nb-surface); color: var(--nb-text); padding: 0 9px; font-size: 12.5px; outline: none; }
+.nb-flash-search:focus { border-color: var(--nb-accent); box-shadow: 0 0 0 3px var(--nb-accent-ring); }
+.nb-flash-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 24px 48px; display: flex; flex-direction: column; gap: 10px; }
+.nb-flash-card { border: 1px solid var(--nb-line); background: var(--nb-card); border-radius: var(--nb-radius-m); padding: 12px 14px; display: flex; flex-direction: column; gap: 7px; }
+.nb-flash-card.pinned { border-color: color-mix(in srgb, var(--nb-accent) 45%, var(--nb-line)); }
+.nb-flash-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; color: var(--nb-text-2); }
+.nb-flash-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--nb-line-2); }
+.nb-flash-dot[data-cat="0"] { background: var(--nb-text-3, #8a8f98); }
+.nb-flash-dot[data-cat="1"] { background: var(--dsw-alias-state-info-primary, #2f6feb); }
+.nb-flash-dot[data-cat="2"] { background: var(--dsw-alias-state-warn-primary, #a15c00); }
+.nb-flash-dot[data-cat="3"] { background: var(--nb-accent); }
+.nb-flash-dot[data-cat="4"] { background: var(--dsw-alias-state-success-primary, #1a7f4b); }
+.nb-flash-tag { font-size: 11px; color: var(--nb-text-2); opacity: .85; }
+.nb-flash-text { margin: 0; font-size: 14px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; cursor: pointer; }
+.nb-flash-text:hover { color: var(--nb-accent); }
+.nb-flash-actions { display: flex; gap: 2px; opacity: .55; transition: opacity .14s var(--nb-ease); flex-wrap: wrap; }
+.nb-flash-card:hover .nb-flash-actions { opacity: 1; }
+.nb-flash-action { border: none; background: transparent; color: var(--nb-text-2); font-size: 11.5px; padding: 3px 7px; border-radius: 4px; cursor: pointer; }
+.nb-flash-action:hover { background: var(--nb-hover); color: var(--nb-text); }
+.nb-flash-action[data-on="1"] { color: var(--nb-accent); }
+.nb-flash-action.danger { color: var(--dsw-alias-state-error-primary, #c0392b); }
+.nb-flash-empty { padding: 64px 0; text-align: center; color: var(--nb-text-2); font-size: 13px; line-height: 1.8; }
+.nb-flash-error { padding: 10px 24px 0; color: var(--dsw-alias-state-error-primary, #c0392b); font-size: 12px; }
+.nb-flash-textarea { width: 100%; min-height: 132px; box-sizing: border-box; resize: vertical; border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-m); background: var(--nb-surface); color: var(--nb-text); padding: 12px 14px; font-size: 14px; line-height: 1.7; font-family: inherit; outline: none; }
+.nb-flash-textarea:focus { border-color: var(--nb-accent); box-shadow: 0 0 0 3px var(--nb-accent-ring); }
+.nb-flash-capture-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nb-flash-capture-actions .nb-flash-hint { font-size: 11px; color: var(--nb-text-2); margin-right: auto; }
+
 /* buttons */
-.nb-btn { border: 1px solid var(--nb-line-2); background: var(--nb-card); color: var(--nb-text); font-size: 12.5px; font-weight: 500; padding: 7px 14px; border-radius: var(--nb-radius-s); cursor: pointer; transition: background .14s var(--nb-ease), border-color .14s, box-shadow .14s; }
+.nb-btn { border: 1px solid var(--nb-line-2); background: var(--nb-card); color: var(--nb-text); font-size: 12.5px; font-weight: 500; padding: 7px 14px; border-radius: var(--nb-radius-s); cursor: pointer; transition: background .14s var(--nb-ease), border-color .14s var(--nb-ease), box-shadow .14s var(--nb-ease), transform .1s var(--nb-ease); }
 .nb-btn:hover { background: var(--nb-hover); border-color: var(--nb-line-2); }
 .nb-btn:active { background: var(--nb-active); }
 .nb-btn-primary, .nb-btn.nb-btn-primary { background: var(--dsw-alias-button-primary-fill, var(--nb-text)); border-color: transparent; color: var(--dsw-alias-label-primary-foreground, #fff); }
@@ -1265,7 +1602,7 @@ window.__ModuleLoader__.load({
 .nb-collection-main { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 300px; }
 .nb-collection-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; }
 .nb-collection-views { display: flex; gap: 2px; padding: 2px; background: var(--nb-panel); border-radius: var(--nb-radius-s); }
-.nb-collection-view { border: none; background: transparent; color: var(--nb-text-2); font-size: 12px; padding: 4px 10px; border-radius: var(--nb-radius-s); cursor: pointer; transition: background .12s var(--nb-ease), color .12s var(--nb-ease), box-shadow .16s var(--nb-ease); }
+.nb-collection-view { border: none; background: transparent; color: var(--nb-text-2); font-size: 12px; padding: 4px 10px; border-radius: var(--nb-radius-s); cursor: pointer; transition: background .12s var(--nb-ease), color .12s var(--nb-ease), box-shadow .16s var(--nb-ease), transform .1s var(--nb-ease); }
 .nb-collection-view.on { background: var(--nb-card); color: var(--nb-text); font-weight: 600; box-shadow: var(--nb-shadow-1); }
 .nb-collection-filter { width: auto; flex: 1 1 150px; max-width: 260px; height: 28px; }
 .nb-collection-count { color: var(--nb-text-3); font-size: 11.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -1287,8 +1624,8 @@ window.__ModuleLoader__.load({
 .nb-collection-column { flex: 0 0 220px; background: var(--nb-panel); border: 1px solid var(--nb-line); border-radius: var(--nb-radius-m); padding: 8px; }
 .nb-collection-column-title { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 8px; font-size: 12px; font-weight: 600; color: var(--nb-text-2); }
 .nb-collection-column-count { font-size: 10.5px; color: var(--nb-text-3); background: var(--nb-card); border-radius: 999px; padding: 1px 6px; }
-.nb-collection-card { display: flex; flex-direction: column; gap: 3px; width: 100%; box-sizing: border-box; text-align: left; border: 1px solid var(--nb-line); background: var(--nb-card); border-radius: var(--nb-radius-s); padding: 8px 10px; margin-bottom: 6px; cursor: pointer; box-shadow: var(--nb-shadow-1); }
-.nb-collection-card:hover { border-color: var(--nb-accent); }
+.nb-collection-card { display: flex; flex-direction: column; gap: 3px; width: 100%; box-sizing: border-box; text-align: left; border: 1px solid var(--nb-line); background: var(--nb-card); border-radius: var(--nb-radius-s); padding: 8px 10px; margin-bottom: 6px; cursor: pointer; box-shadow: var(--nb-shadow-1); transition: border-color .14s var(--nb-ease), box-shadow .18s var(--nb-ease), transform .18s var(--nb-ease-out); }
+.nb-collection-card:hover { border-color: var(--nb-accent); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(16, 24, 40, .08); }
 .nb-collection-card-name { font-size: 12.5px; font-weight: 500; color: var(--nb-text); }
 .nb-collection-card-field { font-size: 11px; color: var(--nb-text-3); }
 .nb-collection-empty { padding: 18px 6px; font-size: 12.5px; color: var(--nb-text-3); }
@@ -1352,6 +1689,10 @@ window.__ModuleLoader__.load({
 @keyframes nb-ask-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
 @keyframes nb-notice-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @keyframes nb-save-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@keyframes nb-tick { from { transform: rotate(42deg) scale(.4); opacity: 0; } to { transform: rotate(42deg) scale(1); opacity: 1; } }
+@keyframes nb-msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.nb-root .nb-btn:active, .nb-root .nb-ask-btn:active, .nb-root .nb-ask-chip:active, .nb-root .nb-collection-view:active, .nb-root .nb-folder-sort:active { transform: scale(.96); }
+.nb-root .nb-icon-btn:active { transform: scale(.92); }
 @media (prefers-reduced-motion: reduce) { .nb-root *, .nb-root *::before, .nb-root *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
 
 /* ── Focus / reading modes ─────────────────────────────── */
@@ -1403,7 +1744,7 @@ window.__ModuleLoader__.load({
 .nb-folder-filter { flex: 0 1 210px; min-width: 120px; height: 28px; padding: 0 10px; border: 1px solid var(--nb-line); border-radius: var(--nb-radius-s); background: var(--nb-card); color: var(--nb-text); font-size: 12.5px; outline: none; transition: border-color .14s var(--nb-ease), box-shadow .14s var(--nb-ease); }
 .nb-folder-filter::placeholder { color: var(--nb-text-3); }
 .nb-folder-filter:focus { border-color: var(--nb-accent); box-shadow: 0 0 0 3px var(--nb-accent-ring); }
-.nb-folder-sort { height: 26px; padding: 0 9px; border: 1px solid transparent; border-radius: var(--nb-radius-s); background: transparent; color: var(--nb-text-3); font-size: 12px; cursor: pointer; transition: background .14s var(--nb-ease), color .14s var(--nb-ease); }
+.nb-folder-sort { height: 26px; padding: 0 9px; border: 1px solid transparent; border-radius: var(--nb-radius-s); background: transparent; color: var(--nb-text-3); font-size: 12px; cursor: pointer; transition: background .14s var(--nb-ease), color .14s var(--nb-ease), transform .1s var(--nb-ease); }
 .nb-folder-sort:hover { background: var(--nb-hover); color: var(--nb-text-2); }
 .nb-folder-sort.on { background: var(--nb-hover); color: var(--nb-text); }
 .nb-folder-count { margin-left: auto; color: var(--nb-text-3); font-size: 12px; }
@@ -1438,10 +1779,11 @@ window.__ModuleLoader__.load({
 .nb-ask-thread { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 16px; }
 .nb-ask-empty { color: var(--nb-text-3); font-size: 12.5px; line-height: 1.7; }
 .nb-ask-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.nb-ask-chip { height: 24px; padding: 0 10px; border: 1px solid var(--nb-line-2); border-radius: 999px; background: var(--nb-card); color: var(--nb-text-2); font-size: 12px; cursor: pointer; transition: background .14s var(--nb-ease), color .14s var(--nb-ease), border-color .14s var(--nb-ease); }
+.nb-ask-chip { height: 24px; padding: 0 10px; border: 1px solid var(--nb-line-2); border-radius: 999px; background: var(--nb-card); color: var(--nb-text-2); font-size: 12px; cursor: pointer; transition: background .14s var(--nb-ease), color .14s var(--nb-ease), border-color .14s var(--nb-ease), transform .1s var(--nb-ease); }
 .nb-ask-chip:hover:not(:disabled) { background: var(--nb-hover); color: var(--nb-text); }
 .nb-ask-chip:disabled { opacity: .5; cursor: default; }
 .nb-ask-msg { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.nb-ask-msg:last-child { animation: nb-msg-in .22s var(--nb-ease-out); }
 .nb-ask-role { font-size: 10.5px; font-weight: 600; letter-spacing: .06em; color: var(--nb-text-3); }
 .nb-ask-text { font-size: 13px; line-height: 1.72; color: var(--nb-text); white-space: pre-wrap; word-break: break-word; }
 .nb-ask-msg.user .nb-ask-text { background: var(--nb-panel); border-radius: var(--nb-radius-m); padding: 8px 11px; }
@@ -1483,7 +1825,7 @@ window.__ModuleLoader__.load({
 .nb-ask-input:focus { border-color: var(--nb-accent); box-shadow: 0 0 0 3px var(--nb-accent-ring); }
 .nb-ask-input::placeholder { color: var(--nb-text-3); }
 .nb-ask-actions { display: flex; justify-content: flex-end; }
-.nb-ask-btn { height: 30px; padding: 0 16px; border-radius: var(--nb-radius-s); border: 1px solid var(--nb-line-2); background: var(--nb-card); color: var(--nb-text); font-size: 12.5px; cursor: pointer; }
+.nb-ask-btn { height: 30px; padding: 0 16px; border-radius: var(--nb-radius-s); border: 1px solid var(--nb-line-2); background: var(--nb-card); color: var(--nb-text); font-size: 12.5px; cursor: pointer; transition: background .14s var(--nb-ease), border-color .14s var(--nb-ease), transform .1s var(--nb-ease); }
 .nb-ask-btn.primary { background: var(--nb-accent); border-color: var(--nb-accent); color: #fff; }
 .nb-ask-btn:disabled { opacity: .5; cursor: default; }
 .nb-root.zen .nb-ask { display: none; }
@@ -3732,6 +4074,27 @@ window.__ModuleLoader__.load({
   font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
 }
 
+.nb-cite-pop { position: fixed; z-index: 10000; width: min(440px, calc(100vw - 16px)); height: min(58vh, 430px); display: flex; flex-direction: column; background: var(--dsw-alias-bg-module-platform, #fff); border: .5px solid var(--dsw-alias-border-l2); border-radius: 10px; box-shadow: 0 18px 48px rgba(16, 24, 40, .2), 0 2px 8px rgba(16, 24, 40, .08); overflow: hidden; }
+.nb-cite-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 8px 8px 12px; font-size: 12.5px; font-weight: 600; color: var(--dsw-alias-label-primary); border-bottom: .5px solid var(--dsw-alias-border-l1); }
+.nb-cite-search { flex: 0 0 auto; height: 34px; box-sizing: border-box; border: none; border-bottom: .5px solid var(--dsw-alias-border-l1); background: transparent; color: var(--dsw-alias-label-primary); padding: 0 12px; font-size: 13px; outline: none; }
+.nb-cite-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 6px; display: flex; flex-direction: column; gap: 1px; }
+.nb-cite-row { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.nb-cite-row:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, .06)); }
+.nb-cite-row.on { background: var(--dsw-alias-interactive-bg-selected, rgba(47, 111, 235, .1)); }
+.nb-cite-main { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.nb-cite-name { font-size: 12.5px; color: var(--dsw-alias-label-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nb-cite-path { font-size: 11px; color: var(--dsw-alias-label-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nb-cite-foot { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: .5px solid var(--dsw-alias-border-l1); }
+.nb-cite-count { margin-right: auto; font-size: 11.5px; color: var(--dsw-alias-label-tertiary); }
+.nb-cite-empty { padding: 22px 12px; text-align: center; font-size: 12px; color: var(--dsw-alias-label-tertiary); line-height: 1.7; }
+.nb-cite-close { width: 24px; height: 24px; border: none; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-tertiary); font-size: 15px; line-height: 1; cursor: pointer; }
+.nb-cite-close:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, .06)); color: var(--dsw-alias-label-secondary); }
+.nb-cite-btn { height: 28px; padding: 0 12px; border: .5px solid var(--dsw-alias-border-l2); border-radius: 6px; background: transparent; color: var(--dsw-alias-label-primary); font-size: 12.5px; cursor: pointer; }
+.nb-cite-btn:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, .06)); }
+.nb-cite-btn-primary { border-color: transparent; background: var(--dsw-alias-brand-primary, #111); color: #fff; }
+.nb-cite-btn-primary:hover { background: var(--dsw-alias-brand-primary, #111); opacity: .9; }
+.nb-cite-btn:disabled { opacity: .45; cursor: default; }
+
 /* Composer notebook button + its body-level menu */
 .nb-composer-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-tertiary); cursor: pointer; }
 .nb-composer-btn:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, .06)); color: var(--dsw-alias-label-secondary); }
@@ -3794,6 +4157,27 @@ window.__ModuleLoader__.load({
       return pending
     }
 
+    /** Cross-component mailbox: a shortcut asks the open workbench for a capture box. */
+    const FLASH_CAPTURE = { pending: false, listeners: new Set() }
+
+    function requestFlashCapture() {
+      FLASH_CAPTURE.pending = true
+      for (const listener of [...FLASH_CAPTURE.listeners]) {
+        try {
+          listener()
+        } catch {
+          /* a stale listener must not break the shortcut */
+        }
+      }
+      if (FLASH_CAPTURE.listeners.size > 0) FLASH_CAPTURE.pending = false
+    }
+
+    function takePendingFlashCapture() {
+      const pending = FLASH_CAPTURE.pending
+      FLASH_CAPTURE.pending = false
+      return pending
+    }
+
     function requestAskToggle() {
       for (const listener of [...ASK_TOGGLE.listeners]) {
         try {
@@ -3845,6 +4229,7 @@ window.__ModuleLoader__.load({
       notebook_write: 'chatWriteNote',
       notebook_list: 'chatListNotes',
       notebook_search: 'chatSearchNotes',
+      notebook_flash: 'chatFlashNote',
     }
 
     /** Model-supplied arguments of any Tool block stage; null while preparing. */
@@ -4012,13 +4397,30 @@ window.__ModuleLoader__.load({
           ? 'preparing'
           : 'running'
       const rawPath = typeof args.path === 'string' ? args.path.trim() : ''
-      const path = rawPath.length > 0 ? rawPath : null
+      let path = rawPath.length > 0 ? rawPath : null
       const title = t(NOTE_TOOL_TITLE_KEYS[toolName] ?? 'chatReadNote')
       let summary = ''
       let suffix = ''
       let body = ''
       const results = []
-      if (toolName === 'notebook_list') {
+      if (toolName === 'notebook_flash') {
+        const action =
+          typeof args.action === 'string'
+            ? args.action
+            : typeof args.text === 'string' && args.text.trim().length > 0
+              ? 'capture'
+              : 'recent'
+        summary =
+          action === 'capture'
+            ? typeof args.text === 'string'
+              ? args.text.trim().slice(0, 80)
+              : ''
+            : t(action === 'random' ? 'flashRandom' : 'flashInbox')
+        // The tool result carries the stored path; make the row open it.
+        const saved = /闪念已记下：(.+?\.md)/.exec(text)
+        if (saved !== null) path = saved[1]
+        body = text
+      } else if (toolName === 'notebook_list') {
         summary =
           typeof args.folder === 'string' && args.folder.trim().length > 0 ? args.folder.trim() : t('chatAllNotes')
         const count = /—\s*(\d+)\s+note\(s\)/.exec(text)
@@ -4184,7 +4586,7 @@ window.__ModuleLoader__.load({
      * The composer menu lives on document.body: the docked composer clips its
      * own descendants, so a menu rendered inside the tool row would be cut off.
      */
-    function showComposerMenu({ anchor, t, onOpen, onAsk, onInsert }) {
+    function showComposerMenu({ anchor, t, onOpen, onAsk, onInsert, onCite }) {
       if (typeof document === 'undefined' || anchor === null || anchor === undefined) return null
       const rect = anchor.getBoundingClientRect()
       const menu = document.createElement('div')
@@ -4208,6 +4610,7 @@ window.__ModuleLoader__.load({
         if (event.key === 'Escape') close()
       }
       for (const [label, action] of [
+        [t('menuCiteNotes'), onCite],
         [t('menuOpenNotebook'), onOpen],
         [t('menuAskAi'), onAsk],
         [t('menuInsertNote'), onInsert],
@@ -4233,11 +4636,181 @@ window.__ModuleLoader__.load({
       return close
     }
 
+    /** Multi-select note picker: inserts "path + summary" citations into the draft. */
+    function NotebookCitePicker({ t, anchor, inputActions, onClose }) {
+      const [notes, setNotes] = React.useState(null)
+      const [query, setQuery] = React.useState('')
+      const [selected, setSelected] = React.useState([])
+      const [error, setError] = React.useState(null)
+      const searchRef = React.useRef(null)
+      const rootRef = React.useRef(null)
+
+      React.useEffect(() => {
+        let disposed = false
+        apiGet('/list')
+          .then((data) => {
+            if (!disposed) setNotes(Array.isArray(data.notes) ? data.notes : [])
+          })
+          .catch((failure) => {
+            if (disposed) return
+            setNotes([])
+            setError(String((failure && failure.message) || failure))
+          })
+        return () => {
+          disposed = true
+        }
+      }, [])
+
+      React.useEffect(() => {
+        const node = searchRef.current
+        if (node !== null && node !== undefined && typeof node.focus === 'function') node.focus()
+        const onKey = (event) => {
+          if (event.key === 'Escape') {
+            event.stopPropagation()
+            onClose()
+          }
+        }
+        const onDown = (event) => {
+          if (rootRef.current !== null && rootRef.current.contains(event.target)) return
+          onClose()
+        }
+        const onDrift = (event) => {
+          // Scrolling the picker's own list must not dismiss it.
+          const root = rootRef.current
+          if (root !== null && event !== undefined && event.target instanceof Node && root.contains(event.target)) {
+            return
+          }
+          onClose()
+        }
+        document.addEventListener('keydown', onKey, true)
+        document.addEventListener('mousedown', onDown, true)
+        window.addEventListener('resize', onDrift)
+        window.addEventListener('scroll', onDrift, true)
+        return () => {
+          document.removeEventListener('keydown', onKey, true)
+          document.removeEventListener('mousedown', onDown, true)
+          window.removeEventListener('resize', onDrift)
+          window.removeEventListener('scroll', onDrift, true)
+        }
+      }, [onClose])
+
+      const filtered = React.useMemo(() => {
+        const needle = query.trim().toLowerCase()
+        return (notes ?? [])
+          .filter((note) => needle.length === 0 || `${note.name} ${note.path}`.toLowerCase().includes(needle))
+          .slice(0, 80)
+      }, [notes, query])
+
+      const toggle = (path) =>
+        setSelected((current) => (current.includes(path) ? current.filter((item) => item !== path) : [...current, path]))
+
+      const insert = () => {
+        if (selected.length === 0) return
+        // Paths only: the model reads whatever it needs with notebook_read, so
+        // the draft stays one short line instead of a quoted excerpt block.
+        const text = `${selected.map((path) => `@[[${path}]]`).join(' ')}\n`
+        if (
+          inputActions !== null &&
+          inputActions !== undefined &&
+          typeof inputActions.insertText === 'function' &&
+          typeof inputActions.captureInsertion === 'function'
+        ) {
+          const span =
+            anchor.span !== undefined ? anchor.span : inputActions.captureInsertion()
+          if (span !== undefined) inputActions.insertText(text, span)
+        }
+        onClose()
+      }
+
+      const style = {
+        left: `${Math.max(8, Math.min(anchor.left, window.innerWidth - 448))}px`,
+        bottom: `${Math.max(8, window.innerHeight - anchor.top + 8)}px`,
+        maxHeight: `${Math.max(180, Math.min(440, anchor.top - 72))}px`,
+      }
+      const panel = h(
+        'div',
+        { className: 'nb-cite-pop', style, ref: rootRef, role: 'dialog', 'aria-label': t('citeTitle') },
+        h(
+          'div',
+          { className: 'nb-cite-head' },
+          h('span', null, t('citeTitle')),
+          h(
+            'button',
+            { type: 'button', className: 'nb-cite-close', 'aria-label': t('cancel'), onClick: onClose },
+            '×',
+          ),
+        ),
+        h('input', {
+          ref: searchRef,
+          className: 'nb-cite-search',
+          value: query,
+          placeholder: t('citePlaceholder'),
+          onChange: (event) => setQuery(event.target.value),
+        }),
+        h(
+          'div',
+          { className: 'nb-cite-list' },
+          notes === null
+            ? h('div', { className: 'nb-cite-empty' }, t('loading'))
+            : error !== null
+              ? h('div', { className: 'nb-cite-empty' }, t('citeFailed', { message: error }))
+              : filtered.length === 0
+                ? h('div', { className: 'nb-cite-empty' }, t('citeEmpty'))
+                : filtered.map((note) =>
+                    h(
+                      'label',
+                      {
+                        key: note.path,
+                        className: `nb-cite-row${selected.includes(note.path) ? ' on' : ''}`,
+                      },
+                      h('input', {
+                        type: 'checkbox',
+                        checked: selected.includes(note.path),
+                        onChange: () => toggle(note.path),
+                      }),
+                      h(
+                        'span',
+                        { className: 'nb-cite-main' },
+                        h('span', { className: 'nb-cite-name' }, note.name),
+                        h('span', { className: 'nb-cite-path' }, note.path),
+                      ),
+                    ),
+                  ),
+        ),
+        h(
+          'div',
+          { className: 'nb-cite-foot' },
+          h('span', { className: 'nb-cite-count' }, `${selected.length}`),
+          h('button', { type: 'button', className: 'nb-cite-btn', onClick: onClose }, t('cancel')),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'nb-cite-btn nb-cite-btn-primary',
+              onClick: insert,
+              disabled: selected.length === 0,
+            },
+            t('citeInsert', { count: selected.length }),
+          ),
+        ),
+      )
+      if (
+        typeof document !== 'undefined' &&
+        ReactDOM !== null &&
+        ReactDOM !== undefined &&
+        typeof ReactDOM.createPortal === 'function'
+      ) {
+        return ReactDOM.createPortal(panel, document.body)
+      }
+      return panel
+    }
+
     /** Notebook entry in the composer tool row: open the panel or insert a note. */
     function NotebookComposerButton({ t, locale, inputActions, openPanel, openAsk }) {
       useLocaleTick(locale)
       const buttonRef = React.useRef(null)
       const closeRef = React.useRef(null)
+      const [cite, setCite] = React.useState(null)
       React.useEffect(
         () => () => {
           if (closeRef.current !== null) closeRef.current()
@@ -4289,20 +4862,46 @@ window.__ModuleLoader__.load({
             closeRef.current = null
             insertCurrentNote()
           },
+          onCite: () => {
+            closeRef.current = null
+            const node = buttonRef.current
+            if (node === null) return
+            const rect = node.getBoundingClientRect()
+            // Remember the composer caret before focus moves into the picker.
+            const span =
+              inputActions !== null &&
+              inputActions !== undefined &&
+              typeof inputActions.captureInsertion === 'function'
+                ? inputActions.captureInsertion()
+                : undefined
+            setCite({ left: rect.left, top: rect.top, span })
+          },
         })
       }
       return h(
-        'button',
-        {
-          ref: buttonRef,
-          type: 'button',
-          className: 'nb-composer-btn',
-          title: t('panelTitle'),
-          'aria-label': t('panelTitle'),
-          'aria-haspopup': 'menu',
-          onClick: toggle,
-        },
-        h(NotebookGlyph, { size: 16 }),
+        'div',
+        { style: { display: 'inline-flex' } },
+        h(
+          'button',
+          {
+            ref: buttonRef,
+            type: 'button',
+            className: 'nb-composer-btn',
+            title: t('panelTitle'),
+            'aria-label': t('panelTitle'),
+            'aria-haspopup': 'menu',
+            onClick: toggle,
+          },
+          h(NotebookGlyph, { size: 16 }),
+        ),
+        cite === null
+          ? null
+          : h(NotebookCitePicker, {
+              t,
+              anchor: cite,
+              inputActions,
+              onClose: () => setCite(null),
+            }),
       )
     }
 
@@ -5761,6 +6360,839 @@ window.__ModuleLoader__.load({
       return code === 'conflict' ? 'sync' : 'notice'
     }
 
+    /** Codes the Host's sync engine returns, mapped to a localized one-liner. */
+    const SYNC_ERROR_KEYS = {
+      webdav_unauthorized: 'syncErrAuth',
+      webdav_forbidden: 'syncErrForbidden',
+      webdav_not_found: 'syncErrNotFound',
+      webdav_unreachable: 'syncErrUnreachable',
+      webdav_timeout: 'syncErrTimeout',
+      webdav_url_invalid: 'syncErrUrl',
+      webdav_quota: 'syncErrQuota',
+      webdav_locked: 'syncErrForbidden',
+      webdav_method_rejected: 'syncErrForbidden',
+      webdav_error: 'syncErrUnreachable',
+      git_auth: 'syncErrGitAuth',
+      git_unreachable: 'syncErrGitUnreachable',
+      git_conflict: 'syncErrGitConflict',
+      git_missing: 'syncErrGitMissing',
+      git_timeout: 'syncErrGitUnreachable',
+      too_many_deletes: 'syncErrTooManyDeletes',
+      sync_incomplete: 'syncErrIncomplete',
+      sync_not_configured: 'syncErrIncomplete',
+      local_changed: 'syncErrLocalChanged',
+      file_too_large: 'syncErrTooLarge',
+    }
+
+    function syncErrorLabel(t, error) {
+      const key = error === null || error === undefined ? undefined : SYNC_ERROR_KEYS[error.code]
+      if (key !== undefined) return t(key)
+      return String((error && (error.message || error.error)) || t('syncRunFail'))
+    }
+
+    function syncFormFromSettings(settings) {
+      const source = settings !== null && typeof settings === 'object' ? settings : {}
+      const webdav = source.webdav !== null && typeof source.webdav === 'object' ? source.webdav : {}
+      const git = source.git !== null && typeof source.git === 'object' ? source.git : {}
+      const auto = source.auto !== null && typeof source.auto === 'object' ? source.auto : {}
+      return {
+        provider: typeof source.provider === 'string' ? source.provider : 'off',
+        deletes: typeof source.deletes === 'string' ? source.deletes : 'trash',
+        webdavUrl: String(webdav.url ?? ''),
+        webdavUser: String(webdav.username ?? ''),
+        webdavPassword: String(webdav.password ?? ''),
+        webdavPath: String(webdav.remotePath ?? ''),
+        gitRemote: String(git.remote ?? ''),
+        gitBranch: String(git.branch ?? ''),
+        gitMessage: String(git.message ?? ''),
+        onSave: auto.onSave === true,
+        interval: Number(auto.intervalMinutes) > 0 ? String(auto.intervalMinutes) : '0',
+      }
+    }
+
+    function syncSettingsFromForm(form) {
+      return {
+        provider: form.provider,
+        deletes: form.deletes,
+        webdav: {
+          url: form.webdavUrl,
+          username: form.webdavUser,
+          password: form.webdavPassword,
+          remotePath: form.webdavPath,
+        },
+        git: { remote: form.gitRemote, branch: form.gitBranch, message: form.gitMessage },
+        auto: { onSave: form.onSave === true, intervalMinutes: Number(form.interval) || 0 },
+      }
+    }
+
+    /** 闪念 category values are stable Chinese keys; only the labels are localized. */
+    const FLASH_CATEGORY_KEYS = {
+      随记: 'flashCatMisc',
+      想法: 'flashCatIdea',
+      待办: 'flashCatTodo',
+      灵感: 'flashCatSpark',
+      摘录: 'flashCatQuote',
+    }
+    const FLASH_CATEGORY_ORDER = ['随记', '想法', '待办', '灵感', '摘录']
+
+    function flashCategoryLabel(t, category) {
+      const key = FLASH_CATEGORY_KEYS[category]
+      return key === undefined ? String(category ?? '') : t(key)
+    }
+
+    function flashCategoryIndex(category) {
+      const index = FLASH_CATEGORY_ORDER.indexOf(category)
+      return index < 0 ? 0 : index
+    }
+
+    function flashErrorLabel(t, error) {
+      if (error?.code === 'flash_empty') return t('flashErrEmpty')
+      if (error?.code === 'flash_too_large') return t('flashErrTooLarge')
+      if (error?.code === 'invalid_flash_path') return t('flashErrPath')
+      return String(error?.message ?? t('flashSaveFailed'))
+    }
+
+    /** Zero-decision capture: one box, Enter stores, no folder or title to pick. */
+    function FlashCapture({ t, onClose, onSaved }) {
+      const [text, setText] = React.useState('')
+      const [category, setCategory] = React.useState('')
+      const [pending, setPending] = React.useState(false)
+      const [error, setError] = React.useState(null)
+      const areaRef = React.useRef(null)
+
+      React.useEffect(() => {
+        const node = areaRef.current
+        if (node !== null && node !== undefined && typeof node.focus === 'function') node.focus()
+      }, [])
+
+      const save = async () => {
+        if (pending) return
+        const value = text.trim()
+        if (value.length === 0) {
+          setError(t('flashErrEmpty'))
+          return
+        }
+        setPending(true)
+        setError(null)
+        try {
+          const data = await apiPost('/flash/create', {
+            text: value,
+            ...(category.length > 0 ? { category } : {}),
+          })
+          onSaved(data.flash)
+        } catch (failure) {
+          setError(flashErrorLabel(t, failure))
+          setPending(false)
+        }
+      }
+
+      const onKeyDown = (event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation()
+          onClose()
+          return
+        }
+        // Enter stores; an IME candidate window must not be treated as Enter.
+        if (event.key === 'Enter' && event.shiftKey !== true && event.isComposing !== true) {
+          event.preventDefault()
+          void save()
+        }
+      }
+
+      return h(
+        'div',
+        {
+          className: 'nb-modal',
+          onMouseDown: (event) => {
+            if (event.target === event.currentTarget) onClose()
+          },
+        },
+        h(
+          'div',
+          { className: 'nb-modal-card nb-sync-card', role: 'dialog', 'aria-modal': 'true' },
+          h(
+            'div',
+            { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 } },
+            h('div', { className: 'nb-modal-title' }, `⚡ ${t('flashTitle')}`),
+            h('button', { className: 'nb-icon-btn', onClick: onClose, 'aria-label': t('cancel') }, '×'),
+          ),
+          h('textarea', {
+            className: 'nb-flash-textarea',
+            ref: areaRef,
+            value: text,
+            placeholder: t('flashPlaceholder'),
+            spellCheck: false,
+            onKeyDown,
+            onChange: (event) => setText(event.target.value),
+          }),
+          h(
+            'div',
+            { className: 'nb-flash-cats' },
+            FLASH_CATEGORY_ORDER.map((value) =>
+              h(
+                'button',
+                {
+                  key: value,
+                  type: 'button',
+                  className: 'nb-flash-cat-chip',
+                  'data-on': category === value ? '1' : '0',
+                  onClick: () => setCategory(category === value ? '' : value),
+                },
+                flashCategoryLabel(t, value),
+              ),
+            ),
+          ),
+          error === null ? null : h('div', { className: 'nb-flash-error' }, error),
+          h(
+            'div',
+            { className: 'nb-flash-capture-actions' },
+            h('span', { className: 'nb-flash-hint' }, t('flashHint')),
+            h('button', { className: 'nb-btn', onClick: onClose }, t('cancel')),
+            h(
+              'button',
+              {
+                className: 'nb-btn nb-btn-primary',
+                onClick: save,
+                disabled: pending || text.trim().length === 0,
+              },
+              pending ? '…' : t('flashCapture'),
+            ),
+          ),
+        ),
+      )
+    }
+
+    /** Triage: inbox / all / done, categories, search, pin, complete, delete, resurface. */
+    function FlashPanel({ t, localeId, revision, onCapture, onOpen, onClose, onChanged }) {
+      const [status, setStatus] = React.useState('inbox')
+      const [category, setCategory] = React.useState('')
+      const [query, setQuery] = React.useState('')
+      const [data, setData] = React.useState(null)
+      const [loading, setLoading] = React.useState(true)
+      const [error, setError] = React.useState(null)
+      const [confirmPath, setConfirmPath] = React.useState(null)
+
+      React.useEffect(() => {
+        let disposed = false
+        setLoading(true)
+        const timer = setTimeout(
+          () => {
+            const params = new URLSearchParams({ status, category, q: query, limit: '200' })
+            apiGet(`/flash/list?${params.toString()}`)
+              .then((payload) => {
+                if (disposed) return
+                setData(payload)
+                setError(null)
+              })
+              .catch((failure) => {
+                if (!disposed) setError(flashErrorLabel(t, failure))
+              })
+              .finally(() => {
+                if (!disposed) setLoading(false)
+              })
+          },
+          query.length > 0 ? 180 : 0,
+        )
+        return () => {
+          disposed = true
+          clearTimeout(timer)
+        }
+      }, [status, category, query, revision])
+
+      const act = async (work) => {
+        try {
+          await work()
+          onChanged()
+        } catch (failure) {
+          setError(flashErrorLabel(t, failure))
+        }
+      }
+      const setFlags = (path, patch) => act(() => apiPost('/flash/flags', { path, ...patch }))
+      const remove = (path) =>
+        act(async () => {
+          await apiPost('/delete', { path })
+          setConfirmPath(null)
+        })
+      const resurface = async () => {
+        try {
+          const found = await apiGet('/flash/random')
+          if (found.flash !== null && found.flash !== undefined) onOpen(found.flash.path)
+          else setError(t('flashRandomEmpty'))
+        } catch (failure) {
+          setError(flashErrorLabel(t, failure))
+        }
+      }
+
+      const counts = data?.counts ?? { inbox: 0, done: 0, total: 0 }
+      const items = data?.items ?? []
+      const localeTag = localeId === 'en' ? 'en-US' : 'zh-CN'
+      const tabs = [
+        ['inbox', t('flashInbox')],
+        ['all', t('flashAll')],
+        ['done', t('flashDone')],
+      ]
+
+      return h(
+        'div',
+        { className: 'nb-flash' },
+        h(
+          'div',
+          { className: 'nb-flash-head' },
+          h('div', { className: 'nb-flash-title' }, `⚡ ${t('flashTitle')}`),
+          h('span', { className: 'nb-flash-sub' }, t('flashPending', { count: counts.inbox })),
+          h('button', { className: 'nb-btn nb-btn-primary', onClick: onCapture }, `＋ ${t('flashCapture')}`),
+          h('button', { className: 'nb-btn', onClick: resurface }, `⟲ ${t('flashRandom')}`),
+          h('button', { className: 'nb-icon-btn', onClick: onClose, 'aria-label': t('close') }, '×'),
+        ),
+        h(
+          'div',
+          { className: 'nb-flash-filters' },
+          h(
+            'div',
+            { style: { display: 'flex', gap: 2 } },
+            tabs.map(([value, label]) =>
+              h(
+                'button',
+                {
+                  key: value,
+                  className: 'nb-flash-tab',
+                  'data-on': status === value ? '1' : '0',
+                  onClick: () => setStatus(value),
+                },
+                label,
+              ),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'nb-flash-cats' },
+            h(
+              'button',
+              {
+                className: 'nb-flash-cat-chip',
+                'data-on': category === '' ? '1' : '0',
+                onClick: () => setCategory(''),
+              },
+              t('flashCategoryAll'),
+            ),
+            FLASH_CATEGORY_ORDER.map((value) =>
+              h(
+                'button',
+                {
+                  key: value,
+                  className: 'nb-flash-cat-chip',
+                  'data-on': category === value ? '1' : '0',
+                  onClick: () => setCategory(category === value ? '' : value),
+                },
+                flashCategoryLabel(t, value),
+              ),
+            ),
+          ),
+          h('input', {
+            className: 'nb-flash-search',
+            value: query,
+            placeholder: t('flashSearch'),
+            onChange: (event) => setQuery(event.target.value),
+          }),
+        ),
+        error === null ? null : h('div', { className: 'nb-flash-error' }, error),
+        h(
+          'div',
+          { className: 'nb-flash-list' },
+          loading && data === null ? h('div', { className: 'nb-flash-empty' }, t('loading')) : null,
+          data !== null && items.length === 0
+            ? h(
+                'div',
+                { className: 'nb-flash-empty' },
+                status === 'done' ? t('flashEmptyDone') : query.length > 0 ? t('flashNoMatch') : t('flashEmpty'),
+              )
+            : null,
+          items.map((item) =>
+            h(
+              'article',
+              { key: item.path, className: `nb-flash-card${item.pinned ? ' pinned' : ''}` },
+              h(
+                'div',
+                { className: 'nb-flash-meta' },
+                h('span', { className: 'nb-flash-dot', 'data-cat': String(flashCategoryIndex(item.category)) }),
+                h('span', null, flashCategoryLabel(t, item.category)),
+                h('span', null, new Date(item.createdMs).toLocaleString(localeTag)),
+                item.tags.map((tag) => h('span', { key: tag, className: 'nb-flash-tag' }, `#${tag}`)),
+              ),
+              h(
+                'p',
+                { className: 'nb-flash-text', onClick: () => onOpen(item.path) },
+                item.preview.length > 0 ? item.preview : item.name,
+              ),
+              h(
+                'div',
+                { className: 'nb-flash-actions' },
+                h(
+                  'button',
+                  {
+                    className: 'nb-flash-action',
+                    'data-on': item.pinned ? '1' : '0',
+                    onClick: () => setFlags(item.path, { pinned: !item.pinned }),
+                  },
+                  item.pinned ? t('flashUnpin') : t('flashPin'),
+                ),
+                h(
+                  'button',
+                  {
+                    className: 'nb-flash-action',
+                    'data-on': item.done ? '1' : '0',
+                    onClick: () => setFlags(item.path, { done: !item.done }),
+                  },
+                  item.done ? t('flashMarkInbox') : t('flashMarkDone'),
+                ),
+                h('button', { className: 'nb-flash-action', onClick: () => onOpen(item.path) }, t('flashOpenNote')),
+                h(
+                  'button',
+                  {
+                    className: 'nb-flash-action danger',
+                    onClick: () => {
+                      if (confirmPath === item.path) void remove(item.path)
+                      else setConfirmPath(item.path)
+                    },
+                  },
+                  confirmPath === item.path ? t('flashConfirmDelete') : t('flashDelete'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      )
+    }
+
+    /** Sync setup and manual runs, over the Host's `/api/sync/*` routes. */
+    function SyncDialog({ t, localeId, onClose, onStatus, onDone }) {
+      const [status, setStatus] = React.useState(null)
+      const [form, setForm] = React.useState(null)
+      const [pending, setPending] = React.useState(null)
+      const [message, setMessage] = React.useState(null)
+      const [progress, setProgress] = React.useState(null)
+      const [loadError, setLoadError] = React.useState(null)
+      const alive = React.useRef(true)
+      const poll = React.useRef(null)
+      // The parent hands over a fresh callback on every render; a ref keeps the
+      // mount effect stable so opening the dialog never loops.
+      const notifyStatus = React.useRef(onStatus)
+      notifyStatus.current = onStatus
+
+      React.useEffect(
+        () => () => {
+          alive.current = false
+          if (poll.current !== null) clearTimeout(poll.current)
+        },
+        [],
+      )
+
+      const accept = (data) => {
+        if (!alive.current || data === null || data === undefined) return
+        setStatus(data)
+        if (typeof notifyStatus.current === 'function') notifyStatus.current(data)
+      }
+
+      const load = async () => {
+        try {
+          const data = await apiGet(`/sync/status?client=${SYNC_BUILD}`)
+          if (!alive.current) return
+          accept(data)
+          setForm(syncFormFromSettings(data.settings))
+          setLoadError(null)
+        } catch (failure) {
+          if (!alive.current) return
+          setLoadError(String((failure && failure.message) || failure))
+        }
+      }
+
+      React.useEffect(() => {
+        void load()
+      }, [])
+
+      const update = (patch) => setForm((current) => ({ ...(current ?? {}), ...patch }))
+      const refresh = async () => {
+        const data = await apiGet('/sync/status').catch(() => null)
+        if (data !== null) accept(data)
+      }
+      const persist = async () => {
+        const data = await apiPost('/sync/settings', { settings: syncSettingsFromForm(form) })
+        if (data !== null && data !== undefined && data.settings !== undefined) {
+          setForm(syncFormFromSettings(data.settings))
+        }
+        return data
+      }
+
+      const save = async () => {
+        if (pending !== null || form === null) return
+        setPending('save')
+        setMessage(null)
+        try {
+          await persist()
+          setMessage({ kind: 'ok', text: t('syncSettingsSaved') })
+          await refresh()
+        } catch (failure) {
+          setMessage({ kind: 'error', text: syncErrorLabel(t, failure), detail: failure.detail })
+        } finally {
+          setPending(null)
+        }
+      }
+
+      const test = async () => {
+        if (pending !== null || form === null) return
+        setPending('test')
+        setMessage({ kind: 'ok', text: t('syncTesting') })
+        try {
+          await persist()
+          const probe = await apiPost('/sync/test')
+          setMessage({ kind: 'ok', text: t('syncTestOk', { message: String(probe.message ?? '') }) })
+        } catch (failure) {
+          setMessage({ kind: 'error', text: syncErrorLabel(t, failure), detail: failure.detail })
+        } finally {
+          setPending(null)
+          await refresh()
+        }
+      }
+
+      /** Wait until the Host reports the run is over, refreshing the progress meter. */
+      const pollUntilIdle = () =>
+        new Promise((resolve) => {
+          const deadline = Date.now() + 30 * 60 * 1000
+          const tick = async () => {
+            if (!alive.current) {
+              resolve(null)
+              return
+            }
+            const data = await apiGet('/sync/status').catch(() => null)
+            if (!alive.current) {
+              resolve(null)
+              return
+            }
+            if (data !== null) {
+              accept(data)
+              setProgress(data.progress ?? null)
+              if (data.busy !== true || Date.now() > deadline) {
+                resolve(data)
+                return
+              }
+            } else if (Date.now() > deadline) {
+              resolve(null)
+              return
+            }
+            poll.current = setTimeout(() => {
+              void tick()
+            }, 900)
+          }
+          poll.current = setTimeout(() => {
+            void tick()
+          }, 600)
+        })
+
+      const run = async () => {
+        if (pending !== null || form === null) return
+        setPending('run')
+        setMessage(null)
+        try {
+          await persist()
+        } catch (failure) {
+          setPending(null)
+          setMessage({ kind: 'error', text: syncErrorLabel(t, failure), detail: failure.detail })
+          return
+        }
+        setMessage({ kind: 'ok', text: t('syncRunningNow') })
+        try {
+          await apiPost('/sync/run')
+          const finished = await pollUntilIdle()
+          const result = finished !== null && finished !== undefined ? finished.lastResult : null
+          if (result === null || result === undefined) {
+            setMessage({ kind: 'error', text: t('syncRunFail') })
+            return
+          }
+          if (result.error !== null && result.error !== undefined) {
+            setMessage({ kind: 'error', text: syncErrorLabel(t, result.error), detail: result.error.detail })
+          } else {
+            setMessage({
+              kind: result.ok === true ? 'ok' : 'error',
+              text: result.ok === true ? t('syncRunOk') : t('syncRunFail'),
+              result,
+            })
+          }
+          if (typeof onDone === 'function') onDone(result)
+        } catch (failure) {
+          setMessage({ kind: 'error', text: syncErrorLabel(t, failure), detail: failure.detail })
+        } finally {
+          if (poll.current !== null) {
+            clearTimeout(poll.current)
+            poll.current = null
+          }
+          setPending(null)
+          setProgress(null)
+          await refresh()
+        }
+      }
+
+      const closeOnBackdrop = (event) => {
+        if (event.target === event.currentTarget && pending !== 'run') onClose()
+      }
+
+      const field = (label, value, onChange, options = {}) =>
+        h(
+          'label',
+          { className: 'nb-sync-field' },
+          h('span', { className: 'nb-sync-label' }, label),
+          h('input', {
+            className: 'nb-sync-input',
+            type: options.type ?? 'text',
+            value,
+            placeholder: options.placeholder ?? '',
+            spellCheck: false,
+            autoComplete: 'off',
+            onChange: (event) => onChange(event.target.value),
+          }),
+          options.hint === undefined ? null : h('span', { className: 'nb-sync-hint' }, options.hint),
+        )
+
+      const header = h(
+        'div',
+        { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 } },
+        h('div', { className: 'nb-modal-title' }, t('syncTitle')),
+        h(
+          'button',
+          { className: 'nb-icon-btn', 'aria-label': t('syncCancel'), onClick: onClose, disabled: pending === 'run' },
+          '×',
+        ),
+      )
+
+      if (form === null) {
+        return h(
+          'div',
+          { className: 'nb-modal', onMouseDown: closeOnBackdrop },
+          h(
+            'div',
+            { className: 'nb-modal-card nb-sync-card', role: 'dialog', 'aria-modal': 'true' },
+            header,
+            h(
+              'div',
+              { className: 'nb-modal-text' },
+              loadError === null ? t('loading') : t('syncLoadFailed', { message: loadError }),
+            ),
+            loadError === null
+              ? null
+              : h(
+                  'button',
+                  {
+                    className: 'nb-btn',
+                    onClick: () => {
+                      setLoadError(null)
+                      void load()
+                    },
+                  },
+                  t('syncRetry'),
+                ),
+          ),
+        )
+      }
+
+      const providerHint = form.provider === 'webdav' ? t('syncHintWebdav') : form.provider === 'git' ? t('syncHintGit') : ''
+      const lastSyncAt = status?.state?.lastSyncAt ?? status?.lastResult?.endedAt ?? null
+      const lastResult = status?.lastResult ?? null
+      const localeTag = localeId === 'en' ? 'en-US' : 'zh-CN'
+      const statLine = (result) =>
+        t('syncStat', {
+          up: result.uploaded ?? 0,
+          down: result.downloaded ?? 0,
+          conflicts: result.conflicts ?? 0,
+          deleted: (result.deletedLocal ?? 0) + (result.deletedRemote ?? 0),
+        }) + ((result.errors?.length ?? 0) > 0 ? t('syncStatErrors', { count: result.errors.length }) : '')
+
+      const progressBar =
+        pending === 'run' && progress !== null && progress.phase === 'transfer' && progress.total > 0
+          ? h(
+              'div',
+              { className: 'nb-sync-meter', role: 'progressbar' },
+              h('i', { style: { width: `${Math.min(100, Math.round((progress.done / progress.total) * 100))}%` } }),
+            )
+          : null
+
+      return h(
+        'div',
+        {
+          className: 'nb-modal',
+          onMouseDown: closeOnBackdrop,
+          onKeyDown: (event) => {
+            if (event.key === 'Escape' && pending !== 'run') {
+              event.stopPropagation()
+              onClose()
+            }
+          },
+        },
+        h(
+          'div',
+          { className: 'nb-modal-card nb-sync-card', role: 'dialog', 'aria-modal': 'true' },
+          header,
+          h(
+            'div',
+            { className: 'nb-sync-tabs', role: 'tablist' },
+            [
+              ['off', t('syncOff')],
+              ['webdav', t('syncWebdav')],
+              ['git', t('syncGit')],
+            ].map(([value, label]) =>
+              h(
+                'button',
+                {
+                  key: value,
+                  type: 'button',
+                  role: 'tab',
+                  className: 'nb-sync-tab',
+                  'data-on': form.provider === value ? '1' : '0',
+                  onClick: () => update({ provider: value }),
+                },
+                label,
+              ),
+            ),
+          ),
+          providerHint.length > 0 ? h('div', { className: 'nb-sync-hint' }, providerHint) : null,
+          form.provider === 'webdav'
+            ? h(
+                'div',
+                { className: 'nb-sync-group' },
+                field(t('syncWebdavUrl'), form.webdavUrl, (value) => update({ webdavUrl: value }), {
+                  placeholder: 'https://dav.example.com/remote.php/dav/files/me',
+                  hint: t('syncWebdavUrlHint'),
+                }),
+                h(
+                  'div',
+                  { className: 'nb-sync-row' },
+                  field(t('syncUsername'), form.webdavUser, (value) => update({ webdavUser: value })),
+                  field(t('syncPassword'), form.webdavPassword, (value) => update({ webdavPassword: value }), {
+                    type: 'password',
+                  }),
+                ),
+                field(t('syncRemotePath'), form.webdavPath, (value) => update({ webdavPath: value }), {
+                  placeholder: t('syncRemotePath'),
+                }),
+              )
+            : null,
+          form.provider === 'git'
+            ? h(
+                'div',
+                { className: 'nb-sync-group' },
+                field(t('syncGitRemote'), form.gitRemote, (value) => update({ gitRemote: value }), {
+                  placeholder: 'git@example.com:me/notes.git',
+                  hint: t('syncGitRemoteHint'),
+                }),
+                h(
+                  'div',
+                  { className: 'nb-sync-row' },
+                  field(t('syncGitBranch'), form.gitBranch, (value) => update({ gitBranch: value }), {
+                    placeholder: 'main',
+                  }),
+                  field(t('syncGitMessage'), form.gitMessage, (value) => update({ gitMessage: value }), {
+                    placeholder: 'notebook sync',
+                  }),
+                ),
+              )
+            : null,
+          form.provider === 'off'
+            ? null
+            : h(
+                'div',
+                { className: 'nb-sync-group' },
+                h(
+                  'label',
+                  { className: 'nb-sync-check' },
+                  h('input', {
+                    type: 'checkbox',
+                    checked: form.onSave === true,
+                    onChange: (event) => update({ onSave: event.target.checked }),
+                  }),
+                  t('syncAutoSave'),
+                ),
+                h(
+                  'label',
+                  { className: 'nb-sync-field' },
+                  h('span', { className: 'nb-sync-label' }, t('syncInterval')),
+                  h('input', {
+                    className: 'nb-sync-input',
+                    type: 'number',
+                    min: 0,
+                    max: 1440,
+                    value: form.interval,
+                    onChange: (event) => update({ interval: event.target.value }),
+                  }),
+                ),
+                h(
+                  'label',
+                  { className: 'nb-sync-field' },
+                  h('span', { className: 'nb-sync-label' }, t('syncDeletes')),
+                  h(
+                    'select',
+                    {
+                      className: 'nb-sync-input',
+                      value: form.deletes,
+                      onChange: (event) => update({ deletes: event.target.value }),
+                    },
+                    h('option', { value: 'trash' }, t('syncDeletesTrash')),
+                    h('option', { value: 'keep' }, t('syncDeletesKeep')),
+                  ),
+                ),
+              ),
+          h(
+            'div',
+            { className: 'nb-sync-status', 'data-kind': message !== null ? message.kind : 'ok' },
+            progressBar,
+            pending === 'run'
+              ? h('div', { className: 'nb-sync-note' }, t('syncRunningNow'))
+              : h('div', { className: 'nb-sync-note' }, lastSyncAt === null ? t('syncNever') : t('syncLast', { time: new Date(lastSyncAt).toLocaleString(localeTag) })),
+            status?.state?.files !== undefined && status.state.files > 0
+              ? h('div', null, t('syncTracked', { count: status.state.files }))
+              : null,
+            lastResult !== null && lastResult !== undefined && pending !== 'run'
+              ? h(
+                  'div',
+                  { className: 'nb-sync-note' },
+                  `${lastResult.ok ? t('syncRunOk') : t('syncRunFail')} · ${statLine(lastResult)}`,
+                )
+              : null,
+            message !== null ? h('div', { className: 'nb-sync-note' }, message.text) : null,
+            message?.result !== null && message?.result !== undefined
+              ? h('div', { className: 'nb-sync-note' }, statLine(message.result))
+              : null,
+            message?.result?.notes?.length > 0
+              ? h('div', { className: 'nb-sync-detail' }, message.result.notes.slice(0, 8).join('\n'))
+              : null,
+            message?.result?.errors?.length > 0
+              ? h(
+                  'div',
+                  { className: 'nb-sync-detail' },
+                  message.result.errors
+                    .slice(0, 8)
+                    .map((error) => `${error.path}: ${syncErrorLabel(t, error)}`)
+                    .join('\n'),
+                )
+              : null,
+            message?.detail !== undefined
+              ? h('div', { className: 'nb-sync-detail' }, String(message.detail))
+              : null,
+          ),
+          h(
+            'div',
+            { className: 'nb-sync-actions' },
+            h('button', { className: 'nb-btn', onClick: test, disabled: pending !== null }, t('syncTest')),
+            h('button', { className: 'nb-btn', onClick: save, disabled: pending !== null }, t('syncSave')),
+            h('span', { className: 'nb-sync-spacer' }),
+            h('button', { className: 'nb-btn', onClick: onClose, disabled: pending === 'run' }, t('syncCancel')),
+            h(
+              'button',
+              { className: 'nb-btn nb-btn-primary', onClick: run, disabled: pending !== null || form.provider === 'off' },
+              pending === 'run' ? t('syncRunningNow') : t('syncRun'),
+            ),
+          ),
+        ),
+      )
+    }
+
     /** The active locale id as `en` / `zh`, for Host prompts. */
     function activeLocaleId(locale) {
       try {
@@ -5770,6 +7202,107 @@ window.__ModuleLoader__.load({
       } catch {
         return 'zh'
       }
+    }
+
+    /** Local `YYYY-MM-DD` for a Date (the heatmap follows the user's day). */
+    function localDayKey(date) {
+      const pad = (value) => String(value).padStart(2, '0')
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+    }
+
+    function addLocalDays(date, days) {
+      const next = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+      next.setDate(next.getDate() + days)
+      return next
+    }
+
+    /** Five levels, relative to the busiest day (0 = nothing written). */
+    function writingLevel(chars, max) {
+      if (!(Number(chars) > 0)) return 0
+      const ratio = Number(max) > 0 ? Number(chars) / Number(max) : 1
+      if (ratio <= 0.25) return 1
+      if (ratio <= 0.5) return 2
+      if (ratio <= 0.75) return 3
+      return 4
+    }
+
+    /**
+     * GitHub-style grid: Monday-first columns, ending with the current week.
+     * Returns every cell (future days are flagged) so the layout is stable.
+     */
+    function writingHeatmap(days, weeks, todayMs) {
+      const map = days !== null && typeof days === 'object' ? days : {}
+      const values = Object.values(map).map(Number).filter((value) => Number.isFinite(value) && value > 0)
+      const max = values.length > 0 ? Math.max(...values) : 0
+      const today = new Date(todayMs ?? Date.now())
+      const weekStart = addLocalDays(today, -((today.getDay() + 6) % 7))
+      const count = Math.max(1, Math.round(Number(weeks) || 18))
+      const first = addLocalDays(weekStart, -(count - 1) * 7)
+      const columns = []
+      for (let column = 0; column < count; column += 1) {
+        const cells = []
+        for (let row = 0; row < 7; row += 1) {
+          const date = addLocalDays(first, column * 7 + row)
+          const key = localDayKey(date)
+          const chars = Number(map[key]) || 0
+          const future = date.getTime() > today.getTime()
+          cells.push({ date: key, chars, future, level: future ? 0 : writingLevel(chars, max) })
+        }
+        columns.push(cells)
+      }
+      return { weeks: columns, max }
+    }
+
+    function formatWritingCount(value) {
+      const number = Math.round(Number(value) || 0)
+      return number.toLocaleString()
+    }
+
+    /** One GitHub-style contribution grid; `compact` fits the sidebar. */
+    function WritingHeatmap({ t, days, weeks, compact, labels }) {
+      const grid = React.useMemo(() => writingHeatmap(days, weeks), [days, weeks])
+      const months = React.useMemo(() => {
+        let previous = -1
+        return grid.weeks.map((cells) => {
+          const date = new Date(`${cells[0].date}T12:00:00`)
+          const month = date.getMonth()
+          const label = month === previous ? '' : date.toLocaleDateString(undefined, { month: 'short' })
+          previous = month
+          return label
+        })
+      }, [grid])
+      return h(
+        'div',
+        { className: `nb-heat${compact === true ? ' compact' : ''}` },
+        labels === true
+          ? h(
+              'div',
+              { className: 'nb-heat-months', 'aria-hidden': 'true' },
+              months.map((label, index) =>
+                h('span', { key: `m-${index}`, className: 'nb-heat-month' }, label),
+              ),
+            )
+          : null,
+        h(
+          'div',
+          { className: 'nb-heat-grid', role: 'img', 'aria-label': t('writingHeatmap') },
+          grid.weeks.map((cells, column) =>
+            h(
+              'div',
+              { key: `w-${column}`, className: 'nb-heat-week' },
+              cells.map((cell) =>
+                h('span', {
+                  key: cell.date,
+                  className: 'nb-heat-cell',
+                  'data-level': String(cell.level),
+                  'data-future': cell.future ? '1' : undefined,
+                  title: `${cell.date} · ${formatWritingCount(cell.chars)} ${t('characters')}`,
+                }),
+              ),
+            ),
+          ),
+        ),
+      )
     }
 
     function Workbench({ t, locale }) {
@@ -5785,6 +7318,12 @@ window.__ModuleLoader__.load({
       const [hits, setHits] = React.useState(null)
       const [saveState, setSaveState] = React.useState('saved')
       const [notice, setNotice] = React.useState(null)
+      React.useEffect(() => {
+        // A success toast is an acknowledgement, not a task: fade it out.
+        if (notice === null || notice.kind !== 'ok') return undefined
+        const timer = setTimeout(() => setNotice(null), 3200)
+        return () => clearTimeout(timer)
+      }, [notice])
       const [dialog, setDialog] = React.useState(null)
       const [loading, setLoading] = React.useState(true)
       const [expanded, setExpanded] = React.useState({})
@@ -5821,6 +7360,56 @@ window.__ModuleLoader__.load({
       const [reading, setReading] = React.useState(false)
       const [folderBodyOpen, setFolderBodyOpen] = React.useState(false)
       const [syncRemote, setSyncRemote] = React.useState(null)
+      const [syncOpen, setSyncOpen] = React.useState(false)
+      const [syncStatus, setSyncStatus] = React.useState(null)
+      React.useEffect(() => {
+        let disposed = false
+        apiGet(`/sync/status?client=${SYNC_BUILD}`)
+          .then((data) => {
+            if (!disposed) setSyncStatus(data)
+          })
+          .catch(() => {})
+        return () => {
+          disposed = true
+        }
+      }, [])
+      const [flashOpen, setFlashOpen] = React.useState(false)
+      const [flashCapture, setFlashCapture] = React.useState(false)
+      const [flashRevision, setFlashRevision] = React.useState(0)
+      const [flashCounts, setFlashCounts] = React.useState(null)
+      const [flashTabOpen, setFlashTabOpen] = React.useState(() => {
+        try {
+          return window.localStorage.getItem(`${NS}:flash-tab`) === '1'
+        } catch {
+          return false
+        }
+      })
+      React.useEffect(() => {
+        try {
+          window.localStorage.setItem(`${NS}:flash-tab`, flashTabOpen ? '1' : '0')
+        } catch {
+          /* preferences are best-effort */
+        }
+      }, [flashTabOpen])
+      React.useEffect(() => {
+        let disposed = false
+        apiGet('/flash/summary')
+          .then((data) => {
+            if (!disposed) setFlashCounts(data.counts)
+          })
+          .catch(() => {})
+        return () => {
+          disposed = true
+        }
+      }, [flashRevision, flashOpen])
+      React.useEffect(() => {
+        const open = () => setFlashCapture(true)
+        FLASH_CAPTURE.listeners.add(open)
+        if (takePendingFlashCapture()) setFlashCapture(true)
+        return () => {
+          FLASH_CAPTURE.listeners.delete(open)
+        }
+      }, [])
       const [askOpen, setAskOpen] = React.useState(() => {
         try {
           return window.localStorage.getItem(`${NS}:ask-open`) === '1'
@@ -5857,6 +7446,34 @@ window.__ModuleLoader__.load({
       const [backlinks, setBacklinks] = React.useState([])
       const [favorites, setFavorites] = React.useState([])
       const [recent, setRecent] = React.useState([])
+      const [writing, setWriting] = React.useState(null)
+      const writingBusy = React.useRef(false)
+      const writingRetried = React.useRef(false)
+
+      async function loadWriting() {
+        if (writingBusy.current) return
+        writingBusy.current = true
+        try {
+          const data = await apiGet('/stats/writing')
+          setWriting(data)
+        } catch {
+          // The panel can mount before the Host that serves the route is
+          // reloaded; retry once instead of leaving the widget empty forever.
+          if (writingRetried.current !== true) {
+            writingRetried.current = true
+            window.setTimeout(() => {
+              void loadWriting()
+            }, 4000)
+          }
+        } finally {
+          writingBusy.current = false
+        }
+      }
+
+      React.useEffect(() => {
+        void loadWriting()
+      }, [])
+
       const [quickOpen, setQuickOpen] = React.useState(false)
       const [quickQuery, setQuickQuery] = React.useState('')
       const [quickIndex, setQuickIndex] = React.useState(0)
@@ -6324,7 +7941,18 @@ window.__ModuleLoader__.load({
       // close the palette before running so their dialogs own the focus.
       const quickActions = [
         { id: 'new', label: t('paletteNewNote'), icon: '＋', run: () => openTemplates() },
+        { id: 'flash', label: t('flashCapture'), icon: '⚡', run: () => setFlashCapture(true) },
+        {
+          id: 'flash-list',
+          label: t('flashTitle'),
+          icon: '⚡',
+          run: () => {
+            setFlashTabOpen(true)
+            setFlashOpen(true)
+          },
+        },
         { id: 'ask', label: t('askAi'), icon: '✨', run: () => setAskOpen(true) },
+        { id: 'stats', label: t('writingHeatmap'), icon: '▦', run: () => setDialog({ kind: 'stats' }) },
         { id: 'zen', label: zen ? t('exitZen') : t('zenMode'), icon: '◨', run: () => setZenMode(!zen) },
         { id: 'reading', label: reading ? t('exitReading') : t('readingMode'), icon: '◐', run: () => setReading(!reading) },
         { id: 'wide', label: wide ? t('narrowMode') : t('wideMode'), icon: '⇔', run: () => setWide(!wide) },
@@ -6785,6 +8413,7 @@ window.__ModuleLoader__.load({
           mtimeRef.current = data.mtimeMs
           setSaveState('saved')
           setNotice(null)
+          void loadWriting()
         } catch (error) {
           setSaveState('error')
           if (saveFailureKind(error !== null && error !== undefined ? error.code : undefined) === 'sync') {
@@ -6811,6 +8440,7 @@ window.__ModuleLoader__.load({
       }, [blocks, selected, frontmatter])
 
       async function openNote(path) {
+        setFlashOpen(false)
         if (path === selectedRef.current) return
         setLoading(true)
         try {
@@ -8751,6 +10381,22 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
           }),
           h(
             'button',
+            {
+              className: 'nb-flash-entry',
+              title: t('flashTitle'),
+              onClick: () => {
+                setFlashTabOpen(true)
+                setFlashOpen(true)
+              },
+            },
+            h('span', { className: 'nb-flash-entry-icon' }, '⚡'),
+            h('span', null, t('flashTitle')),
+            flashCounts !== null && flashCounts.inbox > 0
+              ? h('span', { className: 'nb-flash-count' }, String(flashCounts.inbox))
+              : null,
+          ),
+          h(
+            'button',
             { className: 'nb-new', onClick: () => openTemplates() },
             h('span', { className: 'nb-new-plus' }, '+'),
             h('span', null, t('newNote')),
@@ -8907,8 +10553,34 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                     ),
                   ),
         ),
+        h(
+          'div',
+          { className: 'nb-side-foot' },
+          h(
+            'button',
+            {
+              className: 'nb-heat-card',
+              onClick: () => setDialog({ kind: 'stats' }),
+              title: t('writingHeatmap'),
+            },
+            h(
+              'div',
+              { className: 'nb-heat-head' },
+              h('span', { className: 'nb-heat-title' }, t('writingHeatmap')),
+              h(
+                'span',
+                { className: 'nb-heat-total' },
+                writing === null
+                  ? '…'
+                  : `${formatWritingCount(writing.total)} ${t('characters')}`,
+              ),
+            ),
+            h(WritingHeatmap, { t, days: writing?.days ?? {}, weeks: 18, compact: true }),
+          ),
+        ),
       )
 
+      const noteActive = selected !== null && flashOpen !== true
       const mainPanel = h(
         'section',
         { className: 'nb-main' },
@@ -8918,14 +10590,40 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
           h(
             'div',
             { className: 'nb-tabs' },
+            flashTabOpen
+              ? h(
+                  'div',
+                  {
+                    className: `nb-tab nb-tab-flash${flashOpen ? ' on' : ''}`,
+                    title: t('flashTitle'),
+                    onClick: () => setFlashOpen(true),
+                  },
+                  h('span', { className: 'nb-tab-name' }, `⚡ ${t('flashTitle')}`),
+                  h(
+                    'button',
+                    {
+                      className: 'nb-tab-close',
+                      'aria-label': t('close'),
+                      onClick: (event) => {
+                        event.stopPropagation()
+                        setFlashOpen(false)
+                        setFlashTabOpen(false)
+                      },
+                    },
+                    '×',
+                  ),
+                )
+              : null,
             tabs.length === 0
-              ? h('div', { className: 'nb-crumb' }, breadcrumb)
+              ? flashTabOpen
+                ? null
+                : h('div', { className: 'nb-crumb' }, breadcrumb)
               : tabs.map((path) =>
                   h(
                     'div',
                     {
                       key: path,
-                      className: `nb-tab${selected === path ? ' on' : ''}`,
+                      className: `nb-tab${selected === path && flashOpen !== true ? ' on' : ''}`,
                       title: path,
                       onClick: () => openNote(path),
                     },
@@ -8945,7 +10643,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                   ),
                 ),
           ),
-          selected !== null
+          noteActive
             ? h(
                 'button',
                 {
@@ -8960,7 +10658,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                 '✨',
               )
             : null,
-          selected !== null
+          noteActive
             ? h(
                 'button',
                 {
@@ -8972,7 +10670,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                 zen ? '◧' : '◨',
               )
             : null,
-          selected !== null
+          noteActive
             ? h(
                 'button',
                 {
@@ -8993,14 +10691,51 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                 wide ? '⇥' : '⇤',
               )
             : null,
-          selected !== null
+          noteActive
             ? h(
                 'div',
                 { className: `nb-save${saveState === 'error' ? ' error' : ''}`, 'data-state': saveState },
                 saveLabel,
               )
             : null,
-          selected !== null
+          h(
+            'button',
+            {
+              className: 'nb-icon-btn',
+              title: t('flashCapture'),
+              'aria-label': t('flashCapture'),
+              onClick: () => setFlashCapture(true),
+            },
+            '⚡',
+          ),
+          h(
+            'button',
+            {
+              className: 'nb-icon-btn nb-sync-btn',
+              title:
+                syncStatus === null
+                  ? t('syncTitle')
+                  : syncStatus.provider === 'off'
+                    ? `${t('syncTitle')} · ${t('syncOff')}`
+                    : t('syncTitle'),
+              'aria-label': t('syncTitle'),
+              'data-state':
+                syncStatus === null
+                  ? 'off'
+                  : syncStatus.busy
+                    ? 'busy'
+                    : syncStatus.lastResult !== null &&
+                        syncStatus.lastResult !== undefined &&
+                        syncStatus.lastResult.ok === false
+                      ? 'error'
+                      : syncStatus.provider === 'off'
+                        ? 'off'
+                        : 'idle',
+              onClick: () => setSyncOpen(true),
+            },
+            '⟳',
+          ),
+          noteActive
             ? h(
                 'div',
                 { style: { position: 'relative' } },
@@ -9248,7 +10983,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         notice !== null
           ? h(
               'div',
-              { className: 'nb-notice' },
+              { className: 'nb-notice', 'data-kind': notice.kind === 'ok' ? 'ok' : 'error' },
               h('span', null, notice.text),
               h(
                 'button',
@@ -9291,7 +11026,23 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
               ),
             )
           : null,
-        selected === null
+        flashOpen
+          ? h(FlashPanel, {
+              t,
+              localeId: activeLocaleId(locale),
+              revision: flashRevision,
+              onCapture: () => setFlashCapture(true),
+              onOpen: (path) => {
+                setFlashOpen(false)
+                void openNote(path)
+              },
+              onClose: () => {
+                setFlashOpen(false)
+                setFlashTabOpen(false)
+              },
+              onChanged: () => setFlashRevision((value) => value + 1),
+            })
+          : selected === null
           ? h(
               'div',
               {
@@ -10509,7 +12260,71 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                   )),
             )
           : null,
-        dialog !== null && dialog.kind === 'delete'
+        dialog !== null && dialog.kind === 'stats'
+          ? h(
+              'div',
+              {
+                className: 'nb-modal',
+                onMouseDown: (event) => {
+                  if (event.target === event.currentTarget) setDialog(null)
+                },
+              },
+              h(
+                'div',
+                { className: 'nb-modal-card nb-stats-card', role: 'dialog', 'aria-modal': 'true' },
+                h(
+                  'div',
+                  { className: 'nb-stats-head' },
+                  h(
+                    'div',
+                    null,
+                    h('div', { className: 'nb-stats-title' }, t('writingHeatmap')),
+                    h(
+                      'div',
+                      { className: 'nb-stats-sub' },
+                      writing !== null && writing.recordedSince !== null && writing.recordedSince !== undefined
+                        ? t('statsSince').replace('{date}', writing.recordedSince)
+                        : t('statsEmptyHint'),
+                    ),
+                  ),
+                  h(
+                    'button',
+                    { className: 'nb-icon-btn', onClick: () => setDialog(null), 'aria-label': t('close') },
+                    '×',
+                  ),
+                ),
+                h(
+                  'div',
+                  { className: 'nb-stats-summary' },
+                  [
+                    ['statsTotal', `${formatWritingCount(writing?.total ?? 0)} ${t('characters')}`],
+                    ['statsActiveDays', String(writing?.activeDays ?? 0)],
+                    ['statsStreak', String(writing?.streak ?? 0)],
+                    ['statsBest', writing?.best !== null && writing?.best !== undefined ? formatWritingCount(writing.best.chars) : '—'],
+                  ].map(([key, value]) =>
+                    h(
+                      'div',
+                      { key, className: 'nb-stats-stat' },
+                      h('div', { className: 'nb-stats-value' }, value),
+                      h('div', { className: 'nb-stats-label' }, t(key)),
+                    ),
+                  ),
+                ),
+                writing === null
+                  ? h('div', { className: 'nb-stats-empty' }, t('loading'))
+                  : h(WritingHeatmap, { t, days: writing.days ?? {}, weeks: 53, labels: true }),
+                h(
+                  'div',
+                  { className: 'nb-stats-legend' },
+                  h('span', null, t('statsLess')),
+                  [0, 1, 2, 3, 4].map((level) =>
+                    h('span', { key: level, className: 'nb-heat-cell', 'data-level': String(level) }),
+                  ),
+                  h('span', null, t('statsMore')),
+                ),
+              ),
+            )
+          : dialog !== null && dialog.kind === 'delete'
           ? h(
               'div',
               {
@@ -11281,6 +13096,32 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                       ),
                     )
                   : null,
+        flashCapture
+          ? h(FlashCapture, {
+              t,
+              onClose: () => setFlashCapture(false),
+              onSaved: (flashItem) => {
+                setFlashCapture(false)
+                setFlashRevision((value) => value + 1)
+                setNotice({ kind: 'ok', text: `${t('flashSaved')} · ${flashCategoryLabel(t, flashItem.category)}` })
+              },
+            })
+          : null,
+        syncOpen
+          ? h(SyncDialog, {
+              t,
+              localeId: activeLocaleId(locale),
+              onClose: () => setSyncOpen(false),
+              onStatus: (data) => setSyncStatus(data),
+              onDone: (result) => {
+                // Pulled or deleted notes change the tree; the open note notices
+                // its own mtime change through the external-change poller.
+                if (result !== null && (result.downloaded > 0 || result.deletedLocal > 0 || result.uploaded > 0)) {
+                  void loadList()
+                }
+              },
+            })
+          : null,
       )
     }
 
@@ -11333,6 +13174,26 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
               return () => {}
             }
           }, `${NS}: ask shortcut`)
+
+          // Zero-decision capture: one shortcut, wherever the panel has focus.
+          scope.effect(() => {
+            try {
+              return scope.shortcuts.register({
+                id: `${NS}.flash`,
+                label: () => t('flashShortcut'),
+                defaults: {
+                  'desktop:macos': { code: 'KeyF', modifiers: ['primary', 'shift'] },
+                  'desktop:windows': { code: 'KeyF', modifiers: ['primary', 'shift'] },
+                  'desktop:linux': { code: 'KeyF', modifiers: ['primary', 'shift'] },
+                },
+                regions: ['page', 'editable'],
+                resolve: () => ({ status: 'handled', run: () => requestFlashCapture() }),
+              })
+            } catch {
+              // A conflicting default must not take the whole plugin down.
+              return () => {}
+            }
+          }, `${NS}: flash shortcut`)
         })
       }
 
@@ -11440,6 +13301,9 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         citationNoteName,
         noteDirFor,
         paletteRows,
+        writingHeatmap,
+        writingLevel,
+        localDayKey,
         askAnswerTitle,
         ASK_THREADS,
         collectionColumns,
@@ -11491,6 +13355,16 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         nextCalloutKind,
         blockToHtml,
         BlockView,
+        SyncDialog,
+        syncFormFromSettings,
+        syncSettingsFromForm,
+        FlashCapture,
+        FlashPanel,
+        flashCategoryLabel,
+        flashCategoryIndex,
+        flashErrorLabel,
+        requestFlashCapture,
+        takePendingFlashCapture,
       },
     }
   },

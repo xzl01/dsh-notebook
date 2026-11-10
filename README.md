@@ -220,6 +220,19 @@ Host 通过 `ctx.llm` 与 `agentDefaultModel` 解析当前默认模型（没有�
   「设为目录页」在 frontmatter 写入 `type: folder`，再点一次取消；`folder: 笔记` 可以让这一页
   展示**别的目录**。目录页永远读当前笔记列表，新建、重命名、移动后立即反映，不用手工维护链接。
 
+## 写作热力（GitHub 风格小绿块）
+
+- **侧栏底部**常驻一个 18 周的小热力图，标题旁显示累计字数；点开是全年 53 周的大图
+  （命令面板里也能打开「写作热力」）。格子用 5 档绿色，悬停显示「日期 · 字数」。
+- **统计口径**：每次通过面板 / Agent 保存，按 `新正文长度 − 旧正文长度` 累计「新增字符数」
+  （只算正增量，删改不扣减），按本机时区的自然日归档；单日最大值决定 5 档的深浅。
+- **存储**：`<笔记库>/.dsh-notebook/writing.json`（隐藏目录，Obsidian 不索引），
+  由 Host 的 `GET /api/stats/writing` 读出；大图里的「总计 / 活跃天数 / 连续天数 / 最高单日」
+  都在 Host 侧算好。
+- **历史从启用日开始**：文件的 mtime 无法还原写作历史（这个库所有笔记的 mtime 都是同一天，
+  说明是从别处拷贝来的），所以不在启用前虚构数据；首次启用只用「今天保存过的笔记正文长度」
+  给今天做一次种子，之后逐日累计。
+
 ## 双向链接
 
 - `[[笔记名]]` 渲染为可点击链接（支持 `[[笔记名#标题]]` 跳到指定标题），`![[笔记名]]` 渲染为只读嵌入。
@@ -246,6 +259,9 @@ Host 通过 `ctx.llm` 与 `agentDefaultModel` 解析当前默认模型（没有�
   `top left` 缩放，代码语言菜单从 `top right`，模态卡片中心缩放；命令面板 180ms、
   问 AI 右栏 200ms 横向 8px 入场、模态/菜单 160–180ms、遮罩 120ms 淡入。保存中的状态点
   有 1.2s 呼吸，保存完成即停；失败 / 冲突提示条 180ms 下滑淡入。
+- **微交互**：切换标注类型时底色 280ms 交叉淡入；标注图标 hover 轻抬、按下回弹；
+  勾选待办时 √ 弹入；问答里最新一条消息 220ms 上浮；集合卡片 hover 抬起 1px 并加阴影；
+  按钮按下缩到 0.96、图标按钮缩到 0.92。
 - **可访问性**：`prefers-reduced-motion: reduce` 下关闭全部动画与过渡（含滚动跳转，
   JS 里也会检测并回退为瞬时滚动）。
 - 侧栏按目录层级缩进，选中项用中性的 `--nb-active` 底色 + 600 字重（不再用色条）；分组标题、
@@ -283,14 +299,93 @@ Host 通过 `ctx.llm` 与 `agentDefaultModel` 解析当前默认模型（没有�
 | `templateDir` | `模板` | 新建笔记时把哪个目录里的笔记列为自定义模板。 |
 | `attachmentDir` | `附件` | 粘贴图片保存到笔记库里的哪个目录。 |
 | `maxAttachmentBytes` | 8388608 | 单张图片上限，超过会被拒绝。 |
+| `flashDir` | `闪念` | 闪念笔记单独存放的目录（库内相对路径）。每条闪念是一个 `.md`，Obsidian、搜索和同步都照常看得见。 |
+
+## 闪念
+
+一个独立文件夹收集零散的记忆片段，设计参照 [flash-capsule](https://github.com/whd-1999/flash-capsule) 的三条原则：
+**捕获零决策、入口无处不在、捕获与处理分离**。
+
+- **闪念标签页**：从侧栏「⚡ 闪念」或命令面板打开，标签栏里会多一个可切换、可关闭的「⚡ 闪念」标签，和笔记标签并列；
+  关掉后可从侧栏重新打开，刷新页面会记住这个标签。
+- **记一笔**：侧栏 ⚡、顶栏 ⚡、快捷键 `⌘⇧F`（`Ctrl+Shift+F`）、命令面板里的「记一笔」、或让 Agent 调 `notebook_flash`。
+  一个输入框，回车就存，不用选文件夹也不用起标题；分类可以点，也可以完全不管（默认「随记」）。
+- **对话里直接记**：在 DSH 对话框输入 `/flash <想法>` 就存一条，`/flash <分类> <想法>` 可指定分类
+  （随记/想法/待办/灵感/摘录），`/flash` 单独发则列出收件箱；`/闪念` 是同一功能的别名（Host 接受中文命令名时可用）。
+- **聊天里的想法会被接住**：插件会告诉模型「什么时候该记」——当你说「记一下 / 帮我记 / 别忘了我刚说的」，
+  或抛出一个以后想继续发展的想法、待办、灵感时，它会直接调 `notebook_flash` 存进闪念，
+  再回一句「已记下」；普通问答、代码、命令输出和寒暄不会建闪念，每次回复最多记一条。
+- **自动落盘**：每条闪念是 `闪念/2026-11-10 14-40-12 想法的第一行.md`，frontmatter 记录
+  `type: flash`、`created`、`category`、`tags`、`pinned`、`done`。所以它在 Obsidian 里就是普通笔记，
+  能被全文检索、双链、目录页和 WebDAV/git 同步覆盖。
+- **之后再整理**：闪念面板按「未处理 / 全部 / 已完成」筛选，按分类和关键词过滤；
+  卡片上可以置顶、标记完成、打开笔记、删除（进 `.trash/`，不是永久删除）。
+- **翻旧账**：随机翻出一条旧闪念，优先未完成、未置顶、已经放了一天以上的，直接打开。
+
+捕获路径只做一次本地写入，不联网、不调用模型；整理和分类全部留到以后。
+
+## 对话与笔记
+
+- **当前笔记自动进上下文**：打开哪篇笔记、大纲、光标所在块（约 300 字）每轮自动带给模型，所以「这段 / 这里」指代明确。
+- **工具按需取材**：`notebook_list` / `notebook_read` / `notebook_search` / `notebook_write`，可以「先看看我上周写的 XX 再回答」。
+- **输入框引用笔记**：对话框左侧笔记本按钮 →「引用笔记…」，搜索并勾选多篇，插入内容只有路径：
+  `@[[路径1]] @[[路径2]]`，一行搞定。Host 会告诉模型 `@[[路径]]` 表示引用了一篇笔记，
+  需要内容时自己用 `notebook_read` 读取——不占输入框、也不预先消耗上下文。
+- **语义检索**：`notebook_search` 传 `semantic: true` 时按意思排，而不是只找字面。做法是
+  「模型把查询扩展成同义/相关词 + 本地中文 bigram 与词命中加权排序」，返回相关笔记和摘要片段；
+  没有 embedding 服务可用，所以这不是向量检索，但「系统升级坏了」这类说法能命中写着「升级 / 回滚」的笔记。
+  对应路由 `GET /api/recall?q=&expand=0`（`expand=0` 关掉模型扩展，只做本地排序）。
+
+## 同步（WebDAV / Git 仓库）
+
+面板右上角的 **⟳** 打开同步弹窗，选「关闭 / WebDAV / Git 仓库」。按钮上的小圆点就是状态：
+绿=上次成功、灰=未启用、橙=正在同步、红=上次失败。
+
+### WebDAV
+
+填服务器地址（要带路径，例如 `https://dav.example.com/remote.php/dav/files/我`）、用户名、密码，
+可再填一个远程子目录。「测试连接」会真的建目录、写一个探针文件再删掉，所以 401（账号密码）
+和 403（只读账号 / 目录不允许 PUT）在保存前就能看出来；失败原因同时显示插件给出的中文说明和服务器原文。
+
+### Git 仓库
+
+填远程仓库（SSH 或 HTTPS，可留空——那样只在本机提交版本）、分支、提交信息。凭据完全沿用本机的
+git 配置（ssh key、credential helper），插件不保存任何 token。一次同步依次做：
+`git add -A` → 有改动就 `commit` → `fetch` → 落后就 `rebase origin/<分支>` → `push`；
+base 冲突会中止 rebase 并把冲突文件列出来，仓库不会卡在 rebase 中间。
+
+### 行为
+
+- **双向**：本地改动上传、远端改动下载；两边都改过的笔记保留本地版本，远端内容另存为
+  `笔记名 (冲突 2026-11-10 14-30-00).md`，并在这次同步里一起上传。
+- **首次同步**不会删除任何东西。两边同一个路径都有文件时，比较内容后保留较新的一份，
+  另一份放进 `.trash/first-sync-<时间>/`。
+- **删除**默认同步，但都可恢复：远端删掉的本地副本、本地删掉的远端副本都会先备份到 `.trash/`；
+  也可以把「删除处理」改成「不传播删除」。
+- **保护**：一次要删掉超过 200 个文件、或超过已跟踪文件的 25% 时整次同步直接停止（一个文件都不删），
+  避免远端填错目录把笔记库清空；单文件超过 64 MB 跳过并报错。
+- 可选项：保存笔记后自动同步（防抖 4 秒）、每 N 分钟定时同步。面板与 Agent 写笔记走同一条
+  `vault.write`，所以两种自动同步都覆盖到。
+
+### 状态与配置放在哪
+
+`<笔记库>/.dsh-notebook/`：`sync.json`（设置，权限 0600，WebDAV 密码也在这里）、
+`sync-state.json`（上次双方一致的内容哈希与 ETag，用于三方比较）。这个目录不参与同步，
+git 下会自动写进 `.git/info/exclude`，因此不会被提交或推送。删掉 `sync-state.json`
+等于让下一次同步按「首次同步」处理。
+
+HTTP 路由：`GET /api/sync/status`、`POST /api/sync/settings`、`POST /api/sync/test`、`POST /api/sync/run`。
+Agent 也能用 `notebook_sync` 查看状态、测试连接、触发一次同步。
 
 ## Agent 工具
 
 - `notebook_list` — 列目录：直接子笔记 + 每个子文件夹的笔记数（`recursive: true` 列整棵子树，
   `limit` 默认 100）——大笔记库里不再一次倒出几百行
 - `notebook_read` — 按笔记库相对路径读取整篇笔记
-- `notebook_search` — 全文检索，返回 `路径:行号: 内容`
+- `notebook_search` — 全文检索，返回 `路径:行号: 内容`；`semantic: true` 时按语义相关度返回笔记与摘要片段
 - `notebook_write` — 写入笔记，`mode` 为 `replace`（默认）/ `append` / `create`
+- `notebook_sync` — 同步状态 / 测试连接 / 立即同步一次（`action` 为 `status` / `test` / `run`）
+- `notebook_flash` — 记一条闪念 / 列出未处理 / 随机翻一条（`action` 为 `capture` / `recent` / `random`）
 
 ## 安全边界
 
@@ -302,7 +397,9 @@ Host 通过 `ctx.llm` 与 `agentDefaultModel` 解析当前默认模型（没有�
 
 ## 文件
 
-- `index.js` — Host 半：笔记库服务、`/notebook/api/*` 路由（含附件与历史）、四个 Agent 工具、Config。
+- `index.js` — Host 半：笔记库服务、`/notebook/api/*` 路由（含附件、历史、闪念与同步）、六个 Agent 工具、Config。
+- `flash.js` — Host 半的闪念服务：单个文件夹、frontmatter 往返、置顶/完成/随机翻旧账。
+- `sync.js` — Host 半的同步引擎：WebDAV 客户端（PROPFIND/MKCOL/PUT/GET/DELETE + 三方清单）与 git 提供方。
 - `client.js` — Client 半：`sidebar.panellist` 入口 + `main` 块的 Notion 式页面。
 - `cordis.patch.yml` — 插入 Host 行的 bundle patch。
 - `locale/{zh,en}.json` — 插件管理页的标题与描述。
@@ -310,11 +407,14 @@ Host 通过 `ctx.llm` 与 `agentDefaultModel` 解析当前默认模型（没有�
 ## 开发与测试
 
 ```bash
-node test/client-smoke.mjs        # Client：工厂、slot 注册、对话笔记卡片、目录页、聚焦/同步判定、问 AI、命令面板、保存视图/条件过滤、嵌入锚点、Markdown/HTML/diff 等纯函数，93 项
-node test/host-smoke.mjs          # Host：mock ctx + 真实 HTTP server + 临时笔记库 + configEditor mock，63 项
+node test/client-smoke.mjs        # Client：工厂、slot 注册、对话笔记卡片、目录页、聚焦/同步判定、问 AI、命令面板、保存视图/条件过滤、嵌入锚点、写作热力网格、Markdown/HTML/diff 等纯函数，96 项
+node test/host-smoke.mjs          # Host：mock ctx + 真实 HTTP server + 临时笔记库 + configEditor mock，69 项（含引用摘要与语义检索）
 node test/host-attachments.mjs    # Host：图片上传 / 读取 / 配置 / 安全拒绝，10 项
 node test/host-history.mjs        # Host：版本快照 / 恢复 / 拒绝，8 项
 node test/host-vault-detect.mjs   # Host：macOS / Windows / Linux 笔记库自动发现，4 项
+node test/host-flash.mjs          # 闪念：捕获 / frontmatter 往返 / 筛选 / 置顶完成 / 随机 / 路径拒绝 / Agent 工具，12 项
+node test/host-sync-webdav.mjs    # 同步：内存 WebDAV 服务器上跑上传/下载/冲突/删除/首次合并/401/批量删除保护，15 项
+node test/host-sync-git.mjs       # 同步：裸仓库 + 两个工作副本，跑初始化/推送/拉取/删除/冲突/仅本地，11 项
 ```
 
 安装（本目录已经是 link 安装）：

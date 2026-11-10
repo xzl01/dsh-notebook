@@ -11,3 +11,4 @@ test/.tmp-outside-secret.md
 
 # Linkr screen captures
 .linkr/
+test/.tmp-*/
