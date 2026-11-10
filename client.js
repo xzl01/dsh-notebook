@@ -7304,10 +7304,15 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           content = h(MermaidView, { key: 'mermaid', code: text, t })
         } else if (mathBlock !== null) {
           content = h('div', { className: 'nb-math-block-wrap', dangerouslySetInnerHTML: { __html: renderLatexMath(mathBlock, true) } })
-        } else if (block.type === 'paragraph' && /^\s*<[a-zA-Z][^>]*>/.test(text) && /<\/[a-zA-Z]/.test(text)) {
+        } else if (
+          block.type !== 'code' &&
+          block.type !== 'table' &&
+          block.type !== 'divider' &&
+          /<(\/?)(kbd|mark|u|s|b|i|span|div|sup|sub|br|details|summary|a|img|table|tr|td|th|thead|tbody|ul|ol|li|iframe|video|audio|figure|figcaption|small|abbr|del|ins|center|hr)\b/i.test(text)
+        ) {
           content = h('div', {
             className: 'nb-html-block',
-            dangerouslySetInnerHTML: { __html: sanitizeHtmlBlock(text) },
+            dangerouslySetInnerHTML: { __html: markdownToHtml(text) },
           })
         } else if (block.type === 'code') {
           content = text.length > 0 ? highlightCode(text) : placeholder
