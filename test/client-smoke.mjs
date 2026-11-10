@@ -1971,6 +1971,13 @@ check('obsidian-columns callout parses into a columns block', () => {
   assert(round[0].columns.length === 2, JSON.stringify(round[0].columns))
   const three = parseBlocks('> [!col]\n> A\n>\n> B\n>\n> C\n')
   assert(three[0].columns.length === 3, JSON.stringify(three[0].columns))
+  const nested = parseBlocks('> [!col]\n>> [!col-md]\n>> ### 左\n>> - A\n>\n>> [!col-md]\n>> ### 右\n>> - B\n')
+  assert(nested.length === 1 && nested[0].type === 'columns', JSON.stringify(nested.map((b) => b.type)))
+  assert(nested[0].columns.length === 2, JSON.stringify(nested[0].columns))
+  assert(nested[0].columns[0].includes('### 左') && nested[0].columns[0].includes('- A'), JSON.stringify(nested[0].columns))
+  const nestedRound = parseBlocks(serializeBlocks(nested))
+  assert(nestedRound.length === 1 && nestedRound[0].type === 'columns', JSON.stringify(nestedRound.map((b) => b.type)))
+  assert(nestedRound[0].columns.length === 2, JSON.stringify(nestedRound[0].columns))
   return 'columns round-trip'
 })
 

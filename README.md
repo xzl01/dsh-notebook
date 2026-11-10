@@ -134,6 +134,11 @@ Marp 的模板 class、`<!-- fit -->`、导出 PPTX 尚未实现——需要的�
   加/移除封面；其他 frontmatter 字段保存时原样保留。
 - `⋯` →「快捷键」查看全部快捷键。
 
+## 双栏 / 三栏（obsidian-columns 语法）
+
+笔记里用 `> [!col]` 分栏，空 `>` 或嵌套 `>> [!col-md]` 分隔列；DSH 面板与 Obsidian（安装
+obsidian-columns 插件后）都能渲染。DSH 里也可以输入 `/` 选「2 栏 / 3 栏」插入。
+
 ## Obsidian Canvas（.canvas）
 
 - 侧栏里 `.canvas` 文件与笔记并列显示，点击打开

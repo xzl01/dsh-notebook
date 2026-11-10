@@ -2271,23 +2271,39 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           const firstText = String(colCallout[2] ?? '').trim()
           if (firstText.length > 0) current.push(firstText)
           let scan = index + 1
+          const flushColumn = () => {
+            if (current.length === 0) return
+            columns.push(current.join('\n'))
+            current = []
+          }
           while (scan < lines.length) {
             const quoted = /^\s*>\s?(.*)$/.exec(lines[scan])
             if (quoted === null) break
             const content = String(quoted[1] ?? '')
-            if (content.trim().length === 0) {
-              if (current.length > 0) {
-                columns.push(current.join('\n'))
-                current = []
+            const nested = /^\s*>\s?(.*)$/.exec(content)
+            if (nested !== null) {
+              const inner = String(nested[1] ?? '')
+              if (/^\s*\[!col-md(?:-[0-9.]+)?\]/i.test(inner.trim())) {
+                flushColumn()
+                scan += 1
+                continue
               }
+              if (inner.trim().length === 0) {
+                flushColumn()
+                scan += 1
+                continue
+              }
+              current.push(inner.trim())
+              scan += 1
+              continue
+            }
+            if (content.trim().length === 0) {
+              flushColumn()
               scan += 1
               continue
             }
             if (/^\s*\[!col-md(?:-[0-9.]+)?\]/i.test(content.trim())) {
-              if (current.length > 0) {
-                columns.push(current.join('\n'))
-                current = []
-              }
+              flushColumn()
               scan += 1
               continue
             }
@@ -3377,15 +3393,14 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           break
         case 'columns': {
           const columns = Array.isArray(block.columns) && block.columns.length > 0 ? block.columns : ['']
-          line = columns
-            .map((column, columnIndex) => {
-              const quoted = String(column ?? '')
-                .split('\n')
-                .map((value) => `> ${value}`)
-                .join('\n')
-              return `${columnIndex === 0 ? '> [!col]' : '>'}\n${quoted}`
-            })
-            .join('\n')
+          const groups = columns.map((column) => {
+            const quoted = String(column ?? '')
+              .split('\n')
+              .map((value) => `>> ${value}`)
+              .join('\n')
+            return `>> [!col-md]\n${quoted}`
+          })
+          line = ['> [!col]', ...groups].join('\n>\n')
           break
         }
         case 'toggle':
@@ -4543,6 +4558,67 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         if (src === null || !/^https?:\/\//i.test(src[1])) return null
       }
       return `<${closing}${tag}${attrs ?? ''}${selfClose}>`
+    }
+
+    /** Markdown block subset for one column of a `> [!col]` callout. */
+    function columnToHtml(source) {
+      const lines = String(source ?? '').split(/\r?\n/)
+      const html = []
+      let listTag = null
+      let listItems = []
+      let paragraph = []
+      const flushList = () => {
+        if (listTag === null) return
+        html.push(`<${listTag}>${listItems.join('')}</${listTag}>`)
+        listTag = null
+        listItems = []
+      }
+      const flushParagraph = () => {
+        if (paragraph.length === 0) return
+        html.push(`<p>${markdownToHtml(paragraph.join(' '))}</p>`)
+        paragraph = []
+      }
+      for (const raw of lines) {
+        const line = raw.trim()
+        const heading = /^(#{1,6})\s+(.*)$/.exec(line)
+        if (heading !== null) {
+          flushList()
+          flushParagraph()
+          const level = Math.min(heading[1].length, 4)
+          html.push(`<h${level}>${markdownToHtml(heading[2])}</h${level}>`)
+          continue
+        }
+        const bullet = /^[-*+]\s+(.*)$/.exec(line)
+        if (bullet !== null) {
+          flushParagraph()
+          if (listTag !== 'ul') {
+            flushList()
+            listTag = 'ul'
+          }
+          listItems.push(`<li>${markdownToHtml(bullet[1])}</li>`)
+          continue
+        }
+        const numbered = /^\d+[.)]\s+(.*)$/.exec(line)
+        if (numbered !== null) {
+          flushParagraph()
+          if (listTag !== 'ol') {
+            flushList()
+            listTag = 'ol'
+          }
+          listItems.push(`<li>${markdownToHtml(numbered[1])}</li>`)
+          continue
+        }
+        if (line.length === 0) {
+          flushList()
+          flushParagraph()
+          continue
+        }
+        flushList()
+        paragraph.push(line)
+      }
+      flushList()
+      flushParagraph()
+      return html.join('')
     }
 
     function markdownToHtml(text) {
@@ -7403,7 +7479,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
             h('div', {
               key: `col-${columnIndex}`,
               className: 'nb-column',
-              dangerouslySetInnerHTML: { __html: markdownToHtml(String(column ?? '')) },
+              dangerouslySetInnerHTML: { __html: columnToHtml(String(column ?? '')) },
             }),
           ),
         )
