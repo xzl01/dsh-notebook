@@ -85,8 +85,12 @@ const AI_TASKS = {
 }
 
 const HISTORY_DIR_NAME = '.dsh-notebook-history'
-const STATS_DIR_NAME = '.dsh-notebook'
-const STATS_FILE_NAME = 'writing.json'
+// Writing stats live in a normal (non-hidden) folder so the sync engine sees
+// them: a hidden dot-folder would never be mirrored.
+const STATS_DIR_NAME = '统计'
+const STATS_FILE_NAME = '写作热力.json'
+const LEGACY_STATS_DIR_NAME = '.dsh-notebook'
+const LEGACY_STATS_FILE_NAME = 'writing.json'
 const STATS_VERSION = 1
 const HISTORY_LIMIT = 20
 
@@ -593,22 +597,39 @@ function createVault(config, hooks = {}) {
   async function loadWritingLog() {
     if (writingLog !== null) return writingLog
     const empty = { version: STATS_VERSION, days: {} }
-    try {
-      const parsed = JSON.parse(await fsp.readFile(statsFile(), 'utf8'))
+    const adopt = (parsed) => {
       if (
-        parsed !== null &&
-        typeof parsed === 'object' &&
-        parsed.version === STATS_VERSION &&
-        parsed.days !== null &&
-        typeof parsed.days === 'object'
+        parsed === null ||
+        typeof parsed !== 'object' ||
+        parsed.version !== STATS_VERSION ||
+        parsed.days === null ||
+        typeof parsed.days !== 'object'
       ) {
-        writingLog = { version: STATS_VERSION, days: parsed.days }
-      } else {
-        writingLog = empty
+        return false
       }
-    } catch {
-      writingLog = empty
+      writingLog = { version: STATS_VERSION, days: parsed.days }
+      return true
     }
+    let adopted = false
+    try {
+      adopted = adopt(JSON.parse(await fsp.readFile(statsFile(), 'utf8')))
+    } catch {
+      adopted = false
+    }
+    if (!adopted) {
+      // Migrate stats written by older builds into the syncable location.
+      const legacyFile = join(root, LEGACY_STATS_DIR_NAME, LEGACY_STATS_FILE_NAME)
+      try {
+        const parsed = JSON.parse(await fsp.readFile(legacyFile, 'utf8'))
+        if (adopt(parsed)) {
+          await saveWritingLog()
+          await fsp.rm(legacyFile, { force: true }).catch(() => {})
+        }
+      } catch {
+        /* no legacy stats */
+      }
+    }
+    if (writingLog === null) writingLog = empty
     // First run: seed today from notes saved today, so the widget is not blank
     // on the day the feature appears. Only notes touched today are read.
     if (writingLog === empty && Object.keys(writingLog.days).length === 0) {

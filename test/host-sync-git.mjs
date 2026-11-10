@@ -273,6 +273,14 @@ await check('turning sync off rejects a run with sync_not_configured', async () 
   })
 })
 
+await check('writing stats live in the synced tree', async () => {
+  await write(VAULT_A, '统计/写作热力.json', JSON.stringify({ version: 1, days: { '2026-11-10': 42 } }))
+  const result = await serviceA.run({ trigger: 'manual' })
+  assert.equal(result.ok, true, JSON.stringify(result.error))
+  const content = git(REMOTE, ['show', 'main:统计/写作热力.json'])
+  assert(content.includes('"version":1'), content)
+})
+
 for (const service of [serviceA, serviceB, serviceC]) await service.dispose()
 await fsp.rm(ROOT, { recursive: true, force: true })
 

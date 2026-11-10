@@ -546,6 +546,15 @@ async function main() {
     })
     const again = await request('/notebook/api/stats/writing')
     assert((again.body.days?.[today] ?? 0) === (days[today] ?? 0), 'an unchanged save adds nothing')
+    // Stats live in a normal folder so the sync engine mirrors them.
+    const statsText = await fsp.readFile(join(VAULT, '统计', '写作热力.json'), 'utf8')
+    const statsData = JSON.parse(statsText)
+    assert(statsData.version === 1 && typeof statsData.days === 'object', statsText)
+    const legacyExists = await fsp
+      .access(join(VAULT, '.dsh-notebook', 'writing.json'))
+      .then(() => true)
+      .catch(() => false)
+    assert(legacyExists === false, 'stats must not live in the hidden folder')
     return `${days[today]} chars on ${today}`
   })
 
