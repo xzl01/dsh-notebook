@@ -40,7 +40,14 @@ const DELETE_RATIO = 0.25
 const CONCURRENCY = 4
 const META_TIMEOUT_MS = 30000
 const TRANSFER_TIMEOUT_MS = 120000
-const GIT_TIMEOUT_MS = 180000
+const GIT_LOCAL_TIMEOUT_MS = 30000
+const GIT_REMOTE_TIMEOUT_MS = 60000
+/** Test hook: cap every git command at one value (see test/host-sync-git.mjs). */
+const GIT_TIMEOUT_OVERRIDE = (() => {
+  const raw = Number(process.env.DSH_NOTEBOOK_GIT_TIMEOUT_MS)
+  return Number.isFinite(raw) && raw > 0 ? raw : 0
+})()
+const GIT_TIMEOUT_MS = GIT_TIMEOUT_OVERRIDE || GIT_LOCAL_TIMEOUT_MS
 const SAVE_DEBOUNCE_MS = 4000
 
 const PROVIDERS = new Set(['off', 'webdav', 'git'])
@@ -56,7 +63,7 @@ export const DEFAULT_SETTINGS = {
   version: 1,
   provider: 'off',
   webdav: { url: '', username: '', password: '', remotePath: '' },
-  git: { remote: '', branch: '', message: '' },
+  git: { remote: '', branch: '', message: '', username: '', password: '' },
   auto: { onSave: false, intervalMinutes: 0 },
   /** 'trash' keeps a recoverable copy of anything a sync would delete; 'keep' never deletes. */
   deletes: 'trash',
@@ -101,6 +108,9 @@ function normalizeSettings(raw) {
       remote: text(git.remote).replace(/\/+$/, ''),
       branch: text(git.branch),
       message: text(git.message),
+      username: text(git.username),
+      // Keep the exact token bytes; only trim accidental padding.
+      password: typeof git.password === 'string' ? git.password.replace(/^\s+|\s+$/g, '') : '',
     },
     auto: {
       onSave: auto.onSave === true,
@@ -522,18 +532,28 @@ function createDav(options) {
  * Run one git command inside the vault. Output is captured; a non-zero exit
  * becomes a SyncError carrying stderr so the panel can show the real reason.
  */
-function runGit(args, { cwd, timeoutMs = GIT_TIMEOUT_MS, allowFailure = false } = {}) {
+function runGit(args, { cwd, timeoutMs = GIT_TIMEOUT_MS, allowFailure = false, auth = null } = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
     let child
+    const credential = auth === null ? { args: [], env: {} } : gitCredentialPrefix(auth.username, auth.password)
     try {
-      child = spawn('git', args, {
+      child = spawn('git', [...credential.args, ...args], {
         cwd,
+        // Own process group: killing git must also kill the ssh/curl children it
+        // started, otherwise they hold the pipes and a timeout never settles.
+        detached: process.platform !== 'win32',
         env: {
           ...process.env,
           // Never block on an interactive credential prompt: fail and report instead.
           GIT_TERMINAL_PROMPT: '0',
           GIT_ASKPASS: process.env.GIT_ASKPASS ?? 'echo',
           LC_ALL: process.env.LC_ALL ?? 'C',
+          ...credential.env,
+          // An unreachable ssh host otherwise waits for the TCP timeout and can
+          // ask for a passphrase; BatchMode + ConnectTimeout makes it fail fast.
+          GIT_SSH_COMMAND:
+            process.env.GIT_SSH_COMMAND ??
+            'ssh -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=5 -o ServerAliveCountMax=3',
         },
         stdio: ['ignore', 'pipe', 'pipe'],
       })
@@ -544,10 +564,52 @@ function runGit(args, { cwd, timeoutMs = GIT_TIMEOUT_MS, allowFailure = false } 
     let stdout = ''
     let stderr = ''
     let timedOut = false
+    let settled = false
+
+    const killTree = () => {
+      if (child.pid === undefined) return
+      try {
+        if (process.platform === 'win32') child.kill('SIGKILL')
+        else process.kill(-child.pid, 'SIGKILL')
+      } catch {
+        try {
+          child.kill('SIGKILL')
+        } catch {
+          /* already gone */
+        }
+      }
+      for (const stream of [child.stdout, child.stderr]) {
+        try {
+          if (stream !== null && typeof stream.destroy === 'function') stream.destroy()
+        } catch {
+          /* pipes are best-effort while killing */
+        }
+      }
+    }
+
+    const finish = (fn) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      fn()
+    }
+
     const timer = setTimeout(() => {
       timedOut = true
-      child.kill('SIGKILL')
+      killTree()
+      // Settle even if 'close' never arrives because a grandchild kept a pipe.
+      finish(() => {
+        rejectPromise(
+          new SyncError(
+            'git_timeout',
+            `git ${args[0]} did not finish within ${Math.round(timeoutMs / 1000)}s. The remote is likely unreachable or waiting for credentials.`,
+            stderr,
+          ),
+        )
+      })
     }, timeoutMs)
+    if (typeof timer.unref === 'function') timer.unref()
+
     child.stdout.on('data', (chunk) => {
       stdout += chunk
       if (stdout.length > 4 * 1024 * 1024) stdout = stdout.slice(-1024 * 1024)
@@ -557,32 +619,68 @@ function runGit(args, { cwd, timeoutMs = GIT_TIMEOUT_MS, allowFailure = false } 
       if (stderr.length > 4 * 1024 * 1024) stderr = stderr.slice(-1024 * 1024)
     })
     child.on('error', (error) => {
-      clearTimeout(timer)
-      rejectPromise(new SyncError('git_missing', `git ${args[0]} could not run: ${error.message}`, String(error)))
+      finish(() =>
+        rejectPromise(new SyncError('git_missing', `git ${args[0]} could not run: ${error.message}`, String(error))),
+      )
     })
-    child.on('close', (code) => {
-      clearTimeout(timer)
+    // 'exit' fires before 'close'; using it means a lingering grandchild pipe
+    // cannot keep the promise pending.
+    const settle = (code) => {
       if (timedOut) {
-        rejectPromise(
-          new SyncError('git_timeout', `git ${args[0]} did not finish within ${Math.round(timeoutMs / 1000)}s.`, stderr),
+        finish(() =>
+          rejectPromise(
+            new SyncError(
+              'git_timeout',
+              `git ${args[0]} timed out after ${Math.round(timeoutMs / 1000)}s and was stopped. Check the remote URL and the network.`,
+              stderr,
+            ),
+          ),
         )
         return
       }
       if (code === 0 || allowFailure) {
-        resolvePromise({ code, stdout, stderr })
+        finish(() => resolvePromise({ code, stdout, stderr }))
         return
       }
-      rejectPromise(classifyGitFailure(args, code, stdout, stderr))
-    })
+      finish(() => rejectPromise(classifyGitFailure(args, code, stdout, stderr)))
+    }
+    child.on('exit', settle)
+    child.on('close', settle)
   })
+}
+
+/**
+ * Credentials for an HTTP(S) git remote. A background sync has no terminal, so
+ * the only options are a stored helper or these settings; the helper reads the
+ * secret from the environment, keeping it out of `ps` output.
+ */
+export const GIT_CREDENTIAL_HELPER =
+  '!f() { test "$1" = get || exit 0; printf "username=%s\\npassword=%s\\n" "$DSH_GIT_USERNAME" "$DSH_GIT_PASSWORD"; }; f'
+
+export function gitCredentialPrefix(username, password) {
+  const user = typeof username === 'string' ? username : ''
+  const secret = typeof password === 'string' ? password : ''
+  if (user.length === 0 && secret.length === 0) return { args: [], env: {} }
+  return {
+    args: ['-c', 'credential.helper=', '-c', `credential.helper=${GIT_CREDENTIAL_HELPER}`],
+    env: { DSH_GIT_USERNAME: user, DSH_GIT_PASSWORD: secret },
+  }
 }
 
 function classifyGitFailure(args, code, stdout, stderr) {
   const text = `${stderr}\n${stdout}`.trim()
   if (/Authentication failed|could not read Username|terminal prompts disabled|Permission denied \(publickey\)|Invalid username or password|403 Forbidden/i.test(text)) {
-    return new SyncError('git_auth', 'The git remote rejected the credentials. Configure an ssh key or a credential helper, then retry.', text)
+    return new SyncError(
+      'git_auth',
+      'The git remote rejected the credentials. For an HTTP(S) remote, fill in the git username and password/token in the sync settings; for SSH, make sure the ssh key or credential helper is available.',
+      text,
+    )
   }
-  if (/Could not resolve host|unable to access|Connection (refused|timed out|reset)|Network is unreachable|Operation timed out/i.test(text)) {
+  if (
+    /Could not resolve host|unable to access|Connection (refused|timed out|reset)|Network is unreachable|No route to host|Operation timed out|ssh: connect to host|Connection timed out|Temporary failure in name resolution/i.test(
+      text,
+    )
+  ) {
     return new SyncError('git_unreachable', 'The git remote could not be reached. Check the network and the remote URL.', text)
   }
   if (/CONFLICT|could not apply|Resolve all conflicts|needs merge/i.test(text)) {
@@ -852,7 +950,11 @@ export function createSyncService({ root, now = () => Date.now() }) {
       }
     }
     const branch = config.git.branch.length > 0 ? config.git.branch : 'main'
-    const result = await runGit(['ls-remote', '--heads', remote, branch], { cwd: base })
+    const result = await runGit(['-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=20', 'ls-remote', '--heads', remote, branch], {
+      cwd: base,
+      timeoutMs: GIT_TIMEOUT_OVERRIDE || GIT_REMOTE_TIMEOUT_MS,
+      auth: { username: config.git.username, password: config.git.password },
+    })
     const hasBranch = result.stdout.trim().length > 0
     return {
       ok: true,
@@ -1223,7 +1325,12 @@ export function createSyncService({ root, now = () => Date.now() }) {
     progress = { phase: 'remote', done: 1, total: 3, path: null }
 
     if (config.git.remote.length > 0) {
-      await runGit(['fetch', '--prune', 'origin', branch], { cwd: base, allowFailure: true })
+      await runGit(['-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=20', 'fetch', '--prune', 'origin', branch], {
+        cwd: base,
+        allowFailure: true,
+        timeoutMs: GIT_TIMEOUT_OVERRIDE || GIT_REMOTE_TIMEOUT_MS,
+        auth: { username: config.git.username, password: config.git.password },
+      })
       const ref = await runGit(['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`], {
         cwd: base,
         allowFailure: true,
@@ -1257,7 +1364,11 @@ export function createSyncService({ root, now = () => Date.now() }) {
       const ahead = await runGit(['rev-list', '--count', `origin/${branch}..HEAD`], { cwd: base, allowFailure: true })
       const toPush = remoteExists ? Number(ahead.stdout.trim()) || 0 : 1
       if (toPush > 0) {
-        await runGit(['push', 'origin', `HEAD:refs/heads/${branch}`], { cwd: base })
+        await runGit(['-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=20', 'push', 'origin', `HEAD:refs/heads/${branch}`], {
+          cwd: base,
+          timeoutMs: GIT_TIMEOUT_OVERRIDE || GIT_REMOTE_TIMEOUT_MS,
+          auth: { username: config.git.username, password: config.git.password },
+        })
         result.pushed = toPush
         result.notes.push(`pushed to origin/${branch}`)
       }

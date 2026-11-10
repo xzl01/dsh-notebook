@@ -23,7 +23,11 @@ const VAULT_A = join(ROOT, 'vault-a')
 const VAULT_B = join(ROOT, 'vault-b')
 const VAULT_C = join(ROOT, 'vault-c')
 
-const { createSyncService } = await import(join(WORKSPACE, 'sync.js'))
+// Keep every git command short so the unreachable-remote case can be tested
+// without adding a minute to the suite.
+process.env.DSH_NOTEBOOK_GIT_TIMEOUT_MS = '3000'
+
+const { createSyncService, gitCredentialPrefix, GIT_CREDENTIAL_HELPER } = await import(join(WORKSPACE, 'sync.js'))
 
 const GIT_ENV = {
   ...process.env,
@@ -187,6 +191,59 @@ await check('conflicting edits are reported as git_conflict and leave no half-fi
   assert.equal(await exists(join(VAULT_B, '.git', 'rebase-merge')), false, 'rebase was not aborted')
   assert.equal(await exists(join(VAULT_B, '.git', 'rebase-apply')), false, 'rebase was not aborted')
   assert.equal(await read(VAULT_B, '笔记/甲.md'), '# 甲\n\nB 端也改了这一行。\n')
+})
+
+await check('an unreachable git remote times out instead of hanging', async () => {
+  const slowSsh = join(ROOT, 'slow-ssh.sh')
+  await fsp.writeFile(slowSsh, '#!/bin/sh\nsleep 30\n', { mode: 0o755 })
+  await fsp.chmod(slowSsh, 0o755)
+  const vaultD = join(ROOT, 'vault-d')
+  await fsp.mkdir(vaultD, { recursive: true })
+  await write(vaultD, '挂起.md', '# 挂起\n')
+
+  const service = createSyncService({ root: vaultD })
+  await service.saveSettings({ provider: 'git', git: { remote: 'ssh://example.invalid/notes.git', branch: 'main' } })
+  const previous = process.env.GIT_SSH_COMMAND
+  process.env.GIT_SSH_COMMAND = slowSsh
+  const started = Date.now()
+  try {
+    await assert.rejects(service.run({ trigger: 'manual' }), (error) => {
+      assert.ok(
+        ['git_timeout', 'git_unreachable', 'git_error'].includes(error.code),
+        `${error.code}: ${error.message}`,
+      )
+      return true
+    })
+    const elapsed = Date.now() - started
+    assert.ok(elapsed < 15000, `the sync took ${elapsed}ms`)
+    const status = await service.status()
+    assert.equal(status.busy, false, 'the run is still marked busy')
+  } finally {
+    if (previous === undefined) delete process.env.GIT_SSH_COMMAND
+    else process.env.GIT_SSH_COMMAND = previous
+    await service.dispose()
+  }
+})
+
+await check('HTTP credentials are stored and handed to git through an env-backed helper', async () => {
+  assert.deepEqual(gitCredentialPrefix('', ''), { args: [], env: {} })
+  const credential = gitCredentialPrefix('xzl', 'token-123')
+  assert.equal(credential.args[0], '-c')
+  assert.equal(credential.args[1], 'credential.helper=')
+  assert.equal(credential.args[3], `credential.helper=${GIT_CREDENTIAL_HELPER}`)
+  assert.equal(credential.env.DSH_GIT_USERNAME, 'xzl')
+  assert.equal(credential.env.DSH_GIT_PASSWORD, 'token-123')
+  assert.ok(!JSON.stringify(credential.args).includes('token-123'), 'the token must not appear in argv')
+
+  await serviceC.saveSettings({ git: { username: 'xzl', password: 'token-123' } })
+  const status = await serviceC.status()
+  assert.equal(status.settings.git.username, 'xzl')
+  assert.equal(status.settings.git.password, 'token-123')
+  const stored = JSON.parse(await fsp.readFile(serviceC.settingsPath, 'utf8'))
+  assert.equal(stored.git.password, 'token-123')
+  if (process.platform !== 'win32') {
+    assert.equal((await fsp.stat(serviceC.settingsPath)).mode & 0o777, 0o600)
+  }
 })
 
 await check('a local-only repository commits without a remote', async () => {

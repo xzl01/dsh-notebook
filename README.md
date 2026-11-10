@@ -359,10 +359,15 @@ Host 通过 `ctx.llm` 与 `agentDefaultModel` 解析当前默认模型（没有�
 
 ### Git 仓库
 
-填远程仓库（SSH 或 HTTPS，可留空——那样只在本机提交版本）、分支、提交信息。凭据完全沿用本机的
-git 配置（ssh key、credential helper），插件不保存任何 token。一次同步依次做：
+填远程仓库（SSH 或 HTTPS，可留空——那样只在本机提交版本）、分支、提交信息。SSH 远端凭据沿用本机的
+git 配置（ssh key、credential helper）；HTTP(S) 远端（如自建 Gitea）在后台同步时无法弹窗，需要在同步设置里填
+**用户名 + 密码/访问令牌**，插件用环境变量把它们交给一个临时 credential helper（令牌不会出现在进程参数里）。
+凭据保存在库内 `.dsh-notebook/sync.json`（0600，不参与同步、不进 git）。一次同步依次做：
 `git add -A` → 有改动就 `commit` → `fetch` → 落后就 `rebase origin/<分支>` → `push`；
 base 冲突会中止 rebase 并把冲突文件列出来，仓库不会卡在 rebase 中间。
+远程不可达时不会挂死：SSH 默认走 `BatchMode=yes`（不弹密码/口令提示，也意味着无密码密钥或 ssh-agent
+是前提）、15 秒连接超时；fetch/push/ls-remote 最多 60 秒，超时会连同它启动的 ssh 子进程一起杀掉并报
+「git 命令超时」。HTTP 远端另外限制低速传输（低于 1 KB/s 持续 20 秒即中断）。
 
 ### 行为
 
