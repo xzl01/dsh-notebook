@@ -2243,6 +2243,55 @@ check('flash capture and panel render their controls', () => {
   assert(panel.some((node) => node.type === 'input'), 'the panel search box is missing')
 })
 
+
+check('marp code blocks split into slides and render one at a time', () => {
+  const { parseMarpDeck, MarpDeck } = captured.module.__internal
+  const source = [
+    '---',
+    'marp：true',
+    '---',
+    '# 第一张',
+    '',
+    '正文',
+    '',
+    '---',
+    '## 第二张',
+    '',
+    '| a | b |',
+    '| - | - |',
+    '| 1 | 2 |',
+  ].join('\n')
+  const deck = parseMarpDeck(source, '纯文本')
+  assert(deck !== null, 'a marp deck with a full-width colon was not recognized')
+  assert(deck.slides.length === 2, `expected 2 slides, got ${deck.slides.length}`)
+  assert(deck.slides[0].startsWith('# 第一张'), deck.slides[0])
+  assert(deck.slides[1].startsWith('## 第二张'), deck.slides[1])
+  assert(parseMarpDeck('const a = 1', 'js') === null, 'plain code became a deck')
+  assert(parseMarpDeck('# one\n\n---\n\n# two', 'marp') !== null, 'a marp fence without frontmatter was not recognized')
+
+  resetState([0])
+  const tree = MarpDeck({ slides: deck.slides, t: (key) => key })
+  const elements = []
+  const walk = (node) => {
+    if (node === null || node === undefined) return
+    if (Array.isArray(node)) return node.forEach(walk)
+    if (typeof node !== 'object') return
+    elements.push(node)
+    walk(node.children)
+  }
+  walk(tree)
+  const stage = elements.find((node) => String(node.props?.className ?? '') === 'nb-deck-stage')
+  const slide = elements.find((node) => String(node.props?.className ?? '') === 'nb-deck-slide')
+  const counter = elements.find((node) => String(node.props?.className ?? '') === 'nb-deck-count')
+  assert(stage !== undefined, 'the slide stage is missing')
+  assert(slide !== undefined, 'the slide body is missing')
+  assert(String(slide.props.dangerouslySetInnerHTML.__html).includes('<h3>第一张</h3>'), 'the first slide did not render')
+  assert(counter !== undefined && counter.children.join('') === '1 / 2', 'the slide counter is wrong')
+  const nav = elements.filter((node) => String(node.props?.className ?? '') === 'nb-deck-btn')
+  assert(nav.length === 2, `expected two navigation buttons, found ${nav.length}`)
+  return '2 slides + stage + counter + nav'
+})
+
 console.log('')
 console.log(`SUMMARY: ${passed} passed, ${failed} failed`)
 process.exit(failed === 0 ? 0 : 1)

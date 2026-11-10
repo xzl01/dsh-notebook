@@ -1025,9 +1025,10 @@ function createVault(config, hooks = {}) {
     const notes = []
     await walkNotes(base, base, notes, Math.min(config.maxIndexFiles, MAX_SEARCH_FILES))
     const matches = []
+    const titles = []
+    const bodies = []
     let scanned = 0
     for (const note of notes) {
-      if (matches.length >= max) break
       if (note.size > config.maxNoteBytes) continue
       scanned += 1
       let text
@@ -1037,14 +1038,39 @@ function createVault(config, hooks = {}) {
         continue
       }
       const lines = text.split(/\r\n|\r|\n/)
+      const heading = /^#{1,6}\s+(.+)$/.exec((lines[0] ?? '').trim())
+      const headingText = heading === null ? '' : heading[1].trim()
+      const nameMatch = note.name.toLowerCase().includes(lower)
+      const headingMatch = headingText.length > 0 && headingText.toLowerCase().includes(lower)
+      if (nameMatch || headingMatch) {
+        titles.push({
+          path: note.path,
+          name: note.name,
+          dir: note.dir,
+          heading: headingText,
+          matchedIn: nameMatch ? 'name' : 'heading',
+        })
+      }
+      const hits = []
       for (let index = 0; index < lines.length; index += 1) {
-        if (lines[index].toLowerCase().includes(lower)) {
-          matches.push({ path: note.path, line: index + 1, text: lines[index].slice(0, 240) })
-          if (matches.length >= max) break
-        }
+        if (!lines[index].toLowerCase().includes(lower)) continue
+        const line = { path: note.path, line: index + 1, text: lines[index].slice(0, 240) }
+        if (matches.length < max) matches.push(line)
+        // The H1 line is the note's title, so it belongs to the title group
+        // instead of repeating the name in a body hit.
+        if (!(heading !== null && index === 0)) hits.push({ line: index + 1, text: lines[index].slice(0, 240) })
+      }
+      if (hits.length > 0) {
+        bodies.push({ path: note.path, name: note.name, dir: note.dir, hits: hits.slice(0, 3), hitCount: hits.length })
       }
     }
-    return { query: needle, matches, scanned, truncated: matches.length >= max }
+    return {
+      query: needle,
+      matches,
+      groups: { titles: titles.slice(0, 30), body: bodies.slice(0, 30) },
+      scanned,
+      truncated: matches.length >= max,
+    }
   }
 
   async function saveAttachment(name, dataBase64) {

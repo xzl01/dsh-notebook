@@ -613,6 +613,13 @@ window.__ModuleLoader__.load({
       flashCatSpark: '灵感',
       flashCatQuote: '摘录',
       flashShortcut: '闪念：快速记一笔',
+      searchTitleHits: '标题匹配',
+      searchBodyHits: '正文匹配',
+      searchMoreHits: '还有 {count} 处',
+      deckSlides: '幻灯片',
+      deckSource: 'Markdown',
+      deckPrev: '上一张',
+      deckNext: '下一张',
       menuOpenNotebook: '打开笔记本',
       menuAskAi: '问 AI（当前笔记）',
       menuInsertNote: '插入当前笔记',
@@ -1033,6 +1040,13 @@ window.__ModuleLoader__.load({
       flashCatSpark: 'Spark',
       flashCatQuote: 'Quote',
       flashShortcut: 'Flash: quick capture',
+      searchTitleHits: 'Title matches',
+      searchBodyHits: 'In body',
+      searchMoreHits: '{count} more',
+      deckSlides: 'Slides',
+      deckSource: 'Markdown',
+      deckPrev: 'Previous slide',
+      deckNext: 'Next slide',
       menuOpenNotebook: 'Open notebook',
       menuAskAi: 'Ask AI (current note)',
       menuInsertNote: 'Insert current note',
@@ -1199,7 +1213,20 @@ window.__ModuleLoader__.load({
 .nb-hit { display: block; width: 100%; box-sizing: border-box; border: none; background: transparent; color: var(--nb-text); text-align: left; padding: 6px 8px; border-radius: var(--nb-radius-s); cursor: pointer; overflow: hidden; transition: background .14s var(--nb-ease); }
 .nb-hit:hover { background: var(--nb-hover); }
 .nb-hit-name { display: block; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nb-hit-line { display: block; margin-top: 1px; font-size: 11px; color: var(--nb-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-search-results { padding: 4px 4px 12px; }
+.nb-search-group { margin-bottom: 6px; }
+.nb-search-group-title { display: flex; align-items: center; gap: 6px; padding: 8px 8px 4px; font-size: 10.5px; font-weight: 600; letter-spacing: .04em; color: var(--nb-text-3); }
+.nb-search-group-count { margin-left: auto; font-size: 10px; color: var(--nb-text-3); opacity: .8; }
+.nb-hit-title { padding: 6px 8px; }
+.nb-hit-dir { display: block; margin-top: 1px; font-size: 10.5px; color: var(--nb-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-hit-note { padding: 2px 0 4px; }
+.nb-hit-note-name { display: block; width: 100%; box-sizing: border-box; border: none; background: transparent; color: var(--nb-text); text-align: left; font-size: 12px; font-weight: 500; padding: 4px 8px; border-radius: var(--nb-radius-s); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-hit-note-name:hover { background: var(--nb-hover); }
+.nb-hit-line { display: flex; align-items: baseline; gap: 6px; width: 100%; box-sizing: border-box; border: none; background: transparent; color: var(--nb-text-2); text-align: left; padding: 3px 8px 3px 16px; border-radius: var(--nb-radius-s); cursor: pointer; }
+.nb-hit-line:hover { background: var(--nb-hover); color: var(--nb-text); }
+.nb-hit-line-no { flex: 0 0 auto; min-width: 18px; font-size: 10px; color: var(--nb-text-3); font-variant-numeric: tabular-nums; }
+.nb-hit-line-text { flex: 1 1 auto; min-width: 0; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-hit-more { padding: 2px 8px 0 16px; font-size: 10px; color: var(--nb-text-3); }
 .nb-side-empty { padding: 14px 10px; font-size: 12px; color: var(--nb-text-3); line-height: 1.7; }
 
 /* ── Outline ───────────────────────────────────────────── */
@@ -1322,6 +1349,34 @@ window.__ModuleLoader__.load({
 .nb-b-code .c-string { color: var(--dsw-alias-state-success-primary); }
 .nb-b-code .c-number { color: var(--dsw-alias-state-warn-primary); }
 .nb-b-code .c-keyword { color: var(--nb-accent); }
+
+/* Marp deck inside a fenced block */
+.nb-b-code.nb-has-deck { background: transparent; border: none; padding: 0; white-space: normal; font-family: inherit; font-size: inherit; line-height: inherit; }
+.nb-deck { display: flex; flex-direction: column; gap: 8px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+.nb-deck-bar { display: flex; align-items: center; gap: 6px; }
+.nb-deck-tag { font-size: 9.5px; letter-spacing: .1em; color: var(--nb-text-2); border: 1px solid var(--nb-line-2); border-radius: 4px; padding: 1px 5px; }
+.nb-deck-tab { border: none; background: transparent; color: var(--nb-text-2); font-size: 11.5px; padding: 3px 9px; border-radius: 5px; cursor: pointer; }
+.nb-deck-tab:hover { background: var(--nb-hover); color: var(--nb-text); }
+.nb-deck-tab.on { background: var(--nb-accent-soft); color: var(--nb-accent); }
+.nb-deck-stage { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 560px; border: 1px solid var(--nb-line); border-radius: 10px; background: #fff; color: #1c1c1e; overflow: hidden; box-shadow: 0 6px 20px rgba(16, 24, 40, .08); outline: none; }
+.nb-deck-stage:focus-visible { border-color: var(--nb-accent); box-shadow: 0 0 0 3px var(--nb-accent-ring); }
+.nb-deck-slide { position: absolute; inset: 0; overflow: auto; padding: 4.5% 5.5%; font-size: clamp(12px, 1.15vw, 17px); line-height: 1.6; }
+.nb-deck-slide h3 { margin: 0 0 .45em; font-size: 2em; line-height: 1.2; }
+.nb-deck-slide h4 { margin: 0 0 .5em; font-size: 1.5em; line-height: 1.25; }
+.nb-deck-slide h5 { margin: 0 0 .5em; font-size: 1.2em; }
+.nb-deck-slide p { margin: .45em 0; }
+.nb-deck-slide ul, .nb-deck-slide ol { margin: .4em 0; padding-left: 1.25em; }
+.nb-deck-slide blockquote { margin: .6em 0; padding: .2em .8em; border-left: 3px solid #c9cfda; color: #4a4f58; }
+.nb-deck-slide table { border-collapse: collapse; margin: .6em 0; font-size: .82em; }
+.nb-deck-slide th, .nb-deck-slide td { border: 1px solid #d5d9e0; padding: 4px 9px; text-align: left; vertical-align: top; }
+.nb-deck-slide th { background: #f3f5f9; }
+.nb-deck-slide code { background: #f1f3f7; padding: 1px 4px; border-radius: 3px; font-size: .9em; }
+.nb-deck-slide pre { background: #f6f8fa; padding: 8px 10px; border-radius: 6px; overflow: auto; }
+.nb-deck-nav { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.nb-deck-btn { width: 26px; height: 26px; border: 1px solid var(--nb-line-2); background: var(--nb-card); color: var(--nb-text); border-radius: 6px; cursor: pointer; font-size: 14px; line-height: 1; }
+.nb-deck-btn:hover { border-color: var(--nb-accent); color: var(--nb-accent); }
+.nb-deck-count { min-width: 46px; text-align: center; font-size: 11.5px; color: var(--nb-text-2); }
+.nb-deck-fallback { padding: 16px 18px; border: 1px dashed var(--nb-line-2); border-radius: 8px; color: var(--dsw-alias-state-error-primary); font-size: 12.5px; line-height: 1.7; }
 .nb-code-lang-wrap { position: absolute; top: 10px; right: 12px; z-index: 5; }
 .nb-code-lang { border: none; background: var(--nb-card); color: var(--nb-text-3); font-size: 10.5px; padding: 3px 8px; border-radius: var(--nb-radius-s); cursor: pointer; opacity: 0; transition: opacity .12s; box-shadow: var(--nb-shadow-1); }
 .nb-block:hover .nb-code-lang { opacity: 1; }
@@ -4224,6 +4279,9 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /** Per-block Marp view choice, so a remount does not flip back unexpectedly. */
+    const MARP_MODES = new Map()
+
     const NOTE_TOOL_TITLE_KEYS = {
       notebook_read: 'chatReadNote',
       notebook_write: 'chatWriteNote',
@@ -5588,6 +5646,125 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /**
+     * A Marp deck inside a fenced block: optional YAML frontmatter announcing
+     * `marp: true` (the note may use a full-width colon), then slides separated
+     * by `---` (or `***` / `___`, as Marp allows). Returns null for other code.
+     */
+    function parseMarpDeck(source, lang) {
+      const raw = String(source ?? '').replace(/\r\n/g, '\n')
+      if (raw.trim().length === 0) return null
+      const lines = raw.split('\n')
+      const languageSaysMarp = typeof lang === 'string' && /marp/i.test(lang)
+      let start = 0
+      let frontmatter = false
+      if (lines[0].trim() === '---') {
+        const end = lines.findIndex((line, index) => index > 0 && /^\s*---\s*$/.test(line))
+        if (end > 0) {
+          const head = lines.slice(1, end).join('\n')
+          if (/^\s*marp\s*[:：]\s*true\b/im.test(head)) {
+            start = end + 1
+            frontmatter = true
+          }
+        }
+      }
+      if (!frontmatter && !languageSaysMarp) return null
+      const slides = []
+      let current = []
+      const flush = () => {
+        const body = current.join('\n').trim()
+        if (body.length > 0) slides.push(body)
+        current = []
+      }
+      for (let index = start; index < lines.length; index += 1) {
+        if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(lines[index])) {
+          flush()
+          continue
+        }
+        current.push(lines[index])
+      }
+      flush()
+      return slides.length > 0 ? { slides } : null
+    }
+
+    /** Error boundary so one bad slide can never take the page down. */
+    const MarpBoundary =
+      typeof React.Component === 'function'
+        ? class MarpBoundary extends React.Component {
+            constructor(props) {
+              super(props)
+              this.state = { error: null }
+            }
+            static getDerivedStateFromError(error) {
+              return { error }
+            }
+            render() {
+              if (this.state.error !== null) {
+                return h(
+                  'div',
+                  { className: 'nb-deck-fallback' },
+                  `幻灯片渲染失败：${(this.state.error && this.state.error.message) || this.state.error}`,
+                )
+              }
+              return this.props.children
+            }
+          }
+        : null
+
+    /** One slide at a time with arrow-key and button navigation. */
+    function MarpDeck({ slides, t }) {
+      const [index, setIndex] = React.useState(0)
+      const total = slides.length
+      const safe = Math.max(0, Math.min(index, total - 1))
+      const go = (step) => setIndex(total === 0 ? 0 : (safe + step + total) % total)
+      let html = ''
+      try {
+        html = answerHtml(slides[safe] ?? '')
+      } catch (error) {
+        html = `<pre>${escapeHtml(slides[safe] ?? '')}</pre>`
+      }
+      return h(
+        'div',
+        { className: 'nb-deck' },
+        h(
+          'div',
+          {
+            className: 'nb-deck-stage',
+            tabIndex: 0,
+            role: 'region',
+            'aria-label': t('deckSlides'),
+            onKeyDown: (event) => {
+              if (event.key === 'ArrowRight' || event.key === 'PageDown') {
+                event.preventDefault()
+                event.stopPropagation()
+                go(1)
+              } else if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+                event.preventDefault()
+                event.stopPropagation()
+                go(-1)
+              }
+            },
+          },
+          h('div', { className: 'nb-deck-slide', dangerouslySetInnerHTML: { __html: html } }),
+        ),
+        h(
+          'div',
+          { className: 'nb-deck-nav' },
+          h(
+            'button',
+            { type: 'button', className: 'nb-deck-btn', 'aria-label': t('deckPrev'), onClick: () => go(-1) },
+            '‹',
+          ),
+          h('span', { className: 'nb-deck-count' }, `${safe + 1} / ${total}`),
+          h(
+            'button',
+            { type: 'button', className: 'nb-deck-btn', 'aria-label': t('deckNext'), onClick: () => go(1) },
+            '›',
+          ),
+        ),
+      )
+    }
+
     function BlockView(props) {
       const {
         block,
@@ -5650,6 +5827,11 @@ window.__ModuleLoader__.load({
       const longPressTimer = React.useRef(null)
       const longPressed = React.useRef(false)
       const [langOpen, setLangOpen] = React.useState(false)
+      const [marpMode, setMarpMode] = React.useState(() => MARP_MODES.get(block.id) ?? 'deck')
+      const chooseMarpMode = (mode) => {
+        MARP_MODES.set(block.id, mode)
+        setMarpMode(mode)
+      }
 
       React.useEffect(() => {
         if (!langOpen) return undefined
@@ -5964,6 +6146,8 @@ window.__ModuleLoader__.load({
 
       const cls = BLOCK_CLASS[block.type] ?? 'p'
       const text = block.text ?? ''
+      // A fenced Marp deck renders as slides; the bar switches back to source.
+      const marp = block.type === 'code' ? parseMarpDeck(text, block.lang) : null
       const placeholder =
         block.type === 'heading1' || block.type === 'heading2' || block.type === 'heading3'
           ? t('placeholderTitle')
@@ -6021,6 +6205,50 @@ window.__ModuleLoader__.load({
         let content = inline
         if (block.type === 'divider') {
           content = null
+        } else if (block.type === 'code' && marp !== null) {
+          content = h(
+            'div',
+            {
+              className: 'nb-deck',
+              // Clicks and presses here must never reach the block's
+              // click-to-edit handler: paging would otherwise open the source.
+              onClick: (event) => event.stopPropagation(),
+              onMouseDown: (event) => event.stopPropagation(),
+              onDoubleClick: (event) => event.stopPropagation(),
+            },
+            h(
+              'div',
+              { className: 'nb-deck-bar' },
+              h('span', { className: 'nb-deck-tag' }, 'MARP'),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: `nb-deck-tab${marpMode === 'deck' ? ' on' : ''}`,
+                  onClick: () => chooseMarpMode('deck'),
+                },
+                t('deckSlides'),
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: `nb-deck-tab${marpMode === 'source' ? ' on' : ''}`,
+                  onClick: () => chooseMarpMode('source'),
+                },
+                t('deckSource'),
+              ),
+            ),
+            marpMode === 'deck'
+              ? h(
+                  'div',
+                  { className: 'nb-deck-body' },
+                  MarpBoundary === null
+                    ? h(MarpDeck, { slides: marp.slides, t })
+                    : h(MarpBoundary, null, h(MarpDeck, { slides: marp.slides, t })),
+                )
+              : highlightCode(text),
+          )
         } else if (block.type === 'code') {
           content = text.length > 0 ? highlightCode(text) : placeholder
         } else if (content === null) {
@@ -6034,7 +6262,7 @@ window.__ModuleLoader__.load({
             {
               key: 'view',
               ref: renderRef,
-              className: `nb-b nb-b-${cls} nb-b-render`,
+              className: `nb-b nb-b-${cls} nb-b-render${marp !== null && marpMode === 'deck' ? ' nb-has-deck' : ''}`,
               onClick: beginEditing,
               onDoubleClick: beginEditing,
               onTouchStart: handleTouchStart,
@@ -10051,7 +10279,21 @@ window.__ModuleLoader__.load({
         searchTimer.current = setTimeout(async () => {
           try {
             const data = await apiGet(`/search?q=${encodeURIComponent(query)}&limit=50`)
-            setHits(Array.isArray(data.matches) ? data.matches : [])
+            // One state object keeps the matches and their title/body split
+            // together; the sidebar renders the groups, tools keep the lines.
+            setHits({
+              matches: Array.isArray(data.matches) ? data.matches : [],
+              groups: {
+                titles:
+                  data.groups !== null && data.groups !== undefined && Array.isArray(data.groups.titles)
+                    ? data.groups.titles
+                    : [],
+                body:
+                  data.groups !== null && data.groups !== undefined && Array.isArray(data.groups.body)
+                    ? data.groups.body
+                    : [],
+              },
+            })
           } catch (error) {
             setNotice({ kind: 'error', text: error.message })
           }
@@ -10467,20 +10709,83 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
           loading === true
             ? h('div', { className: 'nb-side-empty' }, t('loading'))
             : hits !== null
-              ? hits.length === 0
+              ? hits.groups.titles.length === 0 && hits.groups.body.length === 0
                 ? h('div', { className: 'nb-side-empty' }, t('noResults'))
-                : hits.map((hit, hitIndex) =>
-                    h(
-                      'button',
-                      {
-                        key: `hit-${hitIndex}`,
-                        className: 'nb-hit',
-                        onClick: () => openNote(hit.path),
-                        title: `${hit.path}:${hit.line}`,
-                      },
-                      h('span', { className: 'nb-hit-name' }, hit.path.split('/').pop().replace(/\.md$/i, '')),
-                      h('span', { className: 'nb-hit-line' }, highlightText(hit.text, search)),
-                    ),
+                : h(
+                    'div',
+                    { className: 'nb-search-results' },
+                    hits.groups.titles.length > 0
+                      ? h(
+                          'div',
+                          { className: 'nb-search-group' },
+                          h(
+                            'div',
+                            { className: 'nb-search-group-title' },
+                            t('searchTitleHits'),
+                            h('span', { className: 'nb-search-group-count' }, String(hits.groups.titles.length)),
+                          ),
+                          hits.groups.titles.map((note) =>
+                            h(
+                              'button',
+                              {
+                                key: `title-${note.path}`,
+                                className: 'nb-hit nb-hit-title',
+                                onClick: () => openNote(note.path),
+                                title: note.path,
+                              },
+                              h('span', { className: 'nb-hit-name' }, highlightText(note.name, search)),
+                              note.dir.length > 0 ? h('span', { className: 'nb-hit-dir' }, note.dir) : null,
+                            ),
+                          ),
+                        )
+                      : null,
+                    hits.groups.body.length > 0
+                      ? h(
+                          'div',
+                          { className: 'nb-search-group' },
+                          h(
+                            'div',
+                            { className: 'nb-search-group-title' },
+                            t('searchBodyHits'),
+                            h('span', { className: 'nb-search-group-count' }, String(hits.groups.body.length)),
+                          ),
+                          hits.groups.body.map((note) =>
+                            h(
+                              'div',
+                              { key: `body-${note.path}`, className: 'nb-hit-note' },
+                              h(
+                                'button',
+                                {
+                                  className: 'nb-hit-note-name',
+                                  onClick: () => openNote(note.path),
+                                  title: note.path,
+                                },
+                                highlightText(note.name, search),
+                              ),
+                              note.hits.map((hit) =>
+                                h(
+                                  'button',
+                                  {
+                                    key: `${note.path}-${hit.line}`,
+                                    className: 'nb-hit-line',
+                                    onClick: () => openNote(note.path),
+                                    title: `${note.path}:${hit.line}`,
+                                  },
+                                  h('span', { className: 'nb-hit-line-no' }, String(hit.line)),
+                                  h('span', { className: 'nb-hit-line-text' }, highlightText(hit.text, search)),
+                                ),
+                              ),
+                              note.hitCount > note.hits.length
+                                ? h(
+                                    'div',
+                                    { className: 'nb-hit-more' },
+                                    t('searchMoreHits', { count: note.hitCount - note.hits.length }),
+                                  )
+                                : null,
+                            ),
+                          ),
+                        )
+                      : null,
                   )
               : notes.length === 0
                 ? h('div', { className: 'nb-side-empty' }, t('noNotes'))
@@ -13360,6 +13665,8 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         syncSettingsFromForm,
         FlashCapture,
         FlashPanel,
+        parseMarpDeck,
+        MarpDeck,
         flashCategoryLabel,
         flashCategoryIndex,
         flashErrorLabel,

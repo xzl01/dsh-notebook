@@ -1081,6 +1081,26 @@ async function main() {
     assert.match(literal, /笔记\/项目\/设计\.md:3:/)
   })
 
+  await check('GET /api/search splits title matches from body hits', async () => {
+    const byTitle = expectOk(await get('/notebook/api/search', { q: '设计' }), 'search title')
+    const title = byTitle.groups.titles.find((note) => note.path === '笔记/项目/设计.md')
+    assert.ok(title !== undefined, JSON.stringify(byTitle.groups.titles))
+    assert.equal(title.matchedIn, 'name')
+    assert.ok(
+      !byTitle.groups.body.some((note) => note.path === '笔记/项目/设计.md'),
+      'a title-only match leaked into the body group',
+    )
+
+    const byBody = expectOk(await get('/notebook/api/search', { q: 'needle-alpha' }), 'search body')
+    const body = byBody.groups.body.find((note) => note.path === '笔记/欢迎.md')
+    assert.ok(body !== undefined, JSON.stringify(byBody.groups.body))
+    assert.equal(body.hits[0].line, 3)
+    assert.ok(
+      !byBody.groups.titles.some((note) => note.path === '笔记/欢迎.md'),
+      'a body hit leaked into the title group',
+    )
+  })
+
   await check('tool notebook_search reports zero matches for excluded content', async () => {
     const output = await tools.get('notebook_search').execute({ query: 'needle-hidden' }, { signal })
     assert.equal(typeof output, 'string')
