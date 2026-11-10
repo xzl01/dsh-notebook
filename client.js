@@ -2690,6 +2690,14 @@ window.__ModuleLoader__.load({
       return out
     }
 
+    /**
+     * A block whose text is empty (or only newlines left by an empty `<br>`)
+     * counts as blank, so Backspace on it can delete the block again.
+     */
+    function isBlankBlockText(text) {
+      return String(text ?? '').replace(/\n/g, '') === ''
+    }
+
     function htmlToMarkdown(element) {
       if (element === null || element === undefined) return ''
       return childrenToMarkdown(element)
@@ -3513,7 +3521,10 @@ window.__ModuleLoader__.load({
 
       function handleInput(event) {
         const element = event.currentTarget
-        const text = htmlToMarkdown(element)
+        let text = htmlToMarkdown(element)
+        // Deleting the last character leaves a placeholder `<br>` behind, which
+        // converts to a lone newline; keep the stored text truly empty instead.
+        if (text !== '' && isBlankBlockText(text)) text = ''
         // Typing `[[` opens note suggestions; the open brackets must be the last
         // thing in the block so text that merely contains `[[` does not trigger it.
         const wikiQueryText = wikiQueryFor(text)
@@ -3652,7 +3663,10 @@ window.__ModuleLoader__.load({
           insertPlainText('\n')
           return
         }
-        if (event.key === 'Backspace' && (block.text ?? '') === '') {
+        if (
+          event.key === 'Backspace' &&
+          (isBlankBlockText(block.text) || isBlankBlockText(htmlToMarkdown(event.currentTarget)))
+        ) {
           event.preventDefault()
           // An empty styled block steps back to plain text first (Notion's
           // behaviour); only an empty paragraph itself merges into the previous
@@ -8666,6 +8680,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         sortCollectionRows,
         groupCollectionRows,
         isTemplateHref,
+        isBlankBlockText,
         EMOJI_SHORTCODES,
         removeTagFromList,
         withFrontmatterValue,

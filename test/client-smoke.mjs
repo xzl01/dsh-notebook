@@ -1263,6 +1263,17 @@ check('collection views derive columns, filter, sort and group', () => {
   return 'collection helpers'
 })
 
+check('blank blocks treat newline-only text as empty', () => {
+  const { isBlankBlockText } = captured.module.__internal
+  assert(isBlankBlockText('') === true, 'empty string failed')
+  assert(isBlankBlockText('\n') === true, 'single newline failed')
+  assert(isBlankBlockText('\n\n\n') === true, 'multiple newlines failed')
+  assert(isBlankBlockText(' ') === false, 'a space is still content')
+  assert(isBlankBlockText('文字') === false, 'text failed')
+  assert(isBlankBlockText('\n文字') === false, 'newline plus text failed')
+  return '6 blank-text cases'
+})
+
 check('Workbench renders a selected note with one block view per block', () => {
   const { parseBlocks, BlockView } = captured.module.__internal
   const blocks = parseBlocks('# 标题\n\n正文\n\n- 列表 A\n- 列表 B\n\n- [ ] 待办\n\n> 引用\n')
