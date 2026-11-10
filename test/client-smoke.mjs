@@ -611,6 +611,18 @@ check('frontmatter type: folder pins the page and can point at another folder', 
   return 'pinned + override + link body'
 })
 
+check('callout kinds map to icons and cycle in order', () => {
+  const { calloutKind, calloutIcon, nextCalloutKind } = captured.module.__internal
+  assert(calloutKind('WARNING') === 'warning', 'variant matching is case-insensitive')
+  assert(calloutKind('bogus') === 'note', 'unknown kinds fall back to note')
+  assert(calloutIcon('bogus') === calloutIcon('note'), 'unknown kinds reuse the note icon')
+  assert(calloutIcon('success') !== calloutIcon('note'), 'known kinds keep their own icon')
+  assert(nextCalloutKind('note') === 'tip', 'cycle advances')
+  assert(nextCalloutKind('bogus') === 'tip', 'unknown kinds cycle from note')
+  assert(nextCalloutKind('example') === 'note', 'cycle wraps')
+  return 'fallback + icon + wrap'
+})
+
 check('collection filters parse and apply conditions', () => {
   const { parseCollectionFilter, applyCollectionFilter, parseCollectionSort } = captured.module.__internal
   const rows = [

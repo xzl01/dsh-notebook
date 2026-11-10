@@ -356,6 +356,7 @@ window.__ModuleLoader__.load({
       typeDivider: '分隔线',
       typeTable: '表格',
       typeCallout: '提示块',
+      calloutCycle: '点击切换标注类型',
       typeToggle: '折叠列表',
       expandToggle: '展开',
       collapseToggle: '收起',
@@ -665,6 +666,7 @@ window.__ModuleLoader__.load({
       typeDivider: 'Divider',
       typeTable: 'Table',
       typeCallout: 'Callout',
+      calloutCycle: 'Click to change the callout type',
       typeToggle: 'Toggle list',
       expandToggle: 'Expand',
       collapseToggle: 'Collapse',
@@ -1066,8 +1068,19 @@ window.__ModuleLoader__.load({
 .nb-code-lang-item:hover, .nb-code-lang-item.on { background: var(--nb-hover); }
 
 /* callout & toggle */
-.nb-type-callout { background: var(--nb-panel); border: 1px solid var(--nb-line); border-radius: var(--nb-radius-m); padding: 8px 12px 8px 6px; margin: 8px 0; }
-.nb-callout-icon { flex: 0 0 auto; padding: 4px 8px 0; font-size: 16px; line-height: 1.4; }
+.nb-block.nb-callout-note, .nb-block.nb-callout-info { --nb-callout-tone: var(--nb-accent); }
+.nb-block.nb-callout-tip, .nb-block.nb-callout-abstract { --nb-callout-tone: #0d9488; }
+.nb-block.nb-callout-success, .nb-block.nb-callout-todo { --nb-callout-tone: var(--dsw-alias-state-success-primary, #1a7f4b); }
+.nb-block.nb-callout-warning { --nb-callout-tone: var(--dsw-alias-state-warn-primary, #b45309); }
+.nb-block.nb-callout-danger, .nb-block.nb-callout-bug, .nb-block.nb-callout-failure { --nb-callout-tone: var(--dsw-alias-state-error-primary, #c0392b); }
+.nb-block.nb-callout-question, .nb-block.nb-callout-important { --nb-callout-tone: #7c3aed; }
+.nb-block.nb-callout-example { --nb-callout-tone: #4f46e5; }
+.nb-block.nb-callout-quote { --nb-callout-tone: var(--nb-text-3); }
+.nb-type-callout { background: color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 10%, var(--nb-surface)); border: 1px solid color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 20%, transparent); border-radius: var(--nb-radius-m); padding: 7px 12px 7px 8px; margin: 8px 0; }
+.nb-callout-icon { flex: 0 0 auto; width: 26px; height: 26px; margin: 1px 7px 0 1px; padding: 0; border: none; border-radius: var(--nb-radius-s); background: color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 16%, transparent); font-size: 13.5px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background .14s var(--nb-ease); }
+.nb-callout-icon:hover { background: color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 28%, transparent); }
+.nb-root.reading .nb-callout-icon { cursor: default; }
+.nb-root.reading .nb-callout-icon:hover { background: color-mix(in srgb, var(--nb-callout-tone, var(--nb-accent)) 16%, transparent); }
 .nb-b-callout { padding: 3px 4px; }
 .nb-type-toggle .nb-b { font-weight: 600; }
 .nb-toggle-arrow { flex: 0 0 auto; width: 22px; height: 30px; padding: 0; border: none; border-radius: var(--nb-radius-s); background: transparent; color: var(--nb-text-3); font-size: 12px; line-height: 1; cursor: pointer; transition: background .12s, color .12s; }
@@ -4791,11 +4804,30 @@ window.__ModuleLoader__.load({
       success: '✅',
       quote: '💬',
       example: '📌',
+      abstract: '📋',
+      todo: '☑️',
+      bug: '🐞',
+      failure: '❌',
+      important: '❗',
+    }
+    const CALLOUT_KINDS = new Set(Object.keys(CALLOUT_ICONS))
+
+    /** Safe tone key for a callout variant; unknown kinds fall back to note. */
+    function calloutKind(variant) {
+      const key = String(variant ?? 'note').toLowerCase()
+      return CALLOUT_KINDS.has(key) ? key : 'note'
     }
 
     function calloutIcon(variant) {
-      const key = String(variant ?? 'note').toLowerCase()
-      return CALLOUT_ICONS[key] ?? CALLOUT_ICONS.note
+      return CALLOUT_ICONS[calloutKind(variant)]
+    }
+
+    const CALLOUT_CYCLE = ['note', 'tip', 'warning', 'danger', 'info', 'success', 'question', 'quote', 'example']
+
+    /** The kind a click on the callout badge moves to. */
+    function nextCalloutKind(variant) {
+      const index = CALLOUT_CYCLE.indexOf(calloutKind(variant))
+      return CALLOUT_CYCLE[(index + 1) % CALLOUT_CYCLE.length]
     }
 
     function formatBytes(bytes) {
@@ -4972,6 +5004,8 @@ window.__ModuleLoader__.load({
         onSplit,
         onRemove,
         onToggleTodo,
+        onCalloutVariant,
+        readOnly,
         onMenu,
         onType,
         onMove,
@@ -5429,7 +5463,28 @@ window.__ModuleLoader__.load({
       } else if (block.type === 'numbered') {
         prefix = h('div', { className: 'nb-prefix nb-prefix-num' }, `${number ?? 1}.`)
       } else if (block.type === 'callout') {
-        prefix = h('div', { className: 'nb-callout-icon', 'aria-hidden': 'true' }, calloutIcon(block.variant))
+        prefix =
+          typeof onCalloutVariant === 'function' && readOnly !== true
+            ? h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'nb-callout-icon',
+                  title: t('calloutCycle'),
+                  'aria-label': t('calloutCycle'),
+                  contentEditable: false,
+                  onMouseDown: (event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                  },
+                  onClick: (event) => {
+                    event.stopPropagation()
+                    onCalloutVariant(block.id)
+                  },
+                },
+                calloutIcon(block.variant),
+              )
+            : h('div', { className: 'nb-callout-icon', 'aria-hidden': 'true' }, calloutIcon(block.variant))
       } else if (block.type === 'toggle') {
         prefix = h(
           'button',
@@ -5562,7 +5617,7 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         {
-          className: `nb-block nb-type-${cls}${menuOpen === true ? ' menu-open' : ''}${dragging === true ? ' dragging' : ''}${selected === true ? ' selected' : ''}${dropMark === 'before' ? ' drop-before' : dropMark === 'after' ? ' drop-after' : ''}`,
+          className: `nb-block nb-type-${cls}${cls === 'callout' ? ` nb-callout-${calloutKind(block.variant)}` : ''}${menuOpen === true ? ' menu-open' : ''}${dragging === true ? ' dragging' : ''}${selected === true ? ' selected' : ''}${dropMark === 'before' ? ' drop-before' : dropMark === 'after' ? ' drop-after' : ''}`,
           'data-block': block.id,
           style:
             Number(block.indent) > 0
@@ -7970,6 +8025,14 @@ window.__ModuleLoader__.load({
         setDialog(null)
       }
 
+      function cycleCalloutVariant(id) {
+        updateBlocks(
+          blocksRef.current.map((item) =>
+            item.id === id && item.type === 'callout' ? { ...item, variant: nextCalloutKind(item.variant) } : item,
+          ),
+        )
+      }
+
       function toggleBlockCollapsed(id) {
         updateBlocks(
           blocksRef.current.map((block) =>
@@ -9491,6 +9554,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                       block,
                       index,
                       editing: editingId === block.id,
+                      readOnly: reading,
                       menuOpen: menuFor === block.id,
                       focusRequest,
                       number: numbers.get(block.id),
@@ -9517,6 +9581,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                       onTableResize: updateTableWidths,
                       onTableMoveColumn: moveTableColumns,
                       onToggleBlock: toggleBlockCollapsed,
+                      onCalloutVariant: cycleCalloutVariant,
                       onOpenWiki: openWiki,
                       onExtractPage: extractPage,
                       onTemplate: openTemplateButton,
@@ -11422,6 +11487,8 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         hiddenByCollapsedHeadings,
         hiddenByToggles,
         calloutIcon,
+        calloutKind,
+        nextCalloutKind,
         blockToHtml,
         BlockView,
       },

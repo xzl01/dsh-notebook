@@ -48,7 +48,10 @@
 - 列表 / 待办 / 段落 / 引用支持**缩进层级**：块内按 `Tab` 加深、`Shift+Tab` 减浅（最多 3 级），
   序列化为两个空格一层，可与其他 Markdown 编辑器互认；代码块内 `Tab` 插入两个空格。
 - 标题左侧 `▾ / ▸` 折叠该标题下内容，直到下一个同级或更高级标题。
-- `/callout` 或 `> [!note] 内容` 得到**提示块**（note / tip / warning / danger / success… 自动配图标）。
+- `/callout` 或 `> [!note] 内容` 得到**提示块**：按类型着色（note/info 蓝、tip/abstract 青、
+  warning 琥珀、danger/bug/failure 红、success/todo 绿、question/important 紫、quote 灰、
+  example 靛），背景是 10% 色调混入当前主题表面，深色主题自动成立；**点左侧图标可在
+  9 种类型间循环切换**（阅读模式下不可点），图标也会跟着变。`[!toggle]` 仍是折叠块。
 - `/toggle` 或 `> [!toggle] 标题` 得到**折叠列表**：下面缩进的块是内容，点箭头收起/展开，
   收起状态写回 `> [!toggle]-`，重开笔记仍保持。
 - **代码块**：悬停右上角语言标签切换语言（`js`、`python`…），保存为 ```lang 围栏；失焦后按注释 /
