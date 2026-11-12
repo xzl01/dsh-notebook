@@ -555,7 +555,16 @@ async function main() {
       .then(() => true)
       .catch(() => false)
     assert(legacyExists === false, 'stats must not live in the hidden folder')
-    return `${days[today]} chars on ${today}`
+    await post('/notebook/api/write', {
+      path: '笔记/写作热力.md',
+      content: '写作热力AB测试内容一二三四五六七八九十',
+    })
+    const inserted = await request('/notebook/api/stats/writing')
+    assert(
+      (inserted.body.days?.[today] ?? 0) === (again.body.days?.[today] ?? 0) + 2,
+      'inserting two characters counts two, not the whole note',
+    )
+    return `${days[today]} chars on ${today}, +2 after an insert`
   })
 
   await check('POST /api/write creates a nested note and returns mtimeMs', async () => {

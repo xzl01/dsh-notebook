@@ -455,6 +455,33 @@ async function walkNotes(dir, root, out, limit) {
   }
 }
 
+/**
+ * Characters a save added. Plain net growth misses text that was replaced at
+ * the same length; a raw prefix/suffix diff over-counts a reordered document
+ * (moving a paragraph looks like inserting the whole note). So count the
+ * inserted span for ordinary edits, and fall back to net growth when the span
+ * is large enough to be a rewrite.
+ */
+function charactersAdded(previous, next) {
+  const before = String(previous ?? '')
+  const after = String(next ?? '')
+  if (after.length <= before.length && after === before) return 0
+  let prefix = 0
+  const max = Math.min(before.length, after.length)
+  while (prefix < max && before[prefix] === after[prefix]) prefix += 1
+  let suffix = 0
+  while (suffix < max - prefix && before[before.length - 1 - suffix] === after[after.length - 1 - suffix]) {
+    suffix += 1
+  }
+  const inserted = Math.max(0, after.length - prefix - suffix)
+  const net = Math.max(0, after.length - before.length)
+  if (inserted === 0) return 0
+  // Ordinary typing / a small paste: the inserted span is the writing.
+  if (inserted <= 2000 || inserted <= before.length * 0.5) return inserted
+  // A wholesale rewrite or reorder: count the net growth instead of the span.
+  return net
+}
+
 /** Local calendar day (`YYYY-MM-DD`) — the heatmap follows the user's day, not UTC. */
 function localDateKey(ms) {
   const date = new Date(Number(ms) || Date.now())
@@ -998,17 +1025,17 @@ function createVault(config, hooks = {}) {
       const current = await fsp.readFile(abs, 'utf8')
       next = current.length === 0 || current.endsWith('\n') ? `${current}${content}` : `${current}\n${content}`
     }
-    let previousChars = 0
+    let previousText = ''
     if (existing !== null) {
       const previous = await fsp.readFile(abs, 'utf8').catch(() => null)
       if (previous !== null) {
-        previousChars = previous.length
+        previousText = previous
         await saveHistorySnapshot(base, rel, previous).catch(() => {})
       }
     }
     const stats = await writeAtomic(abs, next)
     invalidateListing()
-    await recordWriting(next.length - previousChars)
+    await recordWriting(charactersAdded(previousText, next))
     try {
       hooks.onWrite?.(rel)
     } catch {
