@@ -648,6 +648,15 @@ check('frontmatter type: folder pins the page and can point at another folder', 
   return 'pinned + override + link body'
 })
 
+check('removing a selected span keeps the rest of the block', () => {
+  const { removeMarkdownSelection } = captured.module.__internal
+  assert(removeMarkdownSelection('a cat a cat', 'a cat', 6) === 'a cat ', 'offset picks the second span')
+  assert(removeMarkdownSelection('a cat a cat', 'a cat') === ' a cat', 'without an offset the first span goes')
+  assert(removeMarkdownSelection('hello', 'nope') === 'hello', 'missing text leaves the block alone')
+  assert(removeMarkdownSelection('only', 'only') === '', 'a whole-block span empties it')
+  return 'offset / first span / missing / whole'
+})
+
 check('the format toolbar flips below and stays inside the document', () => {
   const { toolbarPositionFor } = captured.module.__internal
   const bounds = { left: 240, right: 1200 }

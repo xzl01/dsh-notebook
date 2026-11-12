@@ -3928,6 +3928,28 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       return { top: Math.max(8, top), left }
     }
 
+    /** Remove one selected substring from a block's Markdown text. */
+    function removeMarkdownSelection(text, selected, offset) {
+      const source = String(text ?? '')
+      const needle = String(selected ?? '')
+      if (needle.length === 0) return source
+      let start = -1
+      if (Number.isInteger(offset) && offset >= 0 && source.slice(offset, offset + needle.length) === needle) {
+        start = offset
+      } else {
+        start = source.indexOf(needle)
+      }
+      let length = needle.length
+      if (start < 0) {
+        const trimmed = needle.trim()
+        if (trimmed.length === 0) return source
+        start = source.indexOf(trimmed)
+        length = trimmed.length
+        if (start < 0) return source
+      }
+      return source.slice(0, start) + source.slice(start + length)
+    }
+
     /** True when the OS asks for reduced motion; JS-driven scrolling must honor it too. */
     function prefersReducedMotion() {
       return (
@@ -10695,7 +10717,10 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
                   .filter((id) => typeof id === 'string' && id.length > 0)
                 if (ids.length > 1) {
                   event.preventDefault()
-                  deleteBlocksByIds(ids)
+                  deleteSelectionAcrossBlocks(
+                    Array.from(doc.querySelectorAll('[data-block]')).filter((block) => range.intersectsNode(block)),
+                    range,
+                  )
                   return
                 }
               }
@@ -12120,12 +12145,37 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         return `${range.map((block) => blockToMarkdown(block)).join('\n\n')}\n`
       }
 
-      function deleteBlocksByIds(ids) {
-        const remove = new Set(Array.isArray(ids) ? ids : [])
-        if (remove.size === 0) return
-        const next = blocksRef.current.filter((block) => !remove.has(block.id))
+      function deleteSelectionAcrossBlocks(blockEls, range) {
+        const removeIds = new Set()
+        const changes = new Map()
+        for (const element of blockEls) {
+          const id = element.getAttribute('data-block')
+          const block = blocksRef.current.find((item) => item.id === id)
+          if (block === undefined) continue
+          const content = element.querySelector('.nb-b')
+          const sub = range.cloneRange()
+          if (content !== null) {
+            if (!content.contains(sub.startContainer)) sub.setStart(content, 0)
+            if (!content.contains(sub.endContainer)) sub.setEnd(content, content.childNodes.length)
+          }
+          const selected = sub.toString()
+          if (selected.length === 0) continue
+          const rendered = content === null ? '' : String(content.textContent ?? '')
+          // The whole block is inside the selection: drop the block itself.
+          if (selected.trim().length >= rendered.trim().length) {
+            removeIds.add(id)
+            continue
+          }
+          const offset =
+            content === null ? null : selectionOffsetIn(content, sub.startContainer, sub.startOffset)
+          const next = removeMarkdownSelection(block.text ?? '', selected, offset)
+          if (next !== block.text) changes.set(id, next)
+        }
+        const kept = blocksRef.current
+          .filter((block) => !removeIds.has(block.id))
+          .map((block) => (changes.has(block.id) ? { ...block, text: changes.get(block.id) } : block))
         updateBlocks(
-          next.length > 0 ? next : [{ id: makeId(), type: 'paragraph', text: '', checked: false }],
+          kept.length > 0 ? kept : [{ id: makeId(), type: 'paragraph', text: '', checked: false }],
         )
         setSelection(null)
         setEditingId(null)
@@ -16200,6 +16250,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         markdownNoteLink,
         wrapMarkdownSelection,
         clearMarkdownSelection,
+        removeMarkdownSelection,
         toolbarPositionFor,
         folderPageConfigFor,
         folderPageFor,
