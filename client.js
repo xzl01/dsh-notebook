@@ -13592,7 +13592,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                             try {
                               await apiPost('/create', {
                                 path,
-                                content: `# ${folder.split('/').pop()}\n\n`,
+                                content: `# ${folderHomeBase(folder)}\n\n`,
                               })
                               await loadList()
                               await openNote(path)
@@ -16394,6 +16394,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         directoryOpen,
         expandedPath,
         folderHomes,
+        folderHomeBase,
         folderHomePath,
         flashCategoryLabel,
         flashCategoryIndex,

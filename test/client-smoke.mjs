@@ -657,6 +657,15 @@ check('removing a selected span keeps the rest of the block', () => {
   return 'offset / first span / missing / whole'
 })
 
+check('folder home names strip the numeric prefix', () => {
+  const { folderHomeBase, folderHomePath } = captured.module.__internal
+  assert(folderHomeBase('笔记/01 工作') === '工作', folderHomeBase('笔记/01 工作'))
+  assert(folderHomeBase('笔记/05 归档与索引') === '归档与索引', folderHomeBase('笔记/05 归档与索引'))
+  assert(folderHomeBase('笔记/plain') === 'plain', 'a folder without a prefix is unchanged')
+  assert(folderHomePath('笔记/01 工作') === '笔记/01 工作/工作.md', folderHomePath('笔记/01 工作'))
+  return 'prefix stripped / plain / path'
+})
+
 check('heatmap month labels skip the trailing edge', () => {
   const { writingMonthLabels } = captured.module.__internal
   const weeks = [
