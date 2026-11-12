@@ -666,6 +666,24 @@ check('folder home names strip the numeric prefix', () => {
   return 'prefix stripped / plain / path'
 })
 
+check('an ask thread becomes a DSH session prompt', () => {
+  const { askThreadPrompt } = captured.module.__internal
+  const prompt = askThreadPrompt({
+    noteTitle: 'a',
+    thread: [
+      { role: 'user', text: '问一' },
+      { role: 'assistant', text: '答一' },
+      { role: 'user', text: '   ' },
+    ],
+  })
+  assert(prompt.includes('《a》'), 'names the note')
+  assert(prompt.includes('我：\n问一'), 'keeps the user turn')
+  assert(prompt.includes('AI：\n答一'), 'keeps the answer')
+  assert(prompt.includes('总结'), 'asks for a summary and where to continue')
+  assert(!prompt.includes('   '), 'blank messages are skipped')
+  return 'note name / roles / closing ask'
+})
+
 check('an ask thread saves as an AI-chat note in the note folder', () => {
   const { askThreadMarkdown, askThreadPath } = captured.module.__internal
   const date = new Date(2026, 10, 12, 14, 30)

@@ -791,6 +791,9 @@ window.__ModuleLoader__.load({
       askRetry: '重试',
       askClear: '清空对话',
       askSaveThread: '保存对话为笔记',
+      askWorkspaceOpen: '在 DSH 工作区继续这段对话',
+      askWorkspaceDone: '已创建 DSH 会话',
+      askWorkspaceUnsupported: '当前 Harness 不支持创建会话',
       askSaveThreadDone: '已保存对话：{path}',
       askNoteMissing: '找不到笔记：{name}',
     }
@@ -1236,6 +1239,9 @@ window.__ModuleLoader__.load({
       askRetry: 'Retry',
       askClear: 'Clear conversation',
       askSaveThread: 'Save the conversation',
+      askWorkspaceOpen: 'Continue in a DSH session',
+      askWorkspaceDone: 'DSH session created',
+      askWorkspaceUnsupported: 'This Harness cannot create sessions',
       askSaveThreadDone: 'Conversation saved: {path}',
       askNoteMissing: 'Note not found: {name}',
     }
@@ -5790,6 +5796,22 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       return fallback
     }
 
+    /** The first message of a DSH session that continues one ask-panel thread. */
+    function askThreadPrompt({ noteTitle, thread }) {
+      const messages = (Array.isArray(thread) ? thread : []).filter(
+        (message) => message !== null && typeof message === 'object' && String(message.text ?? '').trim().length > 0,
+      )
+      const lines = [
+        `这是我在笔记本《${noteTitle}》里和 AI 的一段对话，请在当前会话里接着这段上下文继续。`,
+        '',
+      ]
+      for (const message of messages) {
+        lines.push(message.role === 'user' ? '我：' : 'AI：', String(message.text ?? '').trim(), '')
+      }
+      lines.push('请先用几句话总结这段对话，然后问我想从哪一部分继续。')
+      return lines.join('\n')
+    }
+
     /** Date pieces shared by the transcript's filename and frontmatter. */
     function askThreadDateParts(date) {
       const d = date instanceof Date ? date : new Date(date ?? Date.now())
@@ -9724,7 +9746,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       )
     }
 
-    function Workbench({ t, locale }) {
+    function Workbench({ t, locale, ctx }) {
       useLocaleTick(locale)
       const [status, setStatus] = React.useState(null)
       const [notes, setNotes] = React.useState([])
@@ -12460,6 +12482,46 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         setFocusRequest({ id: created.id, offset: 0 })
       }
 
+      async function openAskInWorkspace() {
+        if (selected === null || askThread.length === 0) return
+        const sessions = typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined
+        const uiWorkspace = typeof ctx?.get === 'function' ? ctx.get('uiWorkspace') : undefined
+        if (
+          sessions === undefined ||
+          sessions === null ||
+          typeof sessions.create !== 'function' ||
+          uiWorkspace === undefined ||
+          uiWorkspace === null ||
+          typeof uiWorkspace.openSession !== 'function'
+        ) {
+          setNotice({ kind: 'error', text: t('askWorkspaceUnsupported') })
+          return
+        }
+        const status = await apiGet('/status').catch(() => null)
+        const vaultRoot = status !== null && typeof status.root === 'string' ? status.root : ''
+        const title = `${noteNameFromPath(selected)} · AI 对话`
+        try {
+          const id = await sessions.create(vaultRoot.length > 0 ? { cwd: vaultRoot } : {})
+          try {
+            await sessions.using(id, { source: 'controllerOperation' }, async (reference) => {
+              const binding = await reference.ready
+              await binding.session.rename(title)
+              await binding.session.prompt(
+                [{ type: 'text', text: askThreadPrompt({ noteTitle: noteNameFromPath(selected), thread: askThread }) }],
+                'queue',
+              )
+              return true
+            })
+          } catch {
+            /* the session exists even when seeding fails */
+          }
+          uiWorkspace.openSession(id)
+          setNotice({ kind: 'ok', text: t('askWorkspaceDone') })
+        } catch (error) {
+          setNotice({ kind: 'error', text: String(error?.message ?? error) })
+        }
+      }
+
       async function saveAskThread() {
         if (selected === null || askThread.length === 0) return
         const date = new Date()
@@ -14528,6 +14590,20 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                       'button',
                       {
                         className: 'nb-icon-btn',
+                        title: t('askWorkspaceOpen'),
+                        'aria-label': t('askWorkspaceOpen'),
+                        onClick: () => {
+                          void openAskInWorkspace()
+                        },
+                      },
+                      '↗',
+                    )
+                  : null,
+                askThread.length > 0
+                  ? h(
+                      'button',
+                      {
+                        className: 'nb-icon-btn',
                         title: t('askSaveThread'),
                         'aria-label': t('askSaveThread'),
                         onClick: () => {
@@ -16355,7 +16431,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
 
       ctx.slots.inject('main', () =>
         ctx.slots.register({ name: 'main', key: NS }, () => {
-          const panel = h(Workbench, { t, locale: ctx.locale })
+          const panel = h(Workbench, { t, locale: ctx.locale, ctx })
           // The smoke harness has no React.Component; only real React gets a boundary.
           return typeof React.Component === 'function' ? h(NotebookBoundary, null, panel) : panel
         }),
@@ -16433,6 +16509,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         localDayKey,
         askAnswerTitle,
         askThreadMarkdown,
+        askThreadPrompt,
         askThreadPath,
         ASK_THREADS,
         collectionColumns,
