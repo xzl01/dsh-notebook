@@ -11500,7 +11500,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
                   ? ['`', '`']
                   : null
         if (pair === null) return
-        let changed = false
+        const changes = new Map()
         for (const element of blockEls) {
           const id = element.getAttribute('data-block')
           const block = blocksRef.current.find((item) => item.id === id)
@@ -11517,10 +11517,10 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
             content === null ? null : selectionOffsetIn(content, sub.startContainer, sub.startOffset)
           const next = wrapMarkdownSelection(block.text ?? '', selected, pair[0], pair[1], offset)
           if (next === null || next === block.text) continue
-          changeText(id, next)
-          changed = true
+          changes.set(id, next)
         }
-        if (changed) {
+        if (changes.size > 0) {
+          updateBlocks(blocksRef.current.map((item) => (changes.has(item.id) ? { ...item, text: changes.get(item.id) } : item)))
           setSelection(null)
           const live = window.getSelection ? window.getSelection() : null
           if (live !== null) live.removeAllRanges()
@@ -11528,7 +11528,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       }
 
       function clearSelectionAcrossBlocks(blockEls, range) {
-        let changed = false
+        const changes = new Map()
         for (const element of blockEls) {
           const id = element.getAttribute('data-block')
           const block = blocksRef.current.find((item) => item.id === id)
@@ -11545,10 +11545,10 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
             content === null ? null : selectionOffsetIn(content, sub.startContainer, sub.startOffset)
           const next = clearMarkdownSelection(block.text ?? '', selected, offset)
           if (next === block.text) continue
-          changeText(id, next)
-          changed = true
+          changes.set(id, next)
         }
-        if (changed) {
+        if (changes.size > 0) {
+          updateBlocks(blocksRef.current.map((item) => (changes.has(item.id) ? { ...item, text: changes.get(item.id) } : item)))
           setSelection(null)
           const live = window.getSelection ? window.getSelection() : null
           if (live !== null) live.removeAllRanges()
@@ -11617,7 +11617,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
               ? []
               : Array.from(doc.querySelectorAll('[data-block]')).filter((block) => saved.intersectsNode(block))
           const range = saved
-          let changed = false
+          const changes = new Map()
           for (const element of blockEls) {
             const id = element.getAttribute('data-block')
             const block = blocksRef.current.find((item) => item.id === id)
@@ -11634,10 +11634,10 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
               content === null ? null : selectionOffsetIn(content, sub.startContainer, sub.startOffset)
             const next = wrapMarkdownSelection(block.text ?? '', selected, '[', `](${url})`, offset)
             if (next === null || next === block.text) continue
-            changeText(id, next)
-            changed = true
+            changes.set(id, next)
           }
-          if (changed) {
+          if (changes.size > 0) {
+            updateBlocks(blocksRef.current.map((item) => (changes.has(item.id) ? { ...item, text: changes.get(item.id) } : item)))
             setSelection(null)
             savedRangeRef.current = null
             selection.removeAllRanges()
