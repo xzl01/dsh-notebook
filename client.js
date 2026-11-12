@@ -1761,8 +1761,9 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
 .nb-flash-cat-chip[data-on="1"] { border-color: var(--nb-accent); color: var(--nb-accent); background: var(--nb-accent-soft); }
 .nb-flash-search { margin-left: auto; width: 190px; height: 28px; box-sizing: border-box; border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-s); background: var(--nb-surface); color: var(--nb-text); padding: 0 9px; font-size: 12.5px; outline: none; }
 .nb-flash-search:focus { border-color: var(--nb-accent); box-shadow: 0 0 0 3px var(--nb-accent-ring); }
-.nb-flash-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 24px 48px; display: flex; flex-direction: column; gap: 10px; }
-.nb-flash-card { border: 1px solid var(--nb-line); background: var(--nb-card); border-radius: var(--nb-radius-m); padding: 12px 14px; display: flex; flex-direction: column; gap: 7px; }
+.nb-flash-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 18px 24px 48px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; align-content: start; }
+.nb-flash-card { border: 1px solid var(--nb-line); background: var(--nb-card); border-radius: var(--nb-radius-m); padding: 14px 16px; display: flex; flex-direction: column; gap: 9px; min-height: 172px; transition: border-color .14s var(--nb-ease), box-shadow .16s var(--nb-ease), transform .16s var(--nb-ease-out); }
+.nb-flash-card:hover { border-color: color-mix(in srgb, var(--nb-accent) 35%, var(--nb-line)); box-shadow: 0 6px 18px rgba(16, 24, 40, .07); transform: translateY(-1px); }
 .nb-flash-card.pinned { border-color: color-mix(in srgb, var(--nb-accent) 45%, var(--nb-line)); }
 .nb-flash-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; color: var(--nb-text-2); }
 .nb-flash-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--nb-line-2); }
@@ -1772,16 +1773,17 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
 .nb-flash-dot[data-cat="3"] { background: var(--nb-accent); }
 .nb-flash-dot[data-cat="4"] { background: var(--dsw-alias-state-success-primary, #1a7f4b); }
 .nb-flash-tag { font-size: 11px; color: var(--nb-text-2); opacity: .85; }
-.nb-flash-text { margin: 0; font-size: 14px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; cursor: pointer; }
+.nb-flash-text { margin: 0; font-size: 14px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; cursor: pointer; flex: 1 1 auto; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
 .nb-flash-text:hover { color: var(--nb-accent); }
-.nb-flash-actions { display: flex; gap: 2px; opacity: .55; transition: opacity .14s var(--nb-ease); flex-wrap: wrap; }
+.nb-flash-actions { display: flex; gap: 2px; opacity: .55; transition: opacity .14s var(--nb-ease); flex-wrap: wrap; margin-top: auto; }
 .nb-flash-card:hover .nb-flash-actions { opacity: 1; }
 .nb-flash-action { border: none; background: transparent; color: var(--nb-text-2); font-size: 11.5px; padding: 3px 7px; border-radius: 4px; cursor: pointer; }
 .nb-flash-action:hover { background: var(--nb-hover); color: var(--nb-text); }
 .nb-flash-action[data-on="1"] { color: var(--nb-accent); }
 .nb-flash-action.danger { color: var(--dsw-alias-state-error-primary, #c0392b); }
-.nb-flash-empty { padding: 64px 0; text-align: center; color: var(--nb-text-2); font-size: 13px; line-height: 1.8; }
+.nb-flash-empty { padding: 64px 0; text-align: center; color: var(--nb-text-2); font-size: 13px; line-height: 1.8; grid-column: 1 / -1; }
 .nb-flash-error { padding: 10px 24px 0; color: var(--dsw-alias-state-error-primary, #c0392b); font-size: 12px; }
+@media (max-width: 720px) { .nb-flash-list { grid-template-columns: 1fr; padding: 14px 14px 40px; } }
 .nb-flash-textarea { width: 100%; min-height: 132px; box-sizing: border-box; resize: vertical; border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-m); background: var(--nb-surface); color: var(--nb-text); padding: 12px 14px; font-size: 14px; line-height: 1.7; font-family: inherit; outline: none; }
 .nb-flash-textarea:focus { border-color: var(--nb-accent); box-shadow: 0 0 0 3px var(--nb-accent-ring); }
 .nb-flash-edit { display: flex; flex-direction: column; gap: 8px; }
