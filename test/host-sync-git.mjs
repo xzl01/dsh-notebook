@@ -235,10 +235,11 @@ await check('HTTP credentials are stored and handed to git through an env-backed
   assert.equal(credential.env.DSH_GIT_PASSWORD, 'token-123')
   assert.ok(!JSON.stringify(credential.args).includes('token-123'), 'the token must not appear in argv')
 
-  await serviceC.saveSettings({ git: { username: 'xzl', password: 'token-123' } })
+  await serviceC.saveSettings({ git: { username: 'xzl', password: 'token-123', useSystemSsh: true } })
   const status = await serviceC.status()
   assert.equal(status.settings.git.username, 'xzl')
   assert.equal(status.settings.git.password, 'token-123')
+  assert.equal(status.settings.git.useSystemSsh, true)
   const stored = JSON.parse(await fsp.readFile(serviceC.settingsPath, 'utf8'))
   assert.equal(stored.git.password, 'token-123')
   if (process.platform !== 'win32') {

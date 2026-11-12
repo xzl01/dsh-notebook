@@ -623,6 +623,16 @@ async function main() {
     assert.equal(await fsp.readFile(join(VAULT, '新建', '再一篇.md'), 'utf8'), '再一篇')
   })
 
+  await check('a note can share its folder name', async () => {
+    const created = expectOk(
+      await post('/notebook/api/create', { path: '同名/同名.md', content: '# 同名\n\n文件夹主页\n' }),
+      'create same-name note',
+    )
+    assert.equal(created.path, '同名/同名.md')
+    const read = expectOk(await get('/notebook/api/read', { path: '同名/同名.md' }), 'read same-name note')
+    assert(read.content.includes('文件夹主页'), read.content)
+  })
+
   await check('POST /api/current records the note the panel is editing', async () => {
     const empty = expectOk(await get('/notebook/api/current'), 'current before')
     assert.equal(empty.path, null, JSON.stringify(empty))
@@ -967,6 +977,16 @@ async function main() {
     assert.equal(stat.isDirectory(), true)
   })
 
+  await check('the listing includes empty nested folders', async () => {
+    expectOk(await post('/notebook/api/mkdir', { path: '空层/二级/三级' }), 'mkdir nested')
+    const list = expectOk(await get('/notebook/api/list'), 'list with folders')
+    assert.ok(Array.isArray(list.folders), 'the listing has no folders array')
+    for (const dir of ['空层', '空层/二级', '空层/二级/三级']) {
+      assert.ok(list.folders.includes(dir), `missing empty folder ${dir}: ${JSON.stringify(list.folders)}`)
+    }
+    assert.ok(!list.folders.some((dir) => dir.split('/').includes('.obsidian')), 'hidden folder leaked')
+  })
+
   await check('POST /api/mkdir refuses escaping and hidden folders', async () => {
     const escaping = expectReject(await post('/notebook/api/mkdir', { path: '../outside' }), 'mkdir escape')
     assert.equal(escaping.code, 'outside_vault')
@@ -1141,6 +1161,26 @@ async function main() {
       !byBody.groups.titles.some((note) => note.path === '笔记/欢迎.md'),
       'a body hit leaked into the title group',
     )
+  })
+
+  await check('search and list reflect an API write immediately', async () => {
+    expectOk(
+      await post('/notebook/api/create', { path: '缓存/新笔记.md', content: '# 新笔记\n\ncache-needle 第一次\n' }),
+      'create cached note',
+    )
+    const seen = expectOk(await get('/notebook/api/search', { q: 'cache-needle' }), 'search new note')
+    assert.ok(seen.matches.some((match) => match.path === '缓存/新笔记.md'), JSON.stringify(seen.matches))
+    expectOk(
+      await post('/notebook/api/write', { path: '缓存/新笔记.md', content: '# 新笔记\n\ncache-needle 改过之后\n' }),
+      'edit cached note',
+    )
+    const edited = expectOk(await get('/notebook/api/search', { q: '改过之后' }), 'search edited note')
+    assert.ok(edited.matches.some((match) => match.path === '缓存/新笔记.md'), JSON.stringify(edited.matches))
+    const list = expectOk(await get('/notebook/api/list'), 'list after create')
+    assert.ok(list.notes.some((note) => note.path === '缓存/新笔记.md'), 'the listing cache hid a new note')
+    expectOk(await post('/notebook/api/delete', { path: '缓存/新笔记.md' }), 'cleanup cached note')
+    const gone = expectOk(await get('/notebook/api/list'), 'list after delete')
+    assert.ok(!gone.notes.some((note) => note.path === '缓存/新笔记.md'), 'the listing cache kept a deleted note')
   })
 
   await check('tool notebook_search reports zero matches for excluded content', async () => {

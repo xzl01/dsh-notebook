@@ -26,6 +26,57 @@ window.__ModuleLoader__.load({
       }
     })()
     const h = React.createElement
+
+    /**
+     * A render error inside the notebook must not blank the whole app view.
+     * The fallback shows the actual error so it can be reported instead of
+     * leaving a white panel with no clue.
+     */
+    const BoundaryBase = typeof React.Component === 'function' ? React.Component : class {}
+    class NotebookBoundary extends BoundaryBase {
+      constructor(props) {
+        super(props)
+        this.state = { error: null }
+      }
+
+      static getDerivedStateFromError(error) {
+        return { error }
+      }
+
+      componentDidCatch(error) {
+        try {
+          console.error('[dsh-notebook] render failed', error)
+        } catch {
+          /* logging is best-effort */
+        }
+      }
+
+      render() {
+        if (this.state.error !== null) {
+          return h(
+            'div',
+            { className: 'nb-crash' },
+            h('div', { className: 'nb-crash-title' }, '笔记本渲染出错'),
+            h('pre', { className: 'nb-crash-detail' }, String(this.state.error?.stack ?? this.state.error)),
+            h(
+              'button',
+              {
+                className: 'nb-btn nb-btn-primary',
+                onClick: () => {
+                  try {
+                    window.location.reload()
+                  } catch {
+                    /* reload is best-effort */
+                  }
+                },
+              },
+              '重新加载',
+            ),
+          )
+        }
+        return this.props.children
+      }
+    }
     const NS = 'dsh-notebook'
     const API = '/notebook/api'
     /** Sent with the first sync status fetch so the Host can tell which panel build is live. */
@@ -44,8 +95,9 @@ window.__ModuleLoader__.load({
     const TABS_KEY = `${NS}:tabs`
     /** Languages offered by the code-block label; empty means plain text. */
     const CODE_LANGS = [
-      '', 'text', 'javascript', 'typescript', 'python', 'bash', 'json', 'css', 'html', 'sql',
-      'rust', 'go', 'c', 'cpp', 'java', 'markdown', 'yaml',
+      '', 'text', 'javascript', 'typescript', 'python', 'bash', 'shell', 'json', 'css', 'scss',
+      'html', 'vue', 'sql', 'rust', 'go', 'c', 'cpp', 'csharp', 'java', 'markdown', 'yaml',
+      'ini', 'toml', 'desktop', 'dockerfile',
     ]
     /** Page icons offered by the picker; any emoji typed by the user also works. */
     const PAGE_EMOJIS = [
@@ -327,6 +379,8 @@ window.__ModuleLoader__.load({
       moveTo: '移动到…',
       newFolder: '新建文件夹',
       folderName: '文件夹名（可含 / 分层）',
+      folderHomeNote: '新建/打开文件夹主页',
+      folderNewSubfolder: '新建子文件夹',
       create: '创建',
       vaultRoot: '笔记库根目录',
       copyPathDone: '路径已复制',
@@ -594,6 +648,7 @@ window.__ModuleLoader__.load({
       syncGitUser: '用户名（HTTP 远端）',
       syncGitPassword: '密码 / 访问令牌',
       syncGitAuthHint: 'HTTP(S) 远端（如 Gitea）在后台同步时无法弹窗输入，凭据填在这里；SSH 远端留空，沿用 ssh key。',
+      syncGitSystemSsh: '沿用系统 ssh 配置（不强制 BatchMode，允许口令/Keychain 提示）',
       syncAutoSave: '保存笔记后自动同步',
       syncInterval: '定时同步（分钟，0 关闭）',
       syncDeletes: '删除处理',
@@ -615,6 +670,12 @@ window.__ModuleLoader__.load({
       syncRunningNow: '正在同步，请稍候…',
       syncRunOk: '同步完成',
       syncRunFail: '同步失败',
+      syncHistory: '同步历史',
+      syncHistoryEmpty: '还没有同步记录',
+      syncTriggerManual: '手动',
+      syncTriggerSave: '保存后',
+      syncTriggerInterval: '定时',
+      syncTriggerAgent: 'Agent',
       syncNoVault: '还没有笔记库：先到 设置 → 通用 → 笔记本笔记库 里选一个目录。',
       syncHintWebdav:
         '双向同步：本地改动上传，远端改动下载。两边都改过的笔记保留本地版本，远端内容另存为「冲突」副本；删除会移到回收站或先做备份。',
@@ -658,6 +719,8 @@ window.__ModuleLoader__.load({
       flashDelete: '删除',
       flashConfirmDelete: '确认删除',
       flashOpenNote: '打开笔记',
+      flashEdit: '编辑',
+      flashSaveEdit: '保存修改',
       flashSearch: '搜索闪念…',
       flashCategoryAll: '全部分类',
       flashCategoryLabel: '分类（可留空）',
@@ -755,6 +818,8 @@ window.__ModuleLoader__.load({
       moveTo: 'Move to…',
       newFolder: 'New folder',
       folderName: 'Folder name (may contain /)',
+      folderHomeNote: 'Create / open folder home note',
+      folderNewSubfolder: 'New subfolder',
       create: 'Create',
       vaultRoot: 'Vault root',
       copyPathDone: 'Path copied',
@@ -1024,6 +1089,7 @@ window.__ModuleLoader__.load({
       syncGitUser: 'Username (HTTP remote)',
       syncGitPassword: 'Password / token',
       syncGitAuthHint: 'An HTTP(S) remote (e.g. Gitea) cannot prompt during a background sync, so store its credentials here; leave empty for an SSH remote that uses a key.',
+      syncGitSystemSsh: 'Use the system ssh config (no forced BatchMode; allows passphrase/Keychain prompts)',
       syncAutoSave: 'Sync after saving a note',
       syncInterval: 'Sync every N minutes (0 = off)',
       syncDeletes: 'Deletions',
@@ -1045,6 +1111,12 @@ window.__ModuleLoader__.load({
       syncRunningNow: 'Syncing, please wait…',
       syncRunOk: 'Sync finished',
       syncRunFail: 'Sync failed',
+      syncHistory: 'Sync history',
+      syncHistoryEmpty: 'No runs yet',
+      syncTriggerManual: 'Manual',
+      syncTriggerSave: 'After save',
+      syncTriggerInterval: 'Timer',
+      syncTriggerAgent: 'Agent',
       syncNoVault: 'No notebook vault yet: pick a folder under Settings → General → Notebook vault.',
       syncHintWebdav:
         'Two-way: local edits upload, remote edits download. A note edited on both sides keeps the local version and saves the remote content as a conflict copy; deletions are moved to the trash or backed up first.',
@@ -1089,6 +1161,8 @@ window.__ModuleLoader__.load({
       flashDelete: 'Delete',
       flashConfirmDelete: 'Confirm delete',
       flashOpenNote: 'Open note',
+      flashEdit: 'Edit',
+      flashSaveEdit: 'Save changes',
       flashSearch: 'Search flashes…',
       flashCategoryAll: 'All categories',
       flashCategoryLabel: 'Category (optional)',
@@ -1161,6 +1235,9 @@ window.__ModuleLoader__.load({
     }
 
     const CSS = `
+.nb-crash { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; padding: 40px; box-sizing: border-box; color: var(--nb-text-2); }
+.nb-crash-title { font-size: 15px; font-weight: 600; color: var(--nb-text); }
+.nb-crash-detail { max-width: min(720px, 90%); max-height: 40vh; overflow: auto; padding: 12px; border: 1px solid var(--nb-line); border-radius: var(--nb-radius-m); background: var(--nb-surface); font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
 .nb-root {
   --nb-surface: var(--dsw-alias-bg-base);
   --nb-panel: var(--dsw-alias-bg-module-platform);
@@ -1269,10 +1346,14 @@ window.__ModuleLoader__.load({
 .nb-group { margin-top: 10px; }
 .nb-group-title { display: flex; align-items: center; gap: 6px; padding: 6px 8px 4px; border-radius: var(--nb-radius-s); font-size: 11px; font-weight: 600; letter-spacing: .02em; color: var(--nb-text-2); cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; transition: background .14s var(--nb-ease); }
 .nb-group-title:hover { background: var(--nb-hover); color: var(--nb-text); }
+.nb-group-caret { padding: 0 1px; color: var(--nb-text-3); border-radius: 3px; }
+.nb-group-caret:hover { color: var(--nb-text); background: var(--nb-hover); }
+.nb-group-name.is-home { color: var(--nb-text); }
 .nb-group-count { margin-left: auto; padding: 0; border-radius: 0; background: none; font-size: 10.5px; font-weight: 500; color: var(--nb-text-3); font-variant-numeric: tabular-nums; }
 .nb-note { display: flex; align-items: center; gap: 6px; width: 100%; box-sizing: border-box; border: none; background: transparent; color: var(--nb-text-2); font-size: 13px; padding: 6px 8px; border-radius: var(--nb-radius-s); cursor: pointer; text-align: left; white-space: nowrap; overflow: hidden; transition: background .14s var(--nb-ease); }
 .nb-note:hover { background: var(--nb-hover); color: var(--nb-text); }
 .nb-note.on { position: relative; background: var(--nb-active); color: var(--nb-text); font-weight: 600; }
+.nb-note-caret { flex: 0 0 10px; text-align: center; color: var(--nb-text-3); }
 .nb-note-name { overflow: hidden; text-overflow: ellipsis; }
 .nb-hit { display: block; width: 100%; box-sizing: border-box; border: none; background: transparent; color: var(--nb-text); text-align: left; padding: 6px 8px; border-radius: var(--nb-radius-s); cursor: pointer; overflow: hidden; transition: background .14s var(--nb-ease); }
 .nb-hit:hover { background: var(--nb-hover); }
@@ -1291,6 +1372,8 @@ window.__ModuleLoader__.load({
 .nb-hit-line-no { flex: 0 0 auto; min-width: 18px; font-size: 10px; color: var(--nb-text-3); font-variant-numeric: tabular-nums; }
 .nb-hit-line-text { flex: 1 1 auto; min-width: 0; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nb-hit-more { padding: 2px 8px 0 16px; font-size: 10px; color: var(--nb-text-3); }
+@keyframes nb-hit-flash { 0%, 30% { background: var(--nb-accent-soft); } 100% { background: transparent; } }
+.nb-flash-hit { animation: nb-hit-flash 1.8s var(--nb-ease-out); border-radius: var(--nb-radius-s); }
 .nb-side-empty { padding: 14px 10px; font-size: 12px; color: var(--nb-text-3); line-height: 1.7; }
 
 /* ── Outline ───────────────────────────────────────────── */
@@ -1478,8 +1561,17 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
 .nb-b-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.84em; line-height: 1.65; background: var(--dsw-alias-markdown-code-block, var(--nb-panel)); border: 1px solid var(--nb-line); border-radius: var(--nb-radius-m); padding: 14px 16px; margin: 6px 0; white-space: pre-wrap; }
 .nb-b-code .c-comment { color: var(--nb-text-3); font-style: italic; }
 .nb-b-code .c-string { color: var(--dsw-alias-state-success-primary); }
-.nb-b-code .c-number { color: var(--dsw-alias-state-warn-primary); }
+.nb-b-code .c-number, .nb-b-code .c-bool { color: var(--dsw-alias-state-warn-primary); }
 .nb-b-code .c-keyword { color: var(--nb-accent); }
+.nb-b-code .c-func, .nb-b-code .c-decorator { color: var(--dsw-alias-state-info-primary); }
+.nb-b-code .c-type { color: color-mix(in srgb, var(--dsw-alias-state-info-primary) 65%, var(--dsw-alias-state-business-primary)); }
+.nb-b-code .c-prop, .nb-b-code .c-attr { color: var(--nb-text-2); }
+.nb-b-code .c-tag { color: var(--dsw-alias-state-business-primary); }
+.nb-b-code .c-var, .nb-b-code .c-anchor { color: color-mix(in srgb, var(--nb-accent) 55%, var(--dsw-alias-state-success-primary)); }
+.nb-b-code .c-section { color: var(--dsw-alias-state-business-primary); font-weight: 600; }
+.nb-b-code .c-atrule { color: var(--nb-accent); }
+.nb-b-code .c-entity, .nb-b-code .c-meta { color: var(--nb-text-3); }
+.nb-b-code .c-heading { color: var(--nb-text); font-weight: 600; }
 
 /* Marp deck inside a fenced block */
 .nb-b-code.nb-has-deck { background: transparent; border: none; padding: 0; white-space: normal; font-family: inherit; font-size: inherit; line-height: inherit; }
@@ -1618,6 +1710,16 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
 .nb-sync-status[data-kind="ok"] { border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary, #1a7f4b) 35%, var(--nb-line)); }
 .nb-sync-meter { height: 4px; border-radius: 2px; background: var(--nb-hover); overflow: hidden; }
 .nb-sync-meter i { display: block; height: 100%; border-radius: 2px; background: var(--nb-accent); transition: width .25s var(--nb-ease); }
+.nb-sync-history { border: 1px solid var(--nb-line); border-radius: var(--nb-radius-m); background: var(--nb-surface); padding: 4px 8px; }
+.nb-sync-history-toggle { width: 100%; border: none; background: transparent; color: var(--nb-text-2); font-size: 11.5px; text-align: left; padding: 4px 2px; cursor: pointer; }
+.nb-sync-history-toggle:hover { color: var(--nb-text); }
+.nb-sync-history-list { display: flex; flex-direction: column; gap: 2px; padding-bottom: 4px; }
+.nb-sync-history-row { display: flex; align-items: baseline; gap: 8px; font-size: 11px; color: var(--nb-text-2); padding: 3px 2px; border-top: 1px dashed var(--nb-line); }
+.nb-sync-history-row[data-ok="0"] { color: var(--dsw-alias-state-error-primary); }
+.nb-sync-history-time { flex: 0 0 auto; }
+.nb-sync-history-trigger { flex: 0 0 auto; color: var(--nb-text-3); }
+.nb-sync-history-stat { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-sync-history-error { flex: 1 1 100%; color: var(--dsw-alias-state-error-primary); }
 .nb-sync-detail { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.5; color: var(--nb-text-2); white-space: pre-wrap; word-break: break-all; max-height: 132px; overflow: auto; }
 .nb-sync-note { font-size: 12px; line-height: 1.55; }
 .nb-sync-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -1670,6 +1772,9 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
 .nb-flash-error { padding: 10px 24px 0; color: var(--dsw-alias-state-error-primary, #c0392b); font-size: 12px; }
 .nb-flash-textarea { width: 100%; min-height: 132px; box-sizing: border-box; resize: vertical; border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-m); background: var(--nb-surface); color: var(--nb-text); padding: 12px 14px; font-size: 14px; line-height: 1.7; font-family: inherit; outline: none; }
 .nb-flash-textarea:focus { border-color: var(--nb-accent); box-shadow: 0 0 0 3px var(--nb-accent-ring); }
+.nb-flash-edit { display: flex; flex-direction: column; gap: 8px; }
+.nb-flash-edit-area { min-height: 96px; font-size: 13px; }
+.nb-flash-edit-actions { display: flex; justify-content: flex-end; gap: 4px; }
 .nb-flash-capture-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .nb-flash-capture-actions .nb-flash-hint { font-size: 11px; color: var(--nb-text-2); margin-right: auto; }
 
@@ -2643,7 +2748,8 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
     function resolveNoteLink(notePath, target) {
       const raw = String(target ?? '').trim()
       const wiki = /^!?\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]$/.exec(raw)
-      const text = (wiki !== null ? wiki[1] : raw.split('#')[0]).trim()
+      const bare = wiki !== null ? wiki[1] : raw.replace(/^<(.+)>$/, '$1')
+      const text = bare.split('#')[0].trim()
       const base = folderOfPath(notePath).split('/').filter(Boolean)
       for (const part of text.replace(/\\/g, '/').split('/')) {
         if (part.length === 0 || part === '.') continue
@@ -2657,6 +2763,25 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       const joined = base.join('/')
       if (joined.length === 0) return null
       return /\.[a-z0-9]+$/i.test(joined) ? joined : `${joined}.md`
+    }
+
+    /**
+     * Resolve `[label](note.md)` to a real note. Relative paths, `../`, URL
+     * encoding and `#anchors` are handled; web URLs never become note links.
+     */
+    function markdownNoteLink(notePath, href, notes) {
+      const raw = String(href ?? '').trim().replace(/^<(.+)>$/, '$1').trim()
+      if (raw.length === 0 || raw.startsWith('#') || /^[a-z][a-z0-9+.-]*:/i.test(raw)) return null
+      let decoded = raw
+      try {
+        decoded = decodeURIComponent(raw)
+      } catch {
+        /* keep the raw text when it is not valid percent-encoding */
+      }
+      if (!/\.md(?:[#?].*)?$/i.test(decoded)) return null
+      const resolved = resolveNoteLink(notePath, decoded)
+      if (resolved === null) return null
+      return findWikiTarget(notes, resolved)
     }
 
     /**
@@ -3840,11 +3965,33 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
               ),
             )
           } else {
-            const href = link === null ? undefined : safeHref(link[2])
-            if (link === null || href === undefined) {
-              nodes.push(token)
+            const note =
+              link !== null && typeof ctx.notePath === 'string' && ctx.notePath.length > 0
+                ? markdownNoteLink(ctx.notePath, link[2], ctx.notes)
+                : null
+            if (note !== null) {
+              nodes.push(
+                h(
+                  'span',
+                  {
+                    key,
+                    className: 'nb-wiki',
+                    onMouseDown: (event) => event.stopPropagation(),
+                    onClick: (event) => {
+                      event.stopPropagation()
+                      if (typeof ctx.onOpen === 'function') ctx.onOpen(note.path)
+                    },
+                  },
+                  link[1],
+                ),
+              )
             } else {
-              nodes.push(h('a', { key, href, target: '_blank', rel: 'noreferrer noopener' }, link[1]))
+              const href = link === null ? undefined : safeHref(link[2])
+              if (link === null || href === undefined) {
+                nodes.push(token)
+              } else {
+                nodes.push(h('a', { key, href, target: '_blank', rel: 'noreferrer noopener' }, link[1]))
+              }
             }
           }
         } else {
@@ -4897,18 +5044,168 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
     }
 
     /**
-     * Lightweight code highlighting for the displayed (not focused) code block.
-     * Comments, strings, numbers and keywords get theme tokens; everything else
-     * stays plain, so an unknown language degrades to plain text.
+     * Language-aware highlighting for displayed code blocks. Each language
+     * compiles one alternation of named groups (order is priority), so a single
+     * pass finds comments, strings, numbers and that language's own vocabulary.
+     * Unknown named languages fall back to the generic tokenizer; plain text
+     * ('', text, txt) stays untouched.
      */
-    const CODE_KEYWORDS = new Set([
-      'const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'class', 'import',
-      'from', 'export', 'async', 'await', 'new', 'try', 'catch', 'throw', 'typeof', 'instanceof',
-      'this', 'null', 'undefined', 'true', 'false', 'def', 'elif', 'lambda', 'fn', 'pub', 'use',
-      'struct', 'enum', 'impl', 'match', 'mod', 'package', 'func', 'type', 'interface', 'public',
-      'private', 'static', 'void', 'int', 'char', 'string', 'bool', 'switch', 'case', 'break',
-      'continue', 'default', 'do', 'in', 'is', 'not', 'and', 'or', 'nil', 'None', 'True', 'False',
-    ])
+    const CODE_SPECS = {
+      js: [
+        ['comment', /\/\/[^\n]*|\/\*[\s\S]*?\*\//],
+        ['string', /'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`/],
+        ['number', /\b(?:0[xX][0-9a-fA-F]+|0[bB][01]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/],
+        ['bool', /\b(?:true|false|null|undefined|NaN|Infinity)\b/],
+        ['keyword', /\b(?:async|await|break|case|catch|class|const|continue|debugger|declare|default|delete|do|else|enum|export|extends|finally|for|from|function|if|implements|import|in|infer|instanceof|interface|keyof|let|namespace|never|new|of|private|protected|public|readonly|return|satisfies|static|super|switch|this|throw|try|type|typeof|unknown|var|void|while|with|yield)\b/],
+        ['func', /\b[A-Za-z_$][\w$]*(?=\s*\()/],
+        ['type', /\b(?:Array|Promise|Map|Set|Date|RegExp|Error|string|number|boolean|object|symbol|bigint|any|void|unknown|never)\b|\b[A-Z][A-Za-z0-9_$]*\b/],
+      ],
+      py: [
+        ['comment', /#[^\n]*/],
+        ['string', /"""[\s\S]*?"""|'''[\s\S]*?'''|'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"/],
+        ['decorator', /@[\w.]+/],
+        ['number', /\b(?:0[xX][0-9a-fA-F]+|\d+(?:\.\d+)?)\b/],
+        ['bool', /\b(?:True|False|None)\b/],
+        ['keyword', /\b(?:and|as|assert|async|await|break|case|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|match|nonlocal|not|or|pass|raise|return|self|try|while|with|yield)\b/],
+        ['func', /\b[A-Za-z_]\w*(?=\s*\()/],
+        ['type', /\b(?:int|str|float|bool|list|dict|set|tuple|bytes|object)\b/],
+      ],
+      sh: [
+        ['comment', /#[^\n]*/],
+        ['string', /'[^']*'|"(?:\\.|[^"\\])*"/],
+        ['var', /\$\{[^}\n]*\}|\$[A-Za-z_]\w*|\$[0-9@#?*!$-]/],
+        ['keyword', /\b(?:break|case|continue|declare|do|done|elif|else|esac|eval|exec|exit|export|fi|for|function|if|in|local|readonly|return|select|set|shift|source|then|time|trap|unset|until|while|true|false)\b/],
+        ['number', /\b\d+(?:\.\d+)?\b/],
+        ['func', /\b[A-Za-z_][\w-]*(?=\s*\()/],
+      ],
+      json: [
+        ['comment', /\/\/[^\n]*|\/\*[\s\S]*?\*\//],
+        ['prop', /"(?:\\.|[^"\\])*"(?=\s*:)/],
+        ['string', /"(?:\\.|[^"\\])*"/],
+        ['number', /-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/],
+        ['bool', /\b(?:true|false|null)\b/],
+      ],
+      yaml: [
+        ['comment', /#[^\n]*/],
+        ['prop', /^[ \t]*(?:-[ \t]+)?[\w.-]+(?=[ \t]*:)/],
+        ['meta', /[&*][\w-]+|!![\w:/.-]+/],
+        ['string', /'(?:''|[^'\n])*'|"(?:\\.|[^"\\\n])*"/],
+        ['number', /\b\d+(?:\.\d+)?\b/],
+        ['bool', /\b(?:true|false|null|yes|no|on|off|~)\b/],
+      ],
+      ini: [
+        ['comment', /[#;][^\n]*/],
+        ['section', /^[ \t]*\[[^\]\n]+\]/],
+        ['prop', /^[ \t]*[A-Za-z_][\w.-]*(?:\[[^\]\n]*\])*(?=[ \t]*=)/],
+        ['string', /"(?:\\.|[^"\\\n])*"|'[^'\n]*'/],
+        ['bool', /\b(?:true|false|yes|no|on|off)\b/],
+        ['number', /\b\d+(?:\.\d+)?\b/],
+      ],
+      toml: [
+        ['comment', /#[^\n]*/],
+        ['section', /^[ \t]*\[\[?[^\]\n]+\]\]?/],
+        ['prop', /^[ \t]*(?:"[^"\n]+"|'[^'\n]+'|[A-Za-z_][\w.-]*)(?:\[[^\]\n]*\])*(?=[ \t]*=)/],
+        ['string', /"""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\\n])*"|'[^'\n]*'/],
+        ['bool', /\b(?:true|false)\b/],
+        ['number', /\b\d+(?:\.\d+)?\b/],
+      ],
+      desktop: [
+        ['comment', /#[^\n]*/],
+        ['section', /^[ \t]*\[[^\]\n]+\]/],
+        ['prop', /^[ \t]*[A-Za-z_][\w.-]*(?:\[[^\]\n]*\])*(?=[ \t]*=)/],
+        ['string', /"(?:\\.|[^"\\\n])*"/],
+        ['bool', /\b(?:true|false)\b/],
+        ['number', /\b\d+(?:\.\d+)?\b/],
+      ],
+      html: [
+        ['comment', /<!--[\s\S]*?-->/],
+        ['tag', /<\/?[A-Za-z][\w:-]*/],
+        ['attr', /\b[A-Za-z_:][\w:.-]*(?=[ \t]*=)/],
+        ['string', /"(?:\\.|[^"\\])*"|'[^']*'/],
+        ['entity', /&[#\w]+;/],
+      ],
+      css: [
+        ['comment', /\/\*[\s\S]*?\*\//],
+        ['atrule', /@[\w-]+/],
+        ['prop', /[-\w]+(?=[ \t]*:)/],
+        ['number', /#[0-9a-fA-F]{3,8}\b|\b\d+(?:\.\d+)?(?:px|em|rem|%|vh|vw|vmin|vmax|s|ms|deg|fr)?\b/],
+        ['string', /"(?:\\.|[^"\\\n])*"|'[^'\n]*'/],
+      ],
+      sql: [
+        ['comment', /--[^\n]*|\/\*[\s\S]*?\*\//],
+        ['string', /'(?:''|[^'\n])*'/],
+        ['bool', /\b(?:null|true|false)\b/],
+        ['keyword', /\b(?:add|all|alter|and|as|asc|between|by|case|column|create|delete|desc|distinct|drop|else|end|exists|from|full|group|having|if|in|index|inner|insert|into|is|join|left|like|limit|not|offset|on|or|order|outer|primary|references|right|select|set|table|then|union|unique|update|values|view|when|where|with)\b/],
+        ['func', /\b[A-Za-z_]\w*(?=\s*\()/],
+        ['number', /\b\d+(?:\.\d+)?\b/],
+      ],
+      c: [
+        ['comment', /\/\/[^\n]*|\/\*[\s\S]*?\*\//],
+        ['meta', /^[ \t]*#[ \t]*\w+/],
+        ['string', /"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`/],
+        ['number', /\b(?:0[xX][0-9a-fA-F]+|\d+(?:\.\d+)?[fFuUlL]*)\b/],
+        ['bool', /\b(?:true|false|null|NULL|nil|None)\b/],
+        ['keyword', /\b(?:abstract|as|async|await|auto|break|case|catch|chan|char|class|const|continue|defer|default|delete|do|double|dyn|else|enum|extern|final|finally|float|fn|for|func|go|goto|if|impl|implements|import|in|inline|int|interface|is|let|long|loop|map|match|mod|move|mut|namespace|new|operator|override|package|private|protected|pub|public|range|register|restrict|return|select|self|short|signed|sizeof|static|struct|super|switch|template|throw|trait|try|type|typedef|typename|union|unsigned|use|using|var|virtual|void|volatile|where|while|yield)\b/],
+        ['func', /\b[A-Za-z_]\w*(?=\s*\()/],
+        ['type', /\b(?:bool|byte|char|double|float|i8|i16|i32|i64|int|int8|int16|int32|int64|isize|rune|size_t|string|String|u8|u16|u32|u64|uint|uint8|uint16|uint32|uint64|usize|f32|f64)\b/],
+      ],
+      markdown: [
+        ['comment', /<!--[\s\S]*?-->/],
+        ['heading', /^#{1,6}[ \t].*$/],
+        ['string', /`[^`\n]+`/],
+        ['keyword', /\*\*[^*\n]+\*\*|__[^_\n]+__/],
+        ['prop', /\[[^\]\n]*\]\([^)\n]*\)/],
+      ],
+      dockerfile: [
+        ['comment', /#[^\n]*/],
+        ['keyword', /^[ \t]*(?:FROM|RUN|CMD|LABEL|MAINTAINER|EXPOSE|ENV|ADD|COPY|ENTRYPOINT|VOLUME|USER|WORKDIR|ARG|ONBUILD|STOPSIGNAL|HEALTHCHECK|SHELL)\b/],
+        ['string', /"(?:\\.|[^"\\\n])*"|'[^'\n]*'/],
+        ['var', /\$\{[^}\n]*\}|\$[A-Za-z_]\w*/],
+        ['number', /\b\d+\b/],
+      ],
+      generic: [
+        ['comment', /\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*/],
+        ['string', /'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`/],
+        ['number', /\b(?:0[xX][0-9a-fA-F]+|\d+(?:\.\d+)?)\b/],
+        ['keyword', /\b(?:and|as|async|await|break|case|catch|class|const|continue|def|default|do|elif|else|enum|export|false|fn|for|from|func|function|if|impl|import|in|instanceof|interface|is|lambda|let|match|mod|new|nil|None|not|null|or|package|pass|private|public|pub|return|self|static|struct|switch|throw|true|try|type|typeof|undefined|use|var|void|while|with)\b/],
+      ],
+    }
+
+    const CODE_LANG_ALIASES = {
+      javascript: 'js', js: 'js', jsx: 'js', mjs: 'js', cjs: 'js',
+      typescript: 'js', ts: 'js', tsx: 'js',
+      python: 'py', py: 'py',
+      bash: 'sh', sh: 'sh', zsh: 'sh', shell: 'sh', console: 'sh', terminal: 'sh',
+      json: 'json', jsonc: 'json',
+      yaml: 'yaml', yml: 'yaml',
+      ini: 'ini', conf: 'ini', cfg: 'ini', properties: 'ini', env: 'ini',
+      toml: 'toml', desktop: 'desktop',
+      html: 'html', xml: 'html', svg: 'html', vue: 'html',
+      css: 'css', scss: 'css', less: 'css',
+      sql: 'sql',
+      c: 'c', h: 'c', cpp: 'c', 'c++': 'c', cc: 'c', hpp: 'c', objc: 'c',
+      go: 'c', golang: 'c', rust: 'c', rs: 'c', java: 'c', kotlin: 'c', kt: 'c',
+      csharp: 'c', 'c#': 'c', swift: 'c',
+      markdown: 'markdown', md: 'markdown',
+      dockerfile: 'dockerfile', docker: 'dockerfile',
+    }
+    const CODE_PLAIN = new Set(['', 'text', 'txt', 'plain', 'plaintext'])
+    const CODE_COMPILED = new Map()
+
+    function compiledCodePattern(key) {
+      const cached = CODE_COMPILED.get(key)
+      if (cached !== undefined) return cached
+      const spec = CODE_SPECS[key] ?? CODE_SPECS.generic
+      const names = []
+      const parts = spec.map(([name, pattern], index) => {
+        names.push(name)
+        return `(?<t${index}>${pattern.source})`
+      })
+      const flags = key === 'sql' ? 'gmi' : 'gm'
+      const compiled = { regex: new RegExp(parts.join('|'), flags), names }
+      CODE_COMPILED.set(key, compiled)
+      return compiled
+    }
 
     /** Wrap search-query occurrences in <mark>, for the search result rows. */
     function highlightText(text, query) {
@@ -4932,25 +5229,35 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       return nodes
     }
 
-    function highlightCode(text) {
+    function highlightCode(text, lang) {
       const source = String(text ?? '')
-      const pattern =
-        /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*)|('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`)|\b(0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)\b|\b([A-Za-z_$][\w$]*)\b/g
+      const explicit = lang !== undefined
+      const name = String(lang ?? '').trim().toLowerCase()
+      // The old no-language call still tokenizes generically; an explicit
+      // lang="" or "text" fence stays plain.
+      if (explicit && CODE_PLAIN.has(name)) return [source]
+      // A named language we do not know stays plain: guessing colours on an
+      // unknown fence is worse than leaving the text alone.
+      const key = explicit
+        ? CODE_LANG_ALIASES[name] ?? (CODE_SPECS[name] !== undefined ? name : 'plain')
+        : 'generic'
+      if (key === 'plain') return [source]
+      const compiled = compiledCodePattern(key)
       const nodes = []
       let last = 0
       let count = 0
-      let match
-      while ((match = pattern.exec(source)) !== null) {
+      for (const match of source.matchAll(compiled.regex)) {
         if (match.index > last) nodes.push(source.slice(last, match.index))
-        const token = match[0]
-        let className = null
-        if (match[1] !== undefined) className = 'c-comment'
-        else if (match[2] !== undefined) className = 'c-string'
-        else if (match[3] !== undefined) className = 'c-number'
-        else if (match[4] !== undefined && CODE_KEYWORDS.has(match[4])) className = 'c-keyword'
-        if (className === null) nodes.push(token)
-        else nodes.push(h('span', { key: `c${count++}`, className }, token))
-        last = match.index + token.length
+        const groups = match.groups ?? {}
+        let className = 'c-keyword'
+        for (let index = 0; index < compiled.names.length; index += 1) {
+          if (groups[`t${index}`] !== undefined) {
+            className = `c-${compiled.names[index]}`
+            break
+          }
+        }
+        nodes.push(h('span', { key: `c${count++}`, className }, match[0]))
+        last = match.index + match[0].length
       }
       if (last < source.length) nodes.push(source.slice(last))
       return nodes
@@ -5061,6 +5368,89 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
 
     /** Cross-component mailbox: chat tool card → workbench. */
     const NOTE_OPEN = { pending: null, listeners: new Set() }
+
+    /** A directory is visible only when every ancestor folder is expanded. */
+    function directoryOpen(dir, expanded) {
+      if (dir.length === 0) return true
+      const parts = dir.split('/')
+      let prefix = ''
+      for (let index = 0; index < parts.length - 1; index += 1) {
+        prefix = prefix.length === 0 ? parts[index] : `${prefix}/${parts[index]}`
+        if (expanded[prefix] !== true) return false
+      }
+      return true
+    }
+
+    /** Expand `dir` and all of its ancestors (returns the next state). */
+    function expandedPath(expanded, dir) {
+      const next = { ...expanded }
+      if (dir.length === 0) return next
+      const parts = dir.split('/')
+      let prefix = ''
+      for (const part of parts) {
+        prefix = prefix.length === 0 ? part : `${prefix}/${part}`
+        next[prefix] = true
+      }
+      return next
+    }
+
+    /**
+     * A folder's home note is `<dir>/<folder name>.md`. Folders usually carry an
+     * ordering prefix ("01 工作"), so the prefix is stripped as a fallback: both
+     * `01 工作.md` and `工作.md` count, and `index.md` is the last resort.
+     */
+    function folderHomeBase(dir) {
+      const name = dir.split('/').pop()
+      const stripped = name.replace(/^\d+[\s._-]+/, '').trim()
+      return stripped.length > 0 ? stripped : name
+    }
+
+    function folderHomePath(dir) {
+      if (typeof dir !== 'string' || dir.length === 0) return null
+      const name = folderHomeBase(dir)
+      return name.length === 0 ? null : `${dir}/${name}.md`
+    }
+
+    function folderHomes(notes) {
+      const byDir = new Map()
+      for (const note of Array.isArray(notes) ? notes : []) {
+        const path = String(note.path ?? '')
+        const slash = path.lastIndexOf('/')
+        if (slash <= 0) continue
+        const dir = path.slice(0, slash)
+        const base = path.slice(slash + 1).replace(/\.md$/i, '').toLowerCase()
+        if (!byDir.has(dir)) byDir.set(dir, new Map())
+        if (!byDir.get(dir).has(base)) byDir.get(dir).set(base, path)
+      }
+      const map = new Map()
+      for (const [dir, files] of byDir) {
+        const full = dir.split('/').pop().toLowerCase()
+        const candidates = [full, folderHomeBase(dir).toLowerCase(), 'index']
+        for (const name of candidates) {
+          const hit = files.get(name)
+          if (hit !== undefined) {
+            map.set(dir, hit)
+            break
+          }
+        }
+      }
+      return map
+    }
+
+    /** A search hit asks the note view to scroll to the matching block. */
+    const SEARCH_JUMP = { pending: null }
+
+    /** Normalize a matched source line into text the rendered block contains. */
+    function jumpNeedle(text) {
+      const raw = String(text ?? '')
+        .replace(/^\s+/, '')
+        .replace(/^(?:[>#*+\-]+\s*|\d+[.)]\s*)+/, '')
+        .replace(/^\[[ xX]\]\s*/, '')
+        .replace(/[`*_~]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+      return raw.slice(0, 28)
+    }
     /** Set when the Settings row switched the vault while the panel was closed. */
     const VAULT_CHANGED = { pending: false }
     /** Ask threads survive the workbench unmounting when the main panel changes. */
@@ -7142,6 +7532,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         onRemove,
         onToggleTodo,
         onCalloutVariant,
+        notePath,
         readOnly,
         onMenu,
         onType,
@@ -7590,7 +7981,14 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       } else {
         const inline =
           text.length > 0
-            ? renderInline(text, block.id, { notes, onOpen: onOpenWiki, t, depth: 0, onTemplate })
+            ? renderInline(text, block.id, {
+                notes,
+                onOpen: onOpenWiki,
+                t,
+                depth: 0,
+                onTemplate,
+                notePath,
+              })
             : null
         let content = inline
         if (block.type === 'divider') {
@@ -7637,7 +8035,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
                     ? h(MarpDeck, { slides: marp.slides, t })
                     : h(MarpBoundary, null, h(MarpDeck, { slides: marp.slides, t })),
                 )
-              : highlightCode(text),
+              : highlightCode(text, block.lang),
           )
         } else if (block.type === 'code' && String(block.lang ?? '') === 'base' && parseBasesConfig(text).views.length > 0) {
           content = h(BasesView, { text, t, onOpen: onOpenWiki })
@@ -7656,7 +8054,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
             dangerouslySetInnerHTML: { __html: markdownToHtml(text) },
           })
         } else if (block.type === 'code') {
-          content = text.length > 0 ? highlightCode(text) : placeholder
+          content = text.length > 0 ? highlightCode(text, block.lang) : placeholder
         } else if (content === null) {
           content = h('span', { className: 'nb-ph' }, placeholder)
         }
@@ -8043,6 +8441,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         gitMessage: String(git.message ?? ''),
         gitUser: String(git.username ?? ''),
         gitPassword: String(git.password ?? ''),
+        gitSystemSsh: git.useSystemSsh === true,
         onSave: auto.onSave === true,
         interval: Number(auto.intervalMinutes) > 0 ? String(auto.intervalMinutes) : '0',
       }
@@ -8064,6 +8463,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           message: form.gitMessage,
           username: form.gitUser,
           password: form.gitPassword,
+          useSystemSsh: form.gitSystemSsh === true,
         },
         auto: { onSave: form.onSave === true, intervalMinutes: Number(form.interval) || 0 },
       }
@@ -8215,6 +8615,9 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       const [loading, setLoading] = React.useState(true)
       const [error, setError] = React.useState(null)
       const [confirmPath, setConfirmPath] = React.useState(null)
+      const [edit, setEdit] = React.useState(null)
+      const [editBusy, setEditBusy] = React.useState(false)
+      const [editError, setEditError] = React.useState(null)
 
       React.useEffect(() => {
         let disposed = false
@@ -8267,9 +8670,54 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         }
       }
 
+      const beginEdit = async (item) => {
+        setEditError(null)
+        try {
+          const note = await apiGet(`/read?path=${encodeURIComponent(item.path)}`)
+          const split = splitFrontmatter(note.content)
+          setEdit({
+            path: item.path,
+            text: split.body.replace(/^\n+/, ''),
+            category: item.category,
+            mtimeMs: note.mtimeMs,
+          })
+        } catch (failure) {
+          setEditError(flashErrorLabel(t, failure))
+        }
+      }
+      const saveEdit = async () => {
+        if (edit === null || editBusy) return
+        setEditBusy(true)
+        setEditError(null)
+        try {
+          await apiPost('/flash/update', {
+            path: edit.path,
+            text: edit.text,
+            category: edit.category,
+            mtimeMs: edit.mtimeMs,
+          })
+          setEdit(null)
+          onChanged()
+        } catch (failure) {
+          setEditError(flashErrorLabel(t, failure))
+        } finally {
+          setEditBusy(false)
+        }
+      }
+
       const counts = data?.counts ?? { inbox: 0, done: 0, total: 0 }
       const items = data?.items ?? []
       const localeTag = localeId === 'en' ? 'en-US' : 'zh-CN'
+      const triggerLabel = (trigger) =>
+        t(
+          trigger === 'save'
+            ? 'syncTriggerSave'
+            : trigger === 'interval'
+              ? 'syncTriggerInterval'
+              : trigger === 'agent'
+                ? 'syncTriggerAgent'
+                : 'syncTriggerManual',
+        )
       const tabs = [
         ['inbox', t('flashInbox')],
         ['all', t('flashAll')],
@@ -8363,11 +8811,54 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
                 h('span', null, new Date(item.createdMs).toLocaleString(localeTag)),
                 item.tags.map((tag) => h('span', { key: tag, className: 'nb-flash-tag' }, `#${tag}`)),
               ),
-              h(
-                'p',
-                { className: 'nb-flash-text', onClick: () => onOpen(item.path) },
-                item.preview.length > 0 ? item.preview : item.name,
-              ),
+              edit !== null && edit.path === item.path
+                ? h(
+                    'div',
+                    { className: 'nb-flash-edit' },
+                    h('textarea', {
+                      className: 'nb-flash-textarea nb-flash-edit-area',
+                      value: edit.text,
+                      onChange: (event) => setEdit({ ...edit, text: event.target.value }),
+                    }),
+                    h(
+                      'div',
+                      { className: 'nb-flash-cats' },
+                      FLASH_CATEGORY_ORDER.map((value) =>
+                        h(
+                          'button',
+                          {
+                            key: value,
+                            type: 'button',
+                            className: 'nb-flash-cat-chip',
+                            'data-on': edit.category === value ? '1' : '0',
+                            onClick: () => setEdit({ ...edit, category: value }),
+                          },
+                          flashCategoryLabel(t, value),
+                        ),
+                      ),
+                    ),
+                    editError !== null ? h('div', { className: 'nb-flash-error' }, editError) : null,
+                    h(
+                      'div',
+                      { className: 'nb-flash-edit-actions' },
+                      h('button', { className: 'nb-flash-action', onClick: () => setEdit(null) }, t('cancel')),
+                      h(
+                        'button',
+                        {
+                          className: 'nb-flash-action',
+                          'data-on': '1',
+                          disabled: editBusy,
+                          onClick: saveEdit,
+                        },
+                        t('flashSaveEdit'),
+                      ),
+                    ),
+                  )
+                : h(
+                    'p',
+                    { className: 'nb-flash-text', onClick: () => onOpen(item.path) },
+                    item.preview.length > 0 ? item.preview : item.name,
+                  ),
               h(
                 'div',
                 { className: 'nb-flash-actions' },
@@ -8390,6 +8881,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
                   item.done ? t('flashMarkInbox') : t('flashMarkDone'),
                 ),
                 h('button', { className: 'nb-flash-action', onClick: () => onOpen(item.path) }, t('flashOpenNote')),
+                h('button', { className: 'nb-flash-action', onClick: () => beginEdit(item) }, t('flashEdit')),
                 h(
                   'button',
                   {
@@ -8416,6 +8908,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       const [message, setMessage] = React.useState(null)
       const [progress, setProgress] = React.useState(null)
       const [loadError, setLoadError] = React.useState(null)
+      const [historyOpen, setHistoryOpen] = React.useState(false)
       const alive = React.useRef(true)
       const poll = React.useRef(null)
       // The parent hands over a fresh callback on every render; a ref keeps the
@@ -8748,6 +9241,16 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
                   }),
                 ),
                 h('div', { className: 'nb-sync-hint' }, t('syncGitAuthHint')),
+                h(
+                  'label',
+                  { className: 'nb-sync-check' },
+                  h('input', {
+                    type: 'checkbox',
+                    checked: form.gitSystemSsh === true,
+                    onChange: (event) => update({ gitSystemSsh: event.target.checked }),
+                  }),
+                  t('syncGitSystemSsh'),
+                ),
               )
             : null,
           form.provider === 'off'
@@ -8832,6 +9335,61 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
               ? h('div', { className: 'nb-sync-detail' }, String(message.detail))
               : null,
           ),
+          status !== null && Array.isArray(status.runs) && status.runs.length > 0
+            ? h(
+                'div',
+                { className: 'nb-sync-history' },
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'nb-sync-history-toggle',
+                    'aria-expanded': historyOpen,
+                    onClick: () => setHistoryOpen((open) => !open),
+                  },
+                  `${historyOpen ? '▾' : '▸'} ${t('syncHistory')} (${status.runs.length})`,
+                ),
+                historyOpen
+                  ? h(
+                      'div',
+                      { className: 'nb-sync-history-list' },
+                      status.runs.slice(0, 10).map((run) =>
+                        h(
+                          'div',
+                          {
+                            key: run.id,
+                            className: 'nb-sync-history-row',
+                            'data-ok': run.ok === true ? '1' : '0',
+                          },
+                          h(
+                            'span',
+                            { className: 'nb-sync-history-time' },
+                            new Date(run.endedAt ?? run.startedAt).toLocaleString(localeTag),
+                          ),
+                          h('span', { className: 'nb-sync-history-trigger' }, triggerLabel(run.trigger)),
+                          h(
+                            'span',
+                            { className: 'nb-sync-history-stat' },
+                            t('syncStat', {
+                              up: run.uploaded ?? 0,
+                              down: run.downloaded ?? 0,
+                              conflicts: run.conflicts ?? 0,
+                              deleted: (run.deletedLocal ?? 0) + (run.deletedRemote ?? 0),
+                            }),
+                          ),
+                          run.error !== null && run.error !== undefined
+                            ? h(
+                                'span',
+                                { className: 'nb-sync-history-error' },
+                                syncErrorLabel(t, run.error),
+                              )
+                            : null,
+                        ),
+                      ),
+                    )
+                  : null,
+              )
+            : null,
           h(
             'div',
             { className: 'nb-sync-actions' },
@@ -8965,6 +9523,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       useLocaleTick(locale)
       const [status, setStatus] = React.useState(null)
       const [notes, setNotes] = React.useState([])
+      const [folderList, setFolderList] = React.useState([])
       const [selected, setSelected] = React.useState(null)
       const [blocks, setBlocks] = React.useState([])
       const [editingId, setEditingId] = React.useState(null)
@@ -9034,6 +9593,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       const [flashCapture, setFlashCapture] = React.useState(false)
       const [flashRevision, setFlashRevision] = React.useState(0)
       const [flashCounts, setFlashCounts] = React.useState(null)
+      const [jumpTick, setJumpTick] = React.useState(0)
       const [flashTabOpen, setFlashTabOpen] = React.useState(() => {
         try {
           return window.localStorage.getItem(`${NS}:flash-tab`) === '1'
@@ -9196,6 +9756,38 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           }),
         [],
       )
+
+      React.useEffect(() => {
+        const pending = SEARCH_JUMP.pending
+        if (pending === null || pending.path !== selected) return undefined
+        const needle = pending.needle
+        let attempts = 0
+        let timer = null
+        const tryScroll = () => {
+          const root = scrollRef.current
+          if (root !== null && needle.length > 0) {
+            for (const node of root.querySelectorAll('.nb-b')) {
+              const text = (node.textContent ?? '').replace(/\s+/g, ' ').trim()
+              if (!text.includes(needle)) continue
+              node.scrollIntoView({ block: 'center', behavior: 'smooth' })
+              node.classList.add('nb-flash-hit')
+              setTimeout(() => node.classList.remove('nb-flash-hit'), 1800)
+              SEARCH_JUMP.pending = null
+              return
+            }
+          }
+          attempts += 1
+          if (attempts >= 12) {
+            SEARCH_JUMP.pending = null
+            return
+          }
+          timer = setTimeout(tryScroll, 120)
+        }
+        timer = setTimeout(tryScroll, 60)
+        return () => {
+          if (timer !== null) clearTimeout(timer)
+        }
+      }, [selected, blocks, jumpTick])
 
       React.useEffect(() => {
         const toggle = () => setAskOpen((open) => !open)
@@ -9746,6 +10338,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           ])
           const canvasItems = Array.isArray(canvasData?.files) ? canvasData.files : []
           setNotes([...(Array.isArray(data.notes) ? data.notes : []), ...canvasItems])
+          setFolderList(Array.isArray(data.folders) ? data.folders : [])
           setStatus(data.vault ?? null)
           setVaultError(null)
           return true
@@ -9870,6 +10463,13 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [loadList])
+
+      // Drop any stale title text from the previous note when the page changes.
+      React.useEffect(() => {
+        const element = titleRef.current
+        if (element !== null) element.textContent = currentTitle
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [selected])
 
       // Keep the page title's DOM in sync without fighting the caret while the
       // user is typing in it.
@@ -10175,6 +10775,11 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           mtimeRef.current = data.mtimeMs
           selectedRef.current = data.path
           setSelected(data.path)
+          // Reveal the note in the folder tree: expand every ancestor folder.
+          if (data.path.includes('/')) {
+            const parent = data.path.slice(0, data.path.lastIndexOf('/'))
+            setExpanded((previous) => expandedPath(previous, parent))
+          }
           setTabs((previous) => (previous.includes(data.path) ? previous : [...previous, data.path]))
           setRecent((previous) => [data.path, ...previous.filter((item) => item !== data.path)].slice(0, 6))
           apiPost('/current', { path: data.path }).catch(() => {})
@@ -10495,7 +11100,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
 
       function revealFolder(dir) {
         if (dir.length === 0) return
-        setExpanded((previous) => ({ ...previous, [dir]: true }))
+        setExpanded((previous) => expandedPath(previous, dir))
         try {
           const element = document.querySelector(`[data-folder="${dir}"]`)
           if (element !== null && typeof element.scrollIntoView === 'function') {
@@ -11597,7 +12202,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           const data = await apiPost('/mkdir', { path: name })
           setDialog(null)
           setFolderDraft('')
-          setExpanded((current) => ({ ...current, [data.path]: true }))
+          setExpanded((current) => expandedPath(current, data.path))
           await loadList()
         } catch (error) {
           setNotice({ kind: 'error', text: error.message })
@@ -11777,9 +12382,20 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
 
       const groups = React.useMemo(() => {
         const map = new Map()
+        // A folder can exist with no notes (freshly created) and a deep folder
+        // implies its parents; both must appear in the tree.
+        const ensure = (dir) => {
+          if (!map.has(dir)) map.set(dir, [])
+          let parent = dir.includes('/') ? dir.slice(0, dir.lastIndexOf('/')) : ''
+          while (parent.length > 0) {
+            if (!map.has(parent)) map.set(parent, [])
+            parent = parent.includes('/') ? parent.slice(0, parent.lastIndexOf('/')) : ''
+          }
+        }
+        for (const dir of folderList) ensure(dir)
         for (const note of notes) {
           const dir = note.dir || ''
-          if (!map.has(dir)) map.set(dir, [])
+          ensure(dir)
           map.get(dir).push(note)
         }
         return [...map.entries()].sort((a, b) => {
@@ -11787,7 +12403,9 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           if (b[0] === '') return 1
           return a[0].localeCompare(b[0], 'zh-Hans-CN')
         })
-      }, [notes])
+      }, [notes, folderList])
+
+      const homes = React.useMemo(() => folderHomes(notes), [notes])
 
       const outline = React.useMemo(
         () =>
@@ -12180,7 +12798,14 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
           : null,
         h(
           'div',
-          { className: 'nb-tree' },
+          {
+            className: 'nb-tree',
+            onContextMenu: (event) => {
+              if (event.target !== event.currentTarget) return
+              event.preventDefault()
+              setNoteMenu({ kind: 'folder', dir: '', x: event.clientX, y: event.clientY })
+            },
+          },
           loading === true
             ? h('div', { className: 'nb-side-empty' }, t('loading'))
             : hits !== null
@@ -12243,7 +12868,13 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                                   {
                                     key: `${note.path}-${hit.line}`,
                                     className: 'nb-hit-line',
-                                    onClick: () => openNote(note.path),
+                                    onClick: () => {
+                                      SEARCH_JUMP.pending = { path: note.path, needle: jumpNeedle(hit.text) }
+                                      // Already-open note: openNote() would early-return,
+                                      // so nudge the jump effect by hand.
+                                      if (note.path === selected) setJumpTick((tick) => tick + 1)
+                                      else openNote(note.path)
+                                    },
                                     title: `${note.path}:${hit.line}`,
                                   },
                                   h('span', { className: 'nb-hit-line-no' }, String(hit.line)),
@@ -12265,7 +12896,9 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
               : notes.length === 0
                 ? h('div', { className: 'nb-side-empty' }, t('noNotes'))
                 : groups.map(([dir, items]) =>
-                    h(
+                    !directoryOpen(dir, expanded)
+                      ? null
+                      : h(
                       'div',
                       { className: 'nb-group', key: `group-${dir}` },
                       dir === ''
@@ -12273,11 +12906,23 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                         : h(
                             'div',
                             {
-                              className: 'nb-group-title',
+                              className: `nb-group-title${homes.has(dir) ? ' has-home' : ''}`,
                               'data-folder': dir,
+                              title: homes.get(dir) ?? dir,
                               style: { paddingLeft: `${6 + Math.max(0, dir.split('/').length - 1) * 12}px` },
-                              onClick: () =>
-                                setExpanded({ ...expanded, [dir]: !(expanded[dir] === true) }),
+                              onClick: () => {
+                                const home = homes.get(dir)
+                                if (home !== undefined) {
+                                  void openNote(home)
+                                  return
+                                }
+                                setExpanded({ ...expanded, [dir]: !(expanded[dir] === true) })
+                              },
+                              onContextMenu: (event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                setNoteMenu({ kind: 'folder', dir, x: event.clientX, y: event.clientY })
+                              },
                               onDragOver: (event) => {
                                 event.preventDefault()
                                 if (event.dataTransfer !== null && event.dataTransfer !== undefined) {
@@ -12295,8 +12940,23 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                                 if (dropped.length > 0) movePathTo(dropped, dir)
                               },
                             },
-                            h('span', null, `${expanded[dir] === true ? '▾' : '▸'} ${dir.split('/').pop()}`),
-                            h('span', { className: 'nb-group-count' }, String(items.length)),
+                            h(
+                              'span',
+                              {
+                                className: 'nb-group-caret',
+                                onClick: (event) => {
+                                  event.stopPropagation()
+                                  setExpanded({ ...expanded, [dir]: !(expanded[dir] === true) })
+                                },
+                              },
+                              expanded[dir] === true ? '▾' : '▸',
+                            ),
+                            h(
+                              'span',
+                              { className: `nb-group-name${homes.has(dir) ? ' is-home' : ''}` },
+                              dir.split('/').pop(),
+                            ),
+                            h('span', { className: 'nb-group-count' }, items.length > 0 ? String(items.length) : ''),
                           ),
                       dir === '' || expanded[dir] === true
                         ? flattenTree(items, parents).map(({ note, depth }) =>
@@ -12306,7 +12966,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                                 key: note.path,
                                 className: `nb-note${selected === note.path ? ' on' : ''}`,
                                 style: {
-                                  paddingLeft: `${8 + Math.max(0, dir.split('/').length - 1) * 12 + depth * 14}px`,
+                                  paddingLeft: `${6 + Math.max(0, dir.split('/').length) * 12 + depth * 14}px`,
                                 },
                                 onClick: () => openNote(note.path),
                                 draggable: true,
@@ -12326,6 +12986,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                                 },
                                 title: note.path,
                               },
+                              h('span', { className: 'nb-note-caret', 'aria-hidden': 'true' }, '·'),
                               h('span', { className: 'nb-note-name' }, note.name),
                             ),
                           )
@@ -12532,7 +13193,89 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                   },
                   '⋯',
                 ),
-                noteMenu !== null
+                noteMenu !== null && noteMenu.kind === 'folder'
+                  ? h(
+                      'div',
+                      {
+                        className: 'nb-note-menu',
+                        style: { left: `${noteMenu.x}px`, top: `${noteMenu.y}px` },
+                        onMouseDown: (event) => event.stopPropagation(),
+                      },
+                      noteMenu.dir.length > 0
+                        ? h(
+                        'button',
+                        {
+                          className: 'nb-menu-item',
+                          onClick: async () => {
+                            const folder = noteMenu.dir
+                            setNoteMenu(null)
+                            const existing = homes.get(folder)
+                            if (existing !== undefined) {
+                              await openNote(existing)
+                              return
+                            }
+                            const path = folderHomePath(folder)
+                            if (path === null) return
+                            try {
+                              await apiPost('/create', {
+                                path,
+                                content: `# ${folder.split('/').pop()}\n\n`,
+                              })
+                              await loadList()
+                              await openNote(path)
+                            } catch (error) {
+                              setNotice({ kind: 'error', text: error.message })
+                            }
+                          },
+                        },
+                        t('folderHomeNote'),
+                      )
+                        : null,
+                      h(
+                        'button',
+                        {
+                          className: 'nb-menu-item',
+                          onClick: () => {
+                            const folder = noteMenu.dir
+                            setNoteMenu(null)
+                            void openTemplates(folder)
+                          },
+                        },
+                        t('folderNewNote'),
+                      ),
+                      h(
+                        'button',
+                        {
+                          className: 'nb-menu-item',
+                          onClick: () => {
+                            const folder = noteMenu.dir
+                            setNoteMenu(null)
+                            setFolderDraft(folder.length > 0 ? `${folder}/` : '')
+                            setDialog({ kind: 'folder' })
+                          },
+                        },
+                        t('folderNewSubfolder'),
+                      ),
+                      h(
+                        'button',
+                        {
+                          className: 'nb-menu-item',
+                          onClick: () => {
+                            const folder = noteMenu.dir
+                            setNoteMenu(null)
+                            try {
+                              if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                                navigator.clipboard.writeText(folder)
+                              }
+                            } catch {
+                              /* clipboard unavailable */
+                            }
+                          },
+                        },
+                        t('copyPath'),
+                      ),
+                    )
+                  : noteMenu !== null
                   ? h(
                       'div',
                       {
@@ -13127,6 +13870,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                       onTableMoveColumn: moveTableColumns,
                       onToggleBlock: toggleBlockCollapsed,
                       onCalloutVariant: cycleCalloutVariant,
+                      notePath: selected ?? '',
                       onOpenWiki: openWiki,
                       onExtractPage: extractPage,
                       onTemplate: openTemplateButton,
@@ -15127,7 +15871,11 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
       )
 
       ctx.slots.inject('main', () =>
-        ctx.slots.register({ name: 'main', key: NS }, () => h(Workbench, { t, locale: ctx.locale })),
+        ctx.slots.register({ name: 'main', key: NS }, () => {
+          const panel = h(Workbench, { t, locale: ctx.locale })
+          // The smoke harness has no React.Component; only real React gets a boundary.
+          return typeof React.Component === 'function' ? h(NotebookBoundary, null, panel) : panel
+        }),
       )
     }
 
@@ -15173,6 +15921,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         linkOnlyTarget,
         resolveNoteLink,
         autoFolderPageFor,
+        markdownNoteLink,
         folderPageConfigFor,
         folderPageFor,
         folderEntriesFor,
@@ -15263,6 +16012,11 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         FlashPanel,
         parseMarpDeck,
         MarpDeck,
+        jumpNeedle,
+        directoryOpen,
+        expandedPath,
+        folderHomes,
+        folderHomePath,
         flashCategoryLabel,
         flashCategoryIndex,
         flashErrorLabel,

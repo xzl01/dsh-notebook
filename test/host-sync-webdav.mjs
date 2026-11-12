@@ -76,6 +76,8 @@ async function startMockDav() {
   /** rel dirs, '' is the base collection */
   const dirs = new Set([''])
   const requests = []
+  /** Injected transient failures: method -> remaining count. */
+  const failures = []
   const state = { clockOffset: 0 }
 
   const href = (rel, isDir) => `http://127.0.0.1:${state.port}${BASE_PATH}${rel.length > 0 ? `/${encodePath(rel)}` : ''}${isDir ? '/' : ''}`
@@ -143,6 +145,14 @@ async function startMockDav() {
         if (credentials !== `${USER}:${PASSWORD}`) {
           res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Test"', 'Content-Type': 'text/plain' })
           res.end('Not Authorized\n')
+          return
+        }
+
+        const failure = failures.find((entry) => entry.method === req.method && entry.remaining > 0)
+        if (failure !== undefined) {
+          failure.remaining -= 1
+          res.writeHead(failure.status, { 'Content-Type': 'text/plain' })
+          res.end('temporarily unavailable\n')
           return
         }
 
@@ -247,6 +257,9 @@ async function startMockDav() {
     },
     has(rel) {
       return files.has(rel)
+    },
+    failNext(method, times, status = 503) {
+      failures.push({ method, remaining: times, status })
     },
     touch(rel, deltaMs) {
       const file = files.get(rel)
@@ -357,6 +370,15 @@ await check('a second sync with no changes moves nothing', async () => {
   assert.equal(result.downloaded, 0)
   assert.equal(result.skipped, 2)
   assert.ok(dav.requests.length - before < 10, 'an unchanged run should not transfer files')
+})
+
+await check('a transient WebDAV 503 is retried instead of failing the sync', async () => {
+  await writeVault('重试.md', '# 重试\n\n503 之后仍然上传\n')
+  dav.failNext('PROPFIND', 2, 503)
+  const result = await service.run({ trigger: 'manual' })
+  assert.equal(result.ok, true, JSON.stringify(result.errors))
+  assert.equal(result.uploaded, 1, JSON.stringify(result.errors))
+  assert.equal(dav.has('重试.md'), true)
 })
 
 await check('a local edit is uploaded', async () => {

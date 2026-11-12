@@ -648,6 +648,28 @@ check('frontmatter type: folder pins the page and can point at another folder', 
   return 'pinned + override + link body'
 })
 
+check('relative .md links resolve to notes in the vault', () => {
+  const { markdownNoteLink } = captured.module.__internal
+  const base = '笔记/02 生活/05 归档与索引/00 索引.md'
+  const notes = [
+    { path: '笔记/02 生活/05 归档与索引/日记.md', name: '日记', dir: '笔记/02 生活/05 归档与索引' },
+    { path: '笔记/02 生活/生活.md', name: '生活', dir: '笔记/02 生活' },
+    { path: '笔记/02 生活/05 归档与索引/生活（旧索引）.md', name: '生活（旧索引）', dir: '笔记/02 生活/05 归档与索引' },
+  ]
+  const sibling = markdownNoteLink(base, '日记.md', notes)
+  assert(sibling !== null && sibling.path === '笔记/02 生活/05 归档与索引/日记.md', JSON.stringify(sibling))
+  const parent = markdownNoteLink(base, '../生活.md', notes)
+  assert(parent !== null && parent.path === '笔记/02 生活/生活.md', JSON.stringify(parent))
+  const encoded = markdownNoteLink(base, encodeURIComponent('生活（旧索引）.md'), notes)
+  assert(encoded !== null && encoded.name === '生活（旧索引）', JSON.stringify(encoded))
+  const anchored = markdownNoteLink(base, '日记.md#2021', notes)
+  assert(anchored !== null && anchored.path.endsWith('日记.md'), 'anchors are stripped')
+  assert(markdownNoteLink(base, '不存在.md', notes) === null, 'missing notes resolve to null')
+  assert(markdownNoteLink(base, 'https://example.com/x.md', notes) === null, 'web URLs stay web links')
+  assert(markdownNoteLink(base, '#top', notes) === null, 'bare anchors are not note links')
+  return 'sibling / parent / encoded / missing / web'
+})
+
 check('the writing heatmap builds GitHub-style columns', () => {
   const { writingHeatmap, writingLevel } = captured.module.__internal
   const today = new Date(2026, 10, 10)
@@ -1068,6 +1090,55 @@ check('code highlighting tokenizes keywords, strings, comments and numbers', () 
   const plain = highlightCode('plain text')
   assert(plain.every((node) => typeof node === 'string'), 'plain code must not produce highlighted spans')
   return classes.join(',')
+})
+
+check('a note named like its folder becomes the folder home', () => {
+  const { folderHomePath, folderHomes } = captured.module.__internal
+  assert(folderHomePath('笔记/01 工作') === '笔记/01 工作/工作.md', folderHomePath('笔记/01 工作'))
+  assert(folderHomePath('') === null, 'the root folder has no home')
+  const homes = folderHomes([
+    { path: '笔记/01 工作/工作.md' },
+    { path: '笔记/01 工作/其他.md' },
+    { path: '笔记/02 生活/生活.md' },
+    { path: '笔记/03 阅读/03 阅读.md' },
+    { path: '笔记/04 归档/index.md' },
+    { path: '根笔记.md' },
+  ])
+  assert(homes.get('笔记/01 工作') === '笔记/01 工作/工作.md', JSON.stringify([...homes]))
+  assert(homes.get('笔记/02 生活') === '笔记/02 生活/生活.md', 'nested folders get their own home')
+  assert(homes.get('笔记/03 阅读') === '笔记/03 阅读/03 阅读.md', 'the full folder name also counts')
+  assert(homes.get('笔记/04 归档') === '笔记/04 归档/index.md', 'index.md is the last resort')
+  assert(homes.has('') === false, 'the root must not get a home note')
+  return 'same-name note is the folder home'
+})
+
+check('code highlighting follows the fence language', () => {
+  const { highlightCode } = captured.module.__internal
+  const classes = (text, lang) =>
+    highlightCode(text, lang)
+      .filter((node) => node !== null && typeof node === 'object')
+      .map((span) => span.props.className)
+  const ini = classes('[Desktop Entry]\nName=Firefox\n# comment', 'ini')
+  assert(ini.includes('c-section'), `ini section: ${ini.join(',')}`)
+  assert(ini.includes('c-prop'), `ini key: ${ini.join(',')}`)
+  assert(ini.includes('c-comment'), `ini comment: ${ini.join(',')}`)
+  const shell = classes('export PATH=$HOME/bin:$PATH', 'shell')
+  assert(shell.includes('c-keyword'), `shell keyword: ${shell.join(',')}`)
+  assert(shell.includes('c-var'), `shell var: ${shell.join(',')}`)
+  const json = classes('{"a": true}', 'json')
+  assert(json.includes('c-prop') && json.includes('c-bool'), `json: ${json.join(',')}`)
+  const html = classes('<a href="x">go</a>', 'html')
+  assert(html.includes('c-tag') && html.includes('c-attr') && html.includes('c-string'), `html: ${html.join(',')}`)
+  const sql = classes('SELECT * FROM t WHERE a = 1', 'sql')
+  assert(sql.includes('c-keyword'), `sql: ${sql.join(',')}`)
+  const desktop = classes('Name[zh_CN]=文本\nCategories=Utility;TextEditor;', 'desktop')
+  assert(desktop.includes('c-prop'), `desktop key: ${desktop.join(',')}`)
+  assert(!desktop.includes('c-comment'), `semicolons must not become comments: ${desktop.join(',')}`)
+  const toml = classes('[Desktop Entry]\nComment[ar]=x', 'toml')
+  assert(toml.includes('c-section') && toml.includes('c-prop'), `toml: ${toml.join(',')}`)
+  const plain = highlightCode('Name=Value', '')
+  assert(plain.every((node) => typeof node === 'string'), 'an empty language must stay plain')
+  return 'ini + shell + json + html + sql + desktop + toml'
 })
 
 check('frontmatter splits only real YAML headers and keeps the icon', () => {
@@ -2092,6 +2163,7 @@ check('Workbench renders a selected note with one block view per block', () => {
   const presets = [
     { name: 'Vault', path: '/tmp/vault' },
     [{ path: '笔记/01 工作/a.md', name: 'a', dir: '笔记/01 工作', size: 10, mtimeMs: 0 }],
+    [],
     '笔记/01 工作/a.md',
     blocks,
     null,
@@ -2432,6 +2504,37 @@ check('marp code blocks split into slides and render one at a time', () => {
   const nav = elements.filter((node) => String(node.props?.className ?? '') === 'nb-deck-btn')
   assert(nav.length === 2, `expected two navigation buttons, found ${nav.length}`)
   return '2 slides + stage + counter + nav'
+})
+
+
+check('search jump needles match what the rendered block shows', () => {
+  const { jumpNeedle } = captured.module.__internal
+  assert(jumpNeedle('# 标题行') === '标题行', jumpNeedle('# 标题行'))
+  assert(jumpNeedle('> 引用 **重点** `code`') === '引用 重点 code', jumpNeedle('> 引用 **重点** `code`'))
+  assert(jumpNeedle('- [ ] 待办项') === '待办项', jumpNeedle('- [ ] 待办项'))
+  assert(jumpNeedle('> - 1. 嵌套项') === '嵌套项', jumpNeedle('> - 1. 嵌套项'))
+  assert(jumpNeedle('123456789012345678901234567890').length === 28, 'needle length is not capped')
+  return 'markers stripped, 28 chars'
+})
+
+
+check('folder tree visibility follows expanded ancestors', () => {
+  const { directoryOpen, expandedPath } = captured.module.__internal
+  assert(directoryOpen('', {}) === true, 'the root group should always be visible')
+  assert(directoryOpen('笔记', {}) === true, 'top-level folders have no ancestors to hide them')
+  assert(directoryOpen('笔记/01 工作', {}) === false, 'a child is hidden while its parent is collapsed')
+  assert(directoryOpen('笔记/01 工作', { 笔记: true }) === true, 'expanding the parent shows the child')
+  assert(
+    directoryOpen('笔记/01 工作/草稿', { 笔记: true }) === false,
+    'a grandchild still needs its own parent expanded',
+  )
+  assert(
+    directoryOpen('笔记/01 工作/草稿', { 笔记: true, '笔记/01 工作': true }) === true,
+    'expanding every ancestor shows the grandchild',
+  )
+  const next = expandedPath({}, '笔记/01 工作/草稿')
+  assert(next['笔记'] === true && next['笔记/01 工作'] === true && next['笔记/01 工作/草稿'] === true, JSON.stringify(next))
+  return 'ancestor visibility + expand path'
 })
 
 console.log('')

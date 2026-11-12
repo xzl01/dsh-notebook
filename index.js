@@ -462,6 +462,25 @@ function localDateKey(ms) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
+/** Vault-relative directories (including empty ones), skipping hidden folders. */
+async function walkFolders(dir, root, out, limit) {
+  let entries
+  try {
+    entries = await fsp.readdir(dir, { withFileTypes: true })
+  } catch {
+    return
+  }
+  entries.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
+  for (const entry of entries) {
+    if (out.length >= limit) return
+    if (!entry.isDirectory()) continue
+    if (entry.name.startsWith('.') || EXCLUDED_SEGMENTS.has(entry.name)) continue
+    const abs = join(dir, entry.name)
+    out.push(slashPath(relative(root, abs)))
+    await walkFolders(abs, root, out, limit)
+  }
+}
+
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) return '?'
   if (bytes < 1024) return `${bytes} B`
@@ -534,6 +553,77 @@ function createVault(config, hooks = {}) {
     throw new NotebookError(`The note path is too deep: ${shownPath}`, 'invalid_path')
   }
 
+  /* ---------------- Cached reads ----------------------------------------
+   * Listing the vault and reading every note are the two hot paths (the panel
+   * lists on open, search and semantic recall sweep the whole vault). One
+   * short-lived listing plus a per-file text cache keyed by mtime/size keeps
+   * them from re-statting and re-reading the same files in a burst.
+   */
+  const TEXT_CACHE_LIMIT = 48 * 1024 * 1024
+  const LIST_CACHE_MS = 1500
+  const textCache = new Map()
+  let textCacheBytes = 0
+  let rootListing = null
+
+  function invalidateListing() {
+    rootListing = null
+  }
+
+  function insideRoot(abs) {
+    const rel = relative(root, abs)
+    return rel.length > 0 && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)
+  }
+
+  /** Every note in the vault, reused for a short window by list/search/recall. */
+  async function rootNotes() {
+    const base = requireRoot()
+    const now = Date.now()
+    if (rootListing !== null && now - rootListing.at < LIST_CACHE_MS) return rootListing
+    const notes = []
+    await walkNotes(base, base, notes, config.maxIndexFiles + 1)
+    let truncated = false
+    if (notes.length > config.maxIndexFiles) {
+      notes.length = config.maxIndexFiles
+      truncated = true
+    }
+    const folders = []
+    await walkFolders(base, base, folders, config.maxIndexFiles)
+    rootListing = { at: now, notes, folders, truncated }
+    return rootListing
+  }
+
+  /** Full text of one note, cached until its mtime or size changes. */
+  async function noteText(rel) {
+    const base = requireRoot()
+    const abs = resolve(base, rel)
+    if (!insideRoot(abs)) return null
+    const stats = await statOrNull(abs)
+    if (stats === null || !stats.isFile()) return null
+    const cached = textCache.get(rel)
+    const mtimeMs = Math.round(stats.mtimeMs)
+    if (cached !== undefined && cached.mtimeMs === mtimeMs && cached.size === stats.size) {
+      // LRU touch: reinsert so eviction drops the least recently used note.
+      textCache.delete(rel)
+      textCache.set(rel, cached)
+      return cached.text
+    }
+    if (stats.size > config.maxNoteBytes) return null
+    const text = await fsp.readFile(abs, 'utf8').catch(() => null)
+    if (text === null) return null
+    const bytes = Buffer.byteLength(text, 'utf8')
+    if (bytes > TEXT_CACHE_LIMIT) return text
+    if (cached !== undefined) textCacheBytes -= cached.bytes
+    textCache.set(rel, { mtimeMs, size: stats.size, text, bytes })
+    textCacheBytes += bytes
+    while (textCacheBytes > TEXT_CACHE_LIMIT && textCache.size > 1) {
+      const oldest = textCache.keys().next().value
+      const dropped = textCache.get(oldest)
+      textCacheBytes -= dropped.bytes
+      textCache.delete(oldest)
+    }
+    return text
+  }
+
   const vaultInfo = () => ({
     path: root,
     name: root === null ? null : basename(root),
@@ -550,10 +640,11 @@ function createVault(config, hooks = {}) {
       return { ...vaultInfo(), exists: false, noteCount: 0 }
     }
     let noteCount = 0
+    let capped = false
     try {
-      const notes = []
-      await walkNotes(root, root, notes, config.maxIndexFiles + 1)
-      noteCount = Math.min(notes.length, config.maxIndexFiles)
+      const listing = await rootNotes()
+      noteCount = listing.notes.length
+      capped = listing.truncated
     } catch {
       noteCount = 0
     }
@@ -561,13 +652,24 @@ function createVault(config, hooks = {}) {
       ...info,
       exists: true,
       noteCount,
-      noteCountCapped: noteCount >= config.maxIndexFiles,
+      noteCountCapped: capped || noteCount >= config.maxIndexFiles,
       maxNoteBytes: config.maxNoteBytes,
     }
   }
 
   async function list(folder) {
     const base = requireRoot()
+    if (typeof folder !== 'string' || folder.trim().length === 0) {
+      const listing = await rootNotes()
+      return {
+        vault: vaultInfo(),
+        folder: '',
+        notes: listing.notes,
+        folders: listing.folders,
+        truncated: listing.truncated,
+        limit: config.maxIndexFiles,
+      }
+    }
     const target = resolveFolder(base, folder)
     await assertInsideVault(target.abs, target.rel.length > 0 ? target.rel : '(vault root)')
     const notes = []
@@ -894,6 +996,7 @@ function createVault(config, hooks = {}) {
       }
     }
     const stats = await writeAtomic(abs, next)
+    invalidateListing()
     await recordWriting(next.length - previousChars)
     try {
       hooks.onWrite?.(rel)
@@ -908,6 +1011,7 @@ function createVault(config, hooks = {}) {
     if (folder.rel.length === 0) throw new NotebookError('A folder name is required.', 'missing_folder')
     await assertInsideVault(folder.abs, folder.rel)
     await fsp.mkdir(folder.abs, { recursive: true })
+    invalidateListing()
     return { path: folder.rel }
   }
 
@@ -930,6 +1034,7 @@ function createVault(config, hooks = {}) {
     if (targetStats !== null) throw new NotebookError(`A note already exists at ${target.rel}.`, 'note_exists')
     await fsp.mkdir(dirname(target.abs), { recursive: true })
     await fsp.rename(source.abs, target.abs)
+    invalidateListing()
     const stats = await fsp.stat(target.abs)
     return { from: source.rel, to: target.rel, size: stats.size, mtimeMs: Math.round(stats.mtimeMs) }
   }
@@ -947,6 +1052,12 @@ function createVault(config, hooks = {}) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-')
     const target = join(trash, `${stamp}-${randomUUID().slice(0, 8)}-${basename(abs)}`)
     await fsp.rename(abs, target)
+    invalidateListing()
+    try {
+      hooks.onWrite?.(rel)
+    } catch {
+      /* an auto-sync hook must never fail the delete */
+    }
     return { path: rel, trashedTo: slashPath(relative(base, target)) }
   }
 
@@ -1100,12 +1211,8 @@ function createVault(config, hooks = {}) {
       if (note.path === rel) continue
       if (note.size > config.maxNoteBytes) continue
       scanned += 1
-      let text
-      try {
-        text = await fsp.readFile(join(base, note.path), 'utf8')
-      } catch {
-        continue
-      }
+      const text = await noteText(note.path)
+      if (text === null) continue
       const lines = text.split(/\r\n|\r|\n/)
       const hits = []
       for (let index = 0; index < lines.length && hits.length < MAX_BACKLINK_LINES; index += 1) {
@@ -1134,8 +1241,8 @@ function createVault(config, hooks = {}) {
     if (needle.length === 0) throw new NotebookError('A search query is required.', 'missing_query')
     const max = Math.min(Math.max(1, Math.floor(Number(limit) || MAX_SEARCH_RESULTS)), 200)
     const lower = needle.toLowerCase()
-    const notes = []
-    await walkNotes(base, base, notes, Math.min(config.maxIndexFiles, MAX_SEARCH_FILES))
+    const listing = await rootNotes()
+    const notes = listing.notes.slice(0, MAX_SEARCH_FILES)
     const matches = []
     const titles = []
     const bodies = []
@@ -1296,6 +1403,8 @@ function createVault(config, hooks = {}) {
   return {
     root,
     head,
+    noteText,
+    rootNotes,
     vaultInfo,
     status,
     list,
@@ -2530,25 +2639,25 @@ export function apply(ctx, rawConfig) {
     return text.replace(/\s+/g, ' ').trim().slice(0, 140)
   }
 
-  /** Note heads (8 KB) cached until the vault's file list or mtimes change. */
-  const recallCache = { signature: '', docs: [] }
-
+  /**
+   * Semantic candidates. The vault's per-file text cache makes this cheap after
+   * the first sweep and, unlike a single global signature, one edited note only
+   * re-reads that note.
+   */
   async function recallDocs() {
     if (vault.root === null) return []
-    const notes = []
-    await walkNotes(vault.root, vault.root, notes, Math.min(config.maxIndexFiles, 1200))
-    const signature = `${notes.length}:${notes.reduce((max, note) => Math.max(max, note.mtimeMs), 0)}`
-    if (recallCache.signature === signature && recallCache.docs.length > 0) return recallCache.docs
+    const listing = await vault.rootNotes()
+    const notes = listing.notes.slice(0, 1200)
     const docs = []
     for (const note of notes) {
-      const head = await vault.head(note.path, 8192).catch(() => null)
-      if (head === null) continue
-      const body = head.head.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '')
+      const text = await vault.noteText(note.path).catch(() => null)
+      if (text === null) continue
+      const body = text
+        .slice(0, 8192)
+        .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '')
       if (body.trim().length === 0) continue
       docs.push({ path: note.path, text: body, lower: body.toLowerCase() })
     }
-    recallCache.signature = signature
-    recallCache.docs = docs
     return docs
   }
 

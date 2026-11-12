@@ -63,7 +63,7 @@ export const DEFAULT_SETTINGS = {
   version: 1,
   provider: 'off',
   webdav: { url: '', username: '', password: '', remotePath: '' },
-  git: { remote: '', branch: '', message: '', username: '', password: '' },
+  git: { remote: '', branch: '', message: '', username: '', password: '', useSystemSsh: false },
   auto: { onSave: false, intervalMinutes: 0 },
   /** 'trash' keeps a recoverable copy of anything a sync would delete; 'keep' never deletes. */
   deletes: 'trash',
@@ -111,6 +111,8 @@ function normalizeSettings(raw) {
       username: text(git.username),
       // Keep the exact token bytes; only trim accidental padding.
       password: typeof git.password === 'string' ? git.password.replace(/^\s+|\s+$/g, '') : '',
+      /** Leave ssh exactly as the user configured it (BatchMode blocks passphrase keys). */
+      useSystemSsh: git.useSystemSsh === true,
     },
     auto: {
       onSave: auto.onSave === true,
@@ -300,37 +302,57 @@ function createDav(options) {
     return decoded.slice(basePath.length + 1).replace(/\/+$/, '')
   }
 
+  const RETRYABLE_METHODS = new Set(['GET', 'PROPFIND', 'MKCOL', 'DELETE'])
+  const delay = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms))
+
   async function request(method, url, { body, headers = {}, timeoutMs = META_TIMEOUT_MS, allowed }) {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
-    let response
-    try {
-      response = await fetch(url, {
-        method,
-        headers: {
-          ...(auth === null ? {} : { Authorization: auth }),
-          'User-Agent': 'dsh-notebook/0.2 webdav-sync',
-          ...headers,
-        },
-        body,
-        redirect: 'follow',
-        signal: controller.signal,
-      })
-    } catch (error) {
-      const reason = controller.signal.aborted
-        ? 'the request timed out'
-        : String(error?.cause?.message ?? error?.message ?? error)
-      throw new SyncError(
-        controller.signal.aborted ? 'webdav_timeout' : 'webdav_unreachable',
-        `Could not reach the WebDAV server at ${origin}: ${reason}`,
-        reason,
-      )
-    } finally {
-      clearTimeout(timer)
+    // Reads and directory probes are safe to repeat; a transient 5xx or a
+    // dropped connection should not fail the whole sync.
+    const attempts = RETRYABLE_METHODS.has(method) ? 3 : 1
+    let lastError = null
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), timeoutMs)
+      let response
+      try {
+        response = await fetch(url, {
+          method,
+          headers: {
+            ...(auth === null ? {} : { Authorization: auth }),
+            'User-Agent': 'dsh-notebook/0.2 webdav-sync',
+            ...headers,
+          },
+          body,
+          redirect: 'follow',
+          signal: controller.signal,
+        })
+      } catch (error) {
+        const reason = controller.signal.aborted
+          ? 'the request timed out'
+          : String(error?.cause?.message ?? error?.message ?? error)
+        lastError = new SyncError(
+          controller.signal.aborted ? 'webdav_timeout' : 'webdav_unreachable',
+          `Could not reach the WebDAV server at ${origin}: ${reason}`,
+          reason,
+        )
+        if (attempt < attempts) {
+          await delay(300 * attempt * attempt)
+          continue
+        }
+        throw lastError
+      } finally {
+        clearTimeout(timer)
+      }
+      if (Array.isArray(allowed) && allowed.includes(response.status)) return response
+      const detail = await response.text().catch(() => '')
+      if ((response.status === 429 || response.status >= 500) && attempt < attempts) {
+        await delay(300 * attempt * attempt)
+        continue
+      }
+      throw davStatusError(method, url, response, detail)
     }
-    if (Array.isArray(allowed) && allowed.includes(response.status)) return response
-    const detail = await response.text().catch(() => '')
-    throw davStatusError(method, url, response, detail)
+    throw lastError ??
+      new SyncError('webdav_error', `The WebDAV request failed: ${method} ${url.replace(origin, '') || '/'}`)
   }
 
   function davStatusError(method, url, response, detail) {
@@ -532,7 +554,7 @@ function createDav(options) {
  * Run one git command inside the vault. Output is captured; a non-zero exit
  * becomes a SyncError carrying stderr so the panel can show the real reason.
  */
-function runGit(args, { cwd, timeoutMs = GIT_TIMEOUT_MS, allowFailure = false, auth = null } = {}) {
+function runGit(args, { cwd, timeoutMs = GIT_TIMEOUT_MS, allowFailure = false, auth = null, systemSsh = false } = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
     let child
     const credential = auth === null ? { args: [], env: {} } : gitCredentialPrefix(auth.username, auth.password)
@@ -551,9 +573,14 @@ function runGit(args, { cwd, timeoutMs = GIT_TIMEOUT_MS, allowFailure = false, a
           ...credential.env,
           // An unreachable ssh host otherwise waits for the TCP timeout and can
           // ask for a passphrase; BatchMode + ConnectTimeout makes it fail fast.
-          GIT_SSH_COMMAND:
-            process.env.GIT_SSH_COMMAND ??
-            'ssh -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=5 -o ServerAliveCountMax=3',
+          // Users who need the Keychain/passphrase prompt can opt out.
+          ...(systemSsh === true
+            ? {}
+            : {
+                GIT_SSH_COMMAND:
+                  process.env.GIT_SSH_COMMAND ??
+                  'ssh -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=5 -o ServerAliveCountMax=3',
+              }),
         },
         stdio: ['ignore', 'pipe', 'pipe'],
       })
@@ -954,6 +981,7 @@ export function createSyncService({ root, now = () => Date.now() }) {
       cwd: base,
       timeoutMs: GIT_TIMEOUT_OVERRIDE || GIT_REMOTE_TIMEOUT_MS,
       auth: { username: config.git.username, password: config.git.password },
+      systemSsh: config.git.useSystemSsh === true,
     })
     const hasBranch = result.stdout.trim().length > 0
     return {
@@ -1285,14 +1313,21 @@ export function createSyncService({ root, now = () => Date.now() }) {
     return gitDir === null
   }
 
-  /** Keep settings and the manifest out of commits without touching .gitignore. */
+  /**
+   * Local state must never reach the remote: settings/manifest, the trash that
+   * every delete moves a note into, version snapshots, and macOS metadata.
+   * `.git/info/exclude` is local-only, so the user's .gitignore is untouched.
+   */
+  const SYNC_EXCLUDES = [`${SYNC_DIR}/`, '.trash/', '.dsh-notebook-history/', '.DS_Store']
+
   async function excludeSyncDir(base) {
     const excludePath = join(base, '.git', 'info', 'exclude')
     const current = await fsp.readFile(excludePath, 'utf8').catch(() => '')
-    if (current.includes(`${SYNC_DIR}/`)) return
+    const missing = SYNC_EXCLUDES.filter((entry) => !current.includes(entry))
+    if (missing.length === 0) return
     await fsp.mkdir(dirname(excludePath), { recursive: true })
-    const next = `${current}${current.length === 0 || current.endsWith('\n') ? '' : '\n'}${SYNC_DIR}/\n`
-    await fsp.writeFile(excludePath, next, 'utf8')
+    const prefix = current.length === 0 || current.endsWith('\n') ? current : `${current}\n`
+    await fsp.writeFile(excludePath, `${prefix}${missing.join('\n')}\n`, 'utf8')
   }
 
   async function currentBranch(base) {
@@ -1330,6 +1365,7 @@ export function createSyncService({ root, now = () => Date.now() }) {
         allowFailure: true,
         timeoutMs: GIT_TIMEOUT_OVERRIDE || GIT_REMOTE_TIMEOUT_MS,
         auth: { username: config.git.username, password: config.git.password },
+        systemSsh: config.git.useSystemSsh === true,
       })
       const ref = await runGit(['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`], {
         cwd: base,
@@ -1368,6 +1404,7 @@ export function createSyncService({ root, now = () => Date.now() }) {
           cwd: base,
           timeoutMs: GIT_TIMEOUT_OVERRIDE || GIT_REMOTE_TIMEOUT_MS,
           auth: { username: config.git.username, password: config.git.password },
+          systemSsh: config.git.useSystemSsh === true,
         })
         result.pushed = toPush
         result.notes.push(`pushed to origin/${branch}`)
