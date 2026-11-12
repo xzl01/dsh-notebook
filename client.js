@@ -790,6 +790,8 @@ window.__ModuleLoader__.load({
       askSteps: '检索了 {count} 步',
       askRetry: '重试',
       askClear: '清空对话',
+      askSaveThread: '保存对话为笔记',
+      askSaveThreadDone: '已保存对话：{path}',
       askNoteMissing: '找不到笔记：{name}',
     }
 
@@ -1233,6 +1235,8 @@ window.__ModuleLoader__.load({
       askSteps: 'Searched {count} step(s)',
       askRetry: 'Retry',
       askClear: 'Clear conversation',
+      askSaveThread: 'Save the conversation',
+      askSaveThreadDone: 'Conversation saved: {path}',
       askNoteMissing: 'Note not found: {name}',
     }
 
@@ -5784,6 +5788,59 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         return line.slice(0, 60)
       }
       return fallback
+    }
+
+    /** Date pieces shared by the transcript's filename and frontmatter. */
+    function askThreadDateParts(date) {
+      const d = date instanceof Date ? date : new Date(date ?? Date.now())
+      const pad = (value) => String(value).padStart(2, '0')
+      return {
+        day: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+        time: `${pad(d.getHours())}-${pad(d.getMinutes())}`,
+        clock: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+      }
+    }
+
+    /** Where a saved conversation lives: `<note folder>/AI 对话/<note> · <date>.md`. */
+    function askThreadPath(notePath, date) {
+      const name = String(notePath ?? '')
+        .split('/')
+        .pop()
+        .replace(/\.md$/i, '')
+        .replace(/[\\/:*?"<>|]/g, '-')
+      const dir = folderOfPath(notePath)
+      const stamp = askThreadDateParts(date)
+      return `${dir.length > 0 ? `${dir}/` : ''}AI 对话/${name} · ${stamp.day} ${stamp.time}.md`
+    }
+
+    /** One ask-panel thread as a standalone Markdown note. */
+    function askThreadMarkdown({ notePath, noteTitle, thread, model, mode, date }) {
+      const stamp = askThreadDateParts(date)
+      const title = String(noteTitle ?? '未命名').replace(/"/g, "'")
+      const path = String(notePath ?? '').replace(/"/g, "'")
+      const messages = (Array.isArray(thread) ? thread : []).filter(
+        (message) => message !== null && typeof message === 'object' && String(message.text ?? '').trim().length > 0,
+      )
+      const rounds = messages.filter((message) => message.role === 'user').length
+      const lines = [
+        '---',
+        'type: ai-chat',
+        `note: "[[${title}]]"`,
+        `notePath: "${path}"`,
+        `created: ${stamp.day} ${stamp.clock}`,
+        ...(typeof model === 'string' && model.length > 0 ? [`model: "${model.replace(/"/g, '')}"`] : []),
+        `mode: ${mode === 'agent' ? 'agent' : 'note'}`,
+        '---',
+        '',
+        `# AI 对话 · ${title}`,
+        '',
+        `> 关于《${title}》 · ${stamp.day} ${stamp.clock} · ${rounds} 轮 · ${model || '—'}`,
+        '',
+      ]
+      for (const message of messages) {
+        lines.push(message.role === 'user' ? '## 我' : '## AI', '', String(message.text ?? '').trim(), '')
+      }
+      return lines.join('\n')
     }
 
     /** The note name behind one citation (`[[a#b]]`, `[[a|alias]]`, `a.md`). */
@@ -12403,6 +12460,34 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         setFocusRequest({ id: created.id, offset: 0 })
       }
 
+      async function saveAskThread() {
+        if (selected === null || askThread.length === 0) return
+        const date = new Date()
+        const markdown = askThreadMarkdown({
+          notePath: selected,
+          noteTitle: noteNameFromPath(selected),
+          thread: askThread,
+          model: askModel,
+          mode: askMode,
+          date,
+        })
+        const base = askThreadPath(selected, date).replace(/\.md$/, '')
+        for (let attempt = 1; attempt <= 50; attempt += 1) {
+          const path = attempt === 1 ? `${base}.md` : `${base} ${attempt}.md`
+          try {
+            await apiPost('/create', { path, content: markdown })
+            await loadList()
+            setNotice({ kind: 'ok', text: t('askSaveThreadDone').replace('{path}', path) })
+            return
+          } catch (error) {
+            if (error.code !== 'note_exists') {
+              setNotice({ kind: 'error', text: String(error.message ?? error) })
+              return
+            }
+          }
+        }
+      }
+
       async function createNoteWith(baseName, body, targetDir) {
         await saveNow(blocksRef.current)
         const dir = noteDirFor(selectedRef.current, targetDir)
@@ -14443,6 +14528,20 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                       'button',
                       {
                         className: 'nb-icon-btn',
+                        title: t('askSaveThread'),
+                        'aria-label': t('askSaveThread'),
+                        onClick: () => {
+                          void saveAskThread()
+                        },
+                      },
+                      '💾',
+                    )
+                  : null,
+                askThread.length > 0
+                  ? h(
+                      'button',
+                      {
+                        className: 'nb-icon-btn',
                         title: t('askClear'),
                         'aria-label': t('askClear'),
                         onClick: () => {
@@ -16333,6 +16432,8 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         writingLevel,
         localDayKey,
         askAnswerTitle,
+        askThreadMarkdown,
+        askThreadPath,
         ASK_THREADS,
         collectionColumns,
         filterCollectionRows,

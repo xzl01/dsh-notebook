@@ -242,6 +242,8 @@ Host 通过 `ctx.llm` 与 `agentDefaultModel` 解析当前默认模型（没有�
   - 每条回答可「复制」「插入到笔记」或「存为笔记」——插入落在**正在编辑的那个块后面**
     （没在编辑时追加到末尾），作为真实块保存且可撤销；存为笔记用回答第一行做标题、
     落在当前目录、重名自动加序号并打开；Agent 模式会显示检索步数；
+  - **保存整段对话**：问答标题栏的 💾 把当前对话写成 Markdown 笔记，放在当前笔记同目录的
+    `AI 对话/` 下，带 `type: ai-chat`、所属笔记、模型与模式等 frontmatter；不离开当前页，重名自动加序号；
   - 右栏标题显示本次回答使用的 provider/model（`/api/ask` 先推一条 meta 事件）；
   - 请求失败时错误条旁有「重试」，原地重跑最后一个问题（不会多一条提问）；
     标题旁的 ⟲ 清空当前笔记的对话；每篇笔记各自保留对话，切回来还在；
@@ -482,7 +484,7 @@ Agent 也能用 `notebook_sync` 查看状态、测试连接、触发一次同步
 ## 开发与测试
 
 ```bash
-node test/client-smoke.mjs        # Client：工厂、slot 注册、对话笔记卡片、目录页、聚焦/同步判定、问 AI、命令面板、保存视图/条件过滤、嵌入锚点、写作热力网格、跨块格式化/工具栏定位、热力图标签、文件夹主页命名、Markdown/HTML/diff 等纯函数，115 项
+node test/client-smoke.mjs        # Client：工厂、slot 注册、对话笔记卡片、目录页、聚焦/同步判定、问 AI、命令面板、保存视图/条件过滤、嵌入锚点、写作热力网格、跨块格式化/工具栏定位、热力图标签、文件夹主页命名、AI 对话记录、Markdown/HTML/diff 等纯函数，116 项
 node test/host-smoke.mjs          # Host：mock ctx + 真实 HTTP server + 临时笔记库 + configEditor mock，73 项（含引用摘要、语义检索、写作统计）
 node test/host-attachments.mjs    # Host：图片上传 / 读取 / 配置 / 安全拒绝，10 项
 node test/host-history.mjs        # Host：版本快照 / 恢复 / 拒绝，8 项
@@ -492,7 +494,7 @@ node test/host-sync-webdav.mjs    # 同步：内存 WebDAV 服务器上跑上传
 node test/host-sync-git.mjs       # 同步：裸仓库 + 两个工作副本，跑初始化/推送/拉取/删除/冲突/仅本地/凭据/超时，14 项
 ```
 
-合计 255 项，全部为不依赖浏览器的 Node 脚本；改动前建议整套跑一遍。
+合计 256 项，全部为不依赖浏览器的 Node 脚本；改动前建议整套跑一遍。
 
 安装（本目录已经是 link 安装）：
 

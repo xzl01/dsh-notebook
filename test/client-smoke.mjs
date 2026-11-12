@@ -666,6 +666,35 @@ check('folder home names strip the numeric prefix', () => {
   return 'prefix stripped / plain / path'
 })
 
+check('an ask thread saves as an AI-chat note in the note folder', () => {
+  const { askThreadMarkdown, askThreadPath } = captured.module.__internal
+  const date = new Date(2026, 10, 12, 14, 30)
+  const thread = [
+    { role: 'user', text: '这篇讲了什么？' },
+    { role: 'assistant', text: '讲了元宇宙与剧本杀。[[相关笔记]]' },
+    { role: 'user', text: '  ' },
+    { role: 'assistant', text: '' },
+  ]
+  const markdown = askThreadMarkdown({
+    notePath: '笔记/02 生活/01 日记/a.md',
+    noteTitle: 'a',
+    thread,
+    model: 'mock/m',
+    mode: 'agent',
+    date,
+  })
+  assert(markdown.startsWith('---\ntype: ai-chat\n'), markdown.slice(0, 40))
+  assert(markdown.includes('note: "[[a]]"'), 'frontmatter links the source note')
+  assert(markdown.includes('mode: agent'), 'mode is recorded')
+  assert(markdown.includes('## 我') && markdown.includes('## AI'), 'both roles are present')
+  assert(markdown.includes('讲了元宇宙与剧本杀。[[相关笔记]]'), 'answer markdown is kept as-is')
+  assert(markdown.split('## AI').length - 1 === 1, 'empty messages are skipped')
+  const path = askThreadPath('笔记/02 生活/01 日记/a.md', date)
+  assert(path === '笔记/02 生活/01 日记/AI 对话/a · 2026-11-12 14-30.md', path)
+  assert(askThreadPath('a:b.md', date) === 'AI 对话/a-b · 2026-11-12 14-30.md', 'unsafe name characters are replaced')
+  return 'frontmatter / messages / path / sanitize'
+})
+
 check('heatmap month labels skip the trailing edge', () => {
   const { writingMonthLabels } = captured.module.__internal
   const weeks = [
