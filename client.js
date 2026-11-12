@@ -9688,6 +9688,8 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         return () => clearTimeout(timer)
       }, [notice])
       const [dialog, setDialog] = React.useState(null)
+      const dialogRef = React.useRef(null)
+      dialogRef.current = dialog
       const [loading, setLoading] = React.useState(true)
       const [expanded, setExpanded] = React.useState({})
       const [titleMenu, setTitleMenu] = React.useState(false)
@@ -10739,6 +10741,13 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
 
       React.useEffect(() => {
         function handleKeyDown(event) {
+          // Escape closes whatever dialog is open before it clears a block
+          // selection or leaves zen mode.
+          if (event.key === 'Escape' && dialogRef.current !== null) {
+            event.preventDefault()
+            setDialog(null)
+            return
+          }
           if (event.key === 'Escape' && blockSelectionRef.current !== null) {
             setBlockSelection(null)
             return
