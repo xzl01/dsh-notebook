@@ -3863,6 +3863,54 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       return `${source.slice(0, start)}${before}${source.slice(start, start + length)}${after}${source.slice(start + length)}`
     }
 
+    function stripInlineMarkdown(fragment) {
+      let text = String(fragment ?? '')
+      text = text.replace(/\[([^\]]*)\]\((?:<[^>]*>|[^)]*)\)/g, '$1')
+      text = text.replace(/(\*\*|__|~~|`)([\s\S]*?)\1/g, '$2')
+      text = text.replace(/(\*|_)(?=\S)([\s\S]*?\S)\1/g, '$2')
+      return text
+    }
+
+    /**
+     * Remove inline Markdown around (or inside) one selected substring. Used by
+     * the multi-block "clear formatting" action; returns the input when nothing
+     * changes so the caller can skip a write.
+     */
+    function clearMarkdownSelection(text, selected, offset) {
+      const source = String(text ?? '')
+      const needle = String(selected ?? '')
+      if (needle.length === 0) return source
+      let start = -1
+      if (Number.isInteger(offset) && offset >= 0 && source.slice(offset, offset + needle.length) === needle) {
+        start = offset
+      } else {
+        start = source.indexOf(needle)
+      }
+      if (start < 0) {
+        const trimmed = needle.trim()
+        if (trimmed.length === 0) return source
+        start = source.indexOf(trimmed)
+        if (start < 0) return source
+      }
+      const length = source.slice(start, start + needle.length) === needle ? needle.length : needle.trim().length
+      const pairs = [['**', '**'], ['__', '__'], ['~~', '~~'], ['`', '`'], ['*', '*'], ['_', '_']]
+      for (const [open, close] of pairs) {
+        if (
+          source.slice(Math.max(0, start - open.length), start) === open &&
+          source.slice(start + length, start + length + close.length) === close
+        ) {
+          return (
+            source.slice(0, start - open.length) +
+            stripInlineMarkdown(source.slice(start, start + length)) +
+            source.slice(start + length + close.length)
+          )
+        }
+      }
+      const cleaned = stripInlineMarkdown(source.slice(start, start + length))
+      if (cleaned === source.slice(start, start + length)) return source
+      return source.slice(0, start) + cleaned + source.slice(start + length)
+    }
+
     /** True when the OS asks for reduced motion; JS-driven scrolling must honor it too. */
     function prefersReducedMotion() {
       return (
@@ -11456,13 +11504,44 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         }
       }
 
+      function clearSelectionAcrossBlocks(blockEls, range) {
+        let changed = false
+        for (const element of blockEls) {
+          const id = element.getAttribute('data-block')
+          const block = blocksRef.current.find((item) => item.id === id)
+          if (block === undefined || block.type === 'code' || block.type === 'table' || block.type === 'divider') continue
+          const content = element.querySelector('.nb-b')
+          const sub = range.cloneRange()
+          if (content !== null) {
+            if (!content.contains(sub.startContainer)) sub.setStart(content, 0)
+            if (!content.contains(sub.endContainer)) sub.setEnd(content, content.childNodes.length)
+          }
+          const selected = sub.toString()
+          if (selected.length === 0) continue
+          const offset =
+            content === null ? null : selectionOffsetIn(content, sub.startContainer, sub.startOffset)
+          const next = clearMarkdownSelection(block.text ?? '', selected, offset)
+          if (next === block.text) continue
+          changeText(id, next)
+          changed = true
+        }
+        if (changed) {
+          setSelection(null)
+          const live = window.getSelection ? window.getSelection() : null
+          if (live !== null) live.removeAllRanges()
+        }
+      }
+
       function formatSelection(kind) {
         const state = selectionRef.current
         if (state === null) return
         const selection = window.getSelection ? window.getSelection() : null
         if (selection === null || selection.rangeCount === 0) return
         if (state.multi === true) {
-          if (kind === 'clear') return
+          if (kind === 'clear') {
+            clearSelectionAcrossBlocks(selectedBlockElements(), selection.getRangeAt(0))
+            return
+          }
           formatSelectionAcrossBlocks(kind, selectedBlockElements(), selection.getRangeAt(0))
           return
         }
@@ -14941,7 +15020,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                     ['strikeThrough', 'S', t('fmtStrike'), 'nb-toolbar-strike'],
                     ['code', '</>', t('fmtCode'), 'nb-toolbar-code'],
                     ['link', '🔗', t('fmtLink'), ''],
-                    ...(selection.multi === true ? [] : [['clear', '⌫', t('fmtClear'), '']]),
+                    ['clear', '⌫', t('fmtClear'), ''],
                     ['ask', '✨', t('askAi'), 'nb-toolbar-ask'],
                   ].map(([kind, label, title, extra]) =>
                     h(
@@ -16097,6 +16176,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         autoFolderPageFor,
         markdownNoteLink,
         wrapMarkdownSelection,
+        clearMarkdownSelection,
         folderPageConfigFor,
         folderPageFor,
         folderEntriesFor,

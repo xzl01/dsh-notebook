@@ -648,6 +648,20 @@ check('frontmatter type: folder pins the page and can point at another folder', 
   return 'pinned + override + link body'
 })
 
+check('clear formatting strips inline markers per block', () => {
+  const { clearMarkdownSelection } = captured.module.__internal
+  assert(clearMarkdownSelection('a **b** c', 'b', 4) === 'a b c', 'markers around the selection')
+  assert(clearMarkdownSelection('**a**', '**a**', 0) === 'a', 'markers inside the selection')
+  assert(clearMarkdownSelection('~~gone~~', 'gone', 2) === 'gone', 'strikethrough')
+  assert(
+    clearMarkdownSelection('x [link](https://e.com) y', '[link](https://e.com)', 2) === 'x link y',
+    'inline links keep their label',
+  )
+  assert(clearMarkdownSelection('plain', 'plain', 0) === 'plain', 'nothing to clear is unchanged')
+  assert(clearMarkdownSelection('a cat a cat', 'a cat', 6) === 'a cat a cat', 'offset picks the right span')
+  return 'around / inside / strike / link / noop / offset'
+})
+
 check('multi-block formatting wraps the selected text', () => {
   const { wrapMarkdownSelection } = captured.module.__internal
   assert(wrapMarkdownSelection('hello world', 'world', '**', '**') === 'hello **world**')
