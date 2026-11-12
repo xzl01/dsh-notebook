@@ -648,6 +648,23 @@ check('frontmatter type: folder pins the page and can point at another folder', 
   return 'pinned + override + link body'
 })
 
+check('the format toolbar flips below and stays inside the document', () => {
+  const { toolbarPositionFor } = captured.module.__internal
+  const bounds = { left: 240, right: 1200 }
+  const normal = toolbarPositionFor({ top: 300, bottom: 320, left: 500, width: 100 }, bounds)
+  assert(normal.top === 254, `above the selection: ${normal.top}`)
+  assert(normal.left === 550, `centered: ${normal.left}`)
+  const nearTop = toolbarPositionFor({ top: 20, bottom: 40, left: 500, width: 100 }, bounds)
+  assert(nearTop.top === 52, `flips below near the top: ${nearTop.top}`)
+  const nearLeft = toolbarPositionFor({ top: 300, bottom: 320, left: 245, width: 20 }, bounds)
+  assert(nearLeft.left === 350, `clamped on the left: ${nearLeft.left}`)
+  const nearRight = toolbarPositionFor({ top: 300, bottom: 320, left: 1100, width: 100 }, bounds)
+  assert(nearRight.left === 1090, `clamped on the right: ${nearRight.left}`)
+  const unbounded = toolbarPositionFor({ top: 300, bottom: 320, left: 30, width: 40 }, null)
+  assert(unbounded.left === 50, 'no bounds means the exact center')
+  return 'above / flipped / left clamp / right clamp / unbounded'
+})
+
 check('clear formatting strips inline markers per block', () => {
   const { clearMarkdownSelection } = captured.module.__internal
   assert(clearMarkdownSelection('a **b** c', 'b', 4) === 'a b c', 'markers around the selection')

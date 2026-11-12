@@ -3911,6 +3911,23 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       return source.slice(0, start) + cleaned + source.slice(start + length)
     }
 
+    /**
+     * Where the floating format toolbar goes for one selection rect. It sits
+     * above the selection, flips below when there is no room at the top, and
+     * stays inside the document's horizontal bounds.
+     */
+    function toolbarPositionFor(rect, bounds) {
+      const half = 110
+      const center = Number(rect.left) + Number(rect.width) / 2
+      const left =
+        bounds === null || bounds === undefined
+          ? center
+          : Math.min(Math.max(center, bounds.left + half), bounds.right - half)
+      const above = Number(rect.top) - 46
+      const top = above >= 8 ? above : Number(rect.bottom) + 12
+      return { top: Math.max(8, top), left }
+    }
+
     /** True when the OS asks for reduced motion; JS-driven scrolling must honor it too. */
     function prefersReducedMotion() {
       return (
@@ -11425,12 +11442,18 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
             clear()
             return
           }
+          const docElement = document.querySelector('.nb-doc')
+          const bounds =
+            docElement !== null && typeof docElement.getBoundingClientRect === 'function'
+              ? docElement.getBoundingClientRect()
+              : null
+          const placed = toolbarPositionFor(rect, bounds)
           savedRangeRef.current = range.cloneRange()
           const next = {
             blockId: block === null ? null : block.getAttribute('data-block'),
             multi: edit === null || blocks.length > 1,
-            top: rect.top,
-            left: rect.left + rect.width / 2,
+            top: placed.top,
+            left: placed.left,
           }
           selectionRef.current = next
           setSelection(next)
@@ -14961,7 +14984,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
               {
                 className: 'nb-toolbar',
                 style: {
-                  top: `${Math.max(8, selection.top - 46)}px`,
+                  top: `${Math.max(8, selection.top)}px`,
                   left: `${selection.left}px`,
                   transform: 'translateX(-50%)',
                 },
@@ -16177,6 +16200,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         markdownNoteLink,
         wrapMarkdownSelection,
         clearMarkdownSelection,
+        toolbarPositionFor,
         folderPageConfigFor,
         folderPageFor,
         folderEntriesFor,
