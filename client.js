@@ -9785,12 +9785,17 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       const [writing, setWriting] = React.useState(null)
       const writingBusy = React.useRef(false)
       const writingRetried = React.useRef(false)
+      const writingFetchedAt = React.useRef(0)
 
       async function loadWriting() {
         if (writingBusy.current) return
+        // Note switches and focus events both ask; a short window keeps that
+        // from becoming a request per keystroke of navigation.
+        if (Date.now() - writingFetchedAt.current < 2000) return
         writingBusy.current = true
         try {
           const data = await apiGet('/stats/writing')
+          writingFetchedAt.current = Date.now()
           setWriting(data)
         } catch {
           // The panel can mount before the Host that serves the route is
@@ -9806,8 +9811,22 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         }
       }
 
+      // Refresh when the panel opens or the note changes (an Agent or Obsidian
+      // may have written while another note was open).
       React.useEffect(() => {
         void loadWriting()
+      }, [selected])
+
+      React.useEffect(() => {
+        const refresh = () => {
+          if (document.visibilityState === 'visible') void loadWriting()
+        }
+        window.addEventListener('focus', refresh)
+        document.addEventListener('visibilitychange', refresh)
+        return () => {
+          window.removeEventListener('focus', refresh)
+          document.removeEventListener('visibilitychange', refresh)
+        }
       }, [])
 
       const [quickOpen, setQuickOpen] = React.useState(false)
