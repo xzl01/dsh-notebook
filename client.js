@@ -9787,11 +9787,12 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       const writingRetried = React.useRef(false)
       const writingFetchedAt = React.useRef(0)
 
-      async function loadWriting() {
+      async function loadWriting(force) {
         if (writingBusy.current) return
         // Note switches and focus events both ask; a short window keeps that
-        // from becoming a request per keystroke of navigation.
-        if (Date.now() - writingFetchedAt.current < 2000) return
+        // from becoming a request per keystroke of navigation. A save must
+        // always refresh, so today's square changes immediately.
+        if (force !== true && Date.now() - writingFetchedAt.current < 2000) return
         writingBusy.current = true
         try {
           const data = await apiGet('/stats/writing')
@@ -10835,7 +10836,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           mtimeRef.current = data.mtimeMs
           setSaveState('saved')
           setNotice(null)
-          void loadWriting()
+          void loadWriting(true)
         } catch (error) {
           setSaveState('error')
           if (saveFailureKind(error !== null && error !== undefined ? error.code : undefined) === 'sync') {
