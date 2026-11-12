@@ -712,24 +712,35 @@ function createVault(config, hooks = {}) {
       writingLog = { version: STATS_VERSION, days: parsed.days }
       return true
     }
-    let adopted = false
     try {
-      adopted = adopt(JSON.parse(await fsp.readFile(statsFile(), 'utf8')))
+      adopt(JSON.parse(await fsp.readFile(statsFile(), 'utf8')))
     } catch {
-      adopted = false
+      /* no stats yet */
     }
-    if (!adopted) {
-      // Migrate stats written by older builds into the syncable location.
-      const legacyFile = join(root, LEGACY_STATS_DIR_NAME, LEGACY_STATS_FILE_NAME)
-      try {
-        const parsed = JSON.parse(await fsp.readFile(legacyFile, 'utf8'))
-        if (adopt(parsed)) {
-          await saveWritingLog()
-          await fsp.rm(legacyFile, { force: true }).catch(() => {})
+    // The syncable location wins, but an older build may still have written the
+    // hidden legacy file. Merge it day by day (the larger count wins) and then
+    // remove it, so a split record does not silently lose a day's writing.
+    const legacyFile = join(root, LEGACY_STATS_DIR_NAME, LEGACY_STATS_FILE_NAME)
+    try {
+      const parsed = JSON.parse(await fsp.readFile(legacyFile, 'utf8'))
+      if (
+        parsed !== null &&
+        typeof parsed === 'object' &&
+        parsed.version === STATS_VERSION &&
+        parsed.days !== null &&
+        typeof parsed.days === 'object'
+      ) {
+        if (writingLog === null) writingLog = { version: STATS_VERSION, days: {} }
+        for (const [day, value] of Object.entries(parsed.days)) {
+          const chars = Math.round(Number(value))
+          if (!Number.isFinite(chars) || chars <= 0) continue
+          if ((writingLog.days[day] ?? 0) < chars) writingLog.days[day] = chars
         }
-      } catch {
-        /* no legacy stats */
+        await saveWritingLog()
+        await fsp.rm(legacyFile, { force: true }).catch(() => {})
       }
+    } catch {
+      /* no legacy stats */
     }
     if (writingLog === null) writingLog = empty
     // First run: seed today from notes saved today, so the widget is not blank
