@@ -3831,6 +3831,31 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       return String(href ?? '').startsWith(TEMPLATE_HREF)
     }
 
+    /**
+     * Wrap one selected substring with Markdown markers. Used to format a
+     * selection that spans several blocks without rewriting the whole note.
+     * Returns null when the substring cannot be located (rendered markup).
+     */
+    function wrapMarkdownSelection(text, selected, before, after) {
+      const source = String(text ?? '')
+      const needle = String(selected ?? '')
+      if (needle.length === 0) return null
+      let start = source.indexOf(needle)
+      let length = needle.length
+      if (start < 0) {
+        const trimmed = needle.trim()
+        if (trimmed.length === 0) return null
+        start = source.indexOf(trimmed)
+        length = trimmed.length
+      }
+      if (start < 0) return null
+      const already =
+        source.slice(Math.max(0, start - before.length), start) === before &&
+        source.slice(start + length, start + length + after.length) === after
+      if (already) return source
+      return `${source.slice(0, start)}${before}${source.slice(start, start + length)}${after}${source.slice(start + length)}`
+    }
+
     /** True when the OS asks for reduced motion; JS-driven scrolling must honor it too. */
     function prefersReducedMotion() {
       return (
@@ -10584,6 +10609,26 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
             deleteSelectedBlocks()
             return
           }
+          // A text selection that spans several blocks deletes those blocks,
+          // the way Notion treats a multi-block selection.
+          if (event.key === 'Backspace' || event.key === 'Delete') {
+            const live = window.getSelection ? window.getSelection() : null
+            if (live !== null && live.isCollapsed === false && live.rangeCount > 0) {
+              const range = live.getRangeAt(0)
+              const doc = document.querySelector('.nb-doc')
+              if (doc !== null && doc.contains(range.commonAncestorContainer)) {
+                const ids = Array.from(doc.querySelectorAll('[data-block]'))
+                  .filter((block) => range.intersectsNode(block))
+                  .map((block) => block.getAttribute('data-block'))
+                  .filter((id) => typeof id === 'string' && id.length > 0)
+                if (ids.length > 1) {
+                  event.preventDefault()
+                  deleteBlocksByIds(ids)
+                  return
+                }
+              }
+            }
+          }
           if (event.key === 'Escape' && zenRef.current === true && editingIdRef.current === null) {
             event.preventDefault()
             setZenMode(false)
@@ -11343,11 +11388,62 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         }
       }, [])
 
+      function selectedBlockElements() {
+        const selection = window.getSelection ? window.getSelection() : null
+        const doc = document.querySelector('.nb-doc')
+        if (selection === null || selection.rangeCount === 0 || doc === null) return []
+        const range = selection.getRangeAt(0)
+        return Array.from(doc.querySelectorAll('[data-block]')).filter((block) => range.intersectsNode(block))
+      }
+
+      /** Apply Markdown markers to the selected text of every selected block. */
+      function formatSelectionAcrossBlocks(kind, blockEls, range) {
+        const pair =
+          kind === 'bold'
+            ? ['**', '**']
+            : kind === 'italic'
+              ? ['*', '*']
+              : kind === 'strikeThrough'
+                ? ['~~', '~~']
+                : kind === 'code'
+                  ? ['`', '`']
+                  : null
+        if (pair === null) return
+        let changed = false
+        for (const element of blockEls) {
+          const id = element.getAttribute('data-block')
+          const block = blocksRef.current.find((item) => item.id === id)
+          if (block === undefined || block.type === 'code' || block.type === 'table' || block.type === 'divider') continue
+          const content = element.querySelector('.nb-b')
+          const sub = range.cloneRange()
+          if (content !== null) {
+            if (!content.contains(sub.startContainer)) sub.setStart(content, 0)
+            if (!content.contains(sub.endContainer)) sub.setEnd(content, content.childNodes.length)
+          }
+          const selected = sub.toString()
+          if (selected.length === 0) continue
+          const next = wrapMarkdownSelection(block.text ?? '', selected, pair[0], pair[1])
+          if (next === null || next === block.text) continue
+          changeText(id, next)
+          changed = true
+        }
+        if (changed) {
+          setSelection(null)
+          const live = window.getSelection ? window.getSelection() : null
+          if (live !== null) live.removeAllRanges()
+        }
+      }
+
       function formatSelection(kind) {
         const state = selectionRef.current
         if (state === null) return
         const selection = window.getSelection ? window.getSelection() : null
         if (selection === null || selection.rangeCount === 0) return
+        if (state.multi === true) {
+          if (kind === 'clear') return
+          formatSelectionAcrossBlocks(kind, selectedBlockElements(), selection.getRangeAt(0))
+          return
+        }
         try {
           if (kind === 'code') {
             const range = selection.getRangeAt(0)
@@ -11390,6 +11486,38 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         }
         const selection = window.getSelection ? window.getSelection() : null
         if (selection === null) return
+        if (state.multi === true) {
+          const doc = document.querySelector('.nb-doc')
+          const blockEls =
+            doc === null
+              ? []
+              : Array.from(doc.querySelectorAll('[data-block]')).filter((block) => saved.intersectsNode(block))
+          const range = saved
+          let changed = false
+          for (const element of blockEls) {
+            const id = element.getAttribute('data-block')
+            const block = blocksRef.current.find((item) => item.id === id)
+            if (block === undefined) continue
+            const content = element.querySelector('.nb-b')
+            const sub = range.cloneRange()
+            if (content !== null) {
+              if (!content.contains(sub.startContainer)) sub.setStart(content, 0)
+              if (!content.contains(sub.endContainer)) sub.setEnd(content, content.childNodes.length)
+            }
+            const selected = sub.toString()
+            if (selected.length === 0) continue
+            const next = wrapMarkdownSelection(block.text ?? '', selected, '[', `](${url})`)
+            if (next === null || next === block.text) continue
+            changeText(id, next)
+            changed = true
+          }
+          if (changed) {
+            setSelection(null)
+            savedRangeRef.current = null
+            selection.removeAllRanges()
+          }
+          return
+        }
         const text = saved.toString()
         if (text.length === 0) return
         selection.removeAllRanges()
@@ -11864,6 +11992,19 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         const range = selectedBlockRange()
         if (range === null) return ''
         return `${range.map((block) => blockToMarkdown(block)).join('\n\n')}\n`
+      }
+
+      function deleteBlocksByIds(ids) {
+        const remove = new Set(Array.isArray(ids) ? ids : [])
+        if (remove.size === 0) return
+        const next = blocksRef.current.filter((block) => !remove.has(block.id))
+        updateBlocks(
+          next.length > 0 ? next : [{ id: makeId(), type: 'paragraph', text: '', checked: false }],
+        )
+        setSelection(null)
+        setEditingId(null)
+        const selection = window.getSelection ? window.getSelection() : null
+        if (selection !== null) selection.removeAllRanges()
       }
 
       function deleteSelectedBlocks() {
@@ -14770,33 +14911,13 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                       '×',
                     ),
                   ]
-                : selection.multi === true
-                  ? [
-                      h(
-                        'button',
-                        {
-                          key: 'ask',
-                          className: 'nb-toolbar-btn nb-toolbar-ask',
-                          title: t('askAi'),
-                          'aria-label': t('askAi'),
-                          onMouseDown: (event) => event.preventDefault(),
-                          onClick: () => {
-                            const text = captureAskSelection()
-                            if (text.length > 0) setAskSelection(text)
-                            setAskOpen(true)
-                            setSelection(null)
-                          },
-                        },
-                        '✨',
-                      ),
-                    ]
-                  : [
+                : [
                     ['bold', 'B', t('fmtBold'), 'nb-toolbar-bold'],
                     ['italic', 'I', t('fmtItalic'), 'nb-toolbar-italic'],
                     ['strikeThrough', 'S', t('fmtStrike'), 'nb-toolbar-strike'],
                     ['code', '</>', t('fmtCode'), 'nb-toolbar-code'],
                     ['link', '🔗', t('fmtLink'), ''],
-                    ['clear', '⌫', t('fmtClear'), ''],
+                    ...(selection.multi === true ? [] : [['clear', '⌫', t('fmtClear'), '']]),
                     ['ask', '✨', t('askAi'), 'nb-toolbar-ask'],
                   ].map(([kind, label, title, extra]) =>
                     h(
@@ -15951,6 +16072,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         resolveNoteLink,
         autoFolderPageFor,
         markdownNoteLink,
+        wrapMarkdownSelection,
         folderPageConfigFor,
         folderPageFor,
         folderEntriesFor,

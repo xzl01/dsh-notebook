@@ -648,6 +648,15 @@ check('frontmatter type: folder pins the page and can point at another folder', 
   return 'pinned + override + link body'
 })
 
+check('multi-block formatting wraps the selected text', () => {
+  const { wrapMarkdownSelection } = captured.module.__internal
+  assert(wrapMarkdownSelection('hello world', 'world', '**', '**') === 'hello **world**')
+  assert(wrapMarkdownSelection('hello world', '  world ', '[', '](u)') === 'hello [world](u)')
+  assert(wrapMarkdownSelection('**bold**', 'bold', '**', '**') === '**bold**', 'already wrapped is a no-op')
+  assert(wrapMarkdownSelection('hello', 'nope', '**', '**') === null, 'missing text is skipped')
+  return 'substring / trimmed / idempotent / missing'
+})
+
 check('relative .md links resolve to notes in the vault', () => {
   const { markdownNoteLink } = captured.module.__internal
   const base = '笔记/02 生活/05 归档与索引/00 索引.md'
