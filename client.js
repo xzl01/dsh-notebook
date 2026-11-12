@@ -560,6 +560,7 @@ window.__ModuleLoader__.load({
       paletteClose: '关闭',
       scPalette: '命令面板（搜索 + 动作）',
       writingHeatmap: '写作热力',
+      writingHeatmapOpen: '查看全年写作热力',
       characters: '字',
       statsTotal: '总计',
       statsActiveDays: '活跃天数',
@@ -1001,6 +1002,7 @@ window.__ModuleLoader__.load({
       paletteClose: 'close',
       scPalette: 'Command palette (search + actions)',
       writingHeatmap: 'Writing heatmap',
+      writingHeatmapOpen: 'Open the year view',
       characters: 'chars',
       statsTotal: 'Total',
       statsActiveDays: 'Active days',
@@ -13375,7 +13377,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
             {
               className: 'nb-heat-card',
               onClick: () => setDialog({ kind: 'stats' }),
-              title: t('writingHeatmap'),
+              title: t('writingHeatmapOpen'),
             },
             h(
               'div',

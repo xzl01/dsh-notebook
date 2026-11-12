@@ -5,6 +5,9 @@ node_modules/
 test/.tmp-vault/
 test/.tmp-outside-secret.md
 
+# One-off vault reorg workspace (scripts, audits, backups)
+.reorg/
+
 # Local logs and OS noise
 *.log
 .DS_Store
