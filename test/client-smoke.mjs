@@ -657,6 +657,25 @@ check('removing a selected span keeps the rest of the block', () => {
   return 'offset / first span / missing / whole'
 })
 
+check('heatmap month labels skip the trailing edge', () => {
+  const { writingMonthLabels } = captured.module.__internal
+  const weeks = [
+    [{ date: '2026-05-25' }],
+    [{ date: '2026-06-01' }],
+    [{ date: '2026-06-08' }],
+    [{ date: '2026-06-15' }],
+    [{ date: '2026-07-01' }],
+  ]
+  const labels = writingMonthLabels(weeks)
+  assert(labels.length === 5, `labels ${labels.length}`)
+  assert(labels[0].length > 0, 'the first month is labelled')
+  assert(labels[1].length > 0, 'a month change is labelled')
+  assert(labels[2] === '' && labels[3] === '', 'the same month stays blank')
+  assert(labels[4] === '', 'the trailing edge label is dropped')
+  assert(writingMonthLabels([]).length === 0, 'no weeks means no labels')
+  return 'month start / blank / edge / empty'
+})
+
 check('the format toolbar flips below and stays inside the document', () => {
   const { toolbarPositionFor } = captured.module.__internal
   const bounds = { left: 240, right: 1200 }

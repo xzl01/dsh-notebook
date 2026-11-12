@@ -9603,6 +9603,25 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       return { weeks: columns, max }
     }
 
+    /** Month labels for the heatmap's columns; the trailing label is dropped. */
+    function writingMonthLabels(weeks) {
+      const columns = Array.isArray(weeks) ? weeks : []
+      let previous = -1
+      const labels = columns.map((cells) => {
+        const first = Array.isArray(cells) && cells.length > 0 ? String(cells[0].date ?? '') : ''
+        if (first.length === 0) return ''
+        const date = new Date(`${first}T12:00:00`)
+        if (Number.isNaN(date.getTime())) return ''
+        const month = date.getMonth()
+        const label = month === previous ? '' : date.toLocaleDateString(undefined, { month: 'short' })
+        previous = month
+        return label
+      })
+      // A label on the last column would be clipped by the card edge.
+      if (labels.length > 0) labels[labels.length - 1] = ''
+      return labels
+    }
+
     function formatWritingCount(value) {
       const number = Math.round(Number(value) || 0)
       return number.toLocaleString()
@@ -9611,16 +9630,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
     /** One GitHub-style contribution grid; `compact` fits the sidebar. */
     function WritingHeatmap({ t, days, weeks, compact, labels }) {
       const grid = React.useMemo(() => writingHeatmap(days, weeks), [days, weeks])
-      const months = React.useMemo(() => {
-        let previous = -1
-        return grid.weeks.map((cells) => {
-          const date = new Date(`${cells[0].date}T12:00:00`)
-          const month = date.getMonth()
-          const label = month === previous ? '' : date.toLocaleDateString(undefined, { month: 'short' })
-          previous = month
-          return label
-        })
-      }, [grid])
+      const months = React.useMemo(() => writingMonthLabels(grid.weeks), [grid])
       return h(
         'div',
         { className: `nb-heat${compact === true ? ' compact' : ''}` },
@@ -16308,6 +16318,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         noteDirFor,
         paletteRows,
         writingHeatmap,
+        writingMonthLabels,
         writingLevel,
         localDayKey,
         askAnswerTitle,
