@@ -692,7 +692,11 @@ check('multi-block formatting wraps the selected text', () => {
   const { wrapMarkdownSelection } = captured.module.__internal
   assert(wrapMarkdownSelection('hello world', 'world', '**', '**') === 'hello **world**')
   assert(wrapMarkdownSelection('hello world', '  world ', '[', '](u)') === 'hello [world](u)')
-  assert(wrapMarkdownSelection('**bold**', 'bold', '**', '**') === '**bold**', 'already wrapped is a no-op')
+  assert(wrapMarkdownSelection('**bold**', 'bold', '**', '**') === 'bold', 'clicking the same style removes it')
+  assert(
+    wrapMarkdownSelection('**bold**', 'bold', '**', '**', undefined, false) === '**bold**',
+    'links do not toggle (toggle=false)',
+  )
   assert(
     wrapMarkdownSelection('**bold**', 'bold', '*', '*') === '***bold***',
     'italic on bold nests instead of being mistaken for wrapped',
@@ -710,7 +714,7 @@ check('multi-block formatting wraps the selected text', () => {
     wrapMarkdownSelection('rendered', 'text', '**', '**', 99) === null,
     'an offset past the end falls back and finds nothing',
   )
-  return 'substring / trimmed / idempotent / missing / offset'
+  return 'substring / trimmed / toggle / missing / offset'
 })
 
 check('relative .md links resolve to notes in the vault', () => {

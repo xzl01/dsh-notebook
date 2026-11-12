@@ -3836,7 +3836,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
      * selection that spans several blocks without rewriting the whole note.
      * Returns null when the substring cannot be located (rendered markup).
      */
-    function wrapMarkdownSelection(text, selected, before, after, offset) {
+    function wrapMarkdownSelection(text, selected, before, after, offset, toggle) {
       const source = String(text ?? '')
       const needle = String(selected ?? '')
       if (needle.length === 0) return null
@@ -3867,7 +3867,16 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         !halfOfDouble &&
         source.slice(Math.max(0, start - before.length), start) === before &&
         source.slice(start + length, start + length + after.length) === after
-      if (already) return source
+      if (already) {
+        // Clicking the same style again removes it, like the native toolbar.
+        // Links are not toggled: applying a new URL should replace, not unlink.
+        if (toggle === false) return source
+        return (
+          source.slice(0, start - before.length) +
+          source.slice(start, start + length) +
+          source.slice(start + length + after.length)
+        )
+      }
       return `${source.slice(0, start)}${before}${source.slice(start, start + length)}${after}${source.slice(start + length)}`
     }
 
@@ -11685,7 +11694,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
             if (selected.length === 0) continue
             const offset =
               content === null ? null : selectionOffsetIn(content, sub.startContainer, sub.startOffset)
-            const next = wrapMarkdownSelection(block.text ?? '', selected, '[', `](${url})`, offset)
+            const next = wrapMarkdownSelection(block.text ?? '', selected, '[', `](${url})`, offset, false)
             if (next === null || next === block.text) continue
             changes.set(id, next)
           }
