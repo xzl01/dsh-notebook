@@ -11305,13 +11305,21 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           const range = current.getRangeAt(0)
           const node = range.commonAncestorContainer
           const element = node.nodeType === 1 ? node : node.parentElement
-          const edit =
-            element !== null && typeof element.closest === 'function' ? element.closest('.nb-b-edit') : null
-          if (edit === null) {
+          // A selection can cover several blocks (each block is its own
+          // editor), so do not require the common ancestor to be one editor.
+          if (element === null || typeof element.closest !== 'function' || element.closest('.nb-doc') === null) {
             clear()
             return
           }
-          const block = typeof edit.closest === 'function' ? edit.closest('[data-block]') : null
+          const edit = element.closest('.nb-b-edit')
+          const blocks = Array.from(document.querySelectorAll('.nb-doc [data-block]')).filter((candidate) =>
+            range.intersectsNode(candidate),
+          )
+          if (edit === null && blocks.length === 0) {
+            clear()
+            return
+          }
+          const block = edit !== null ? edit.closest('[data-block]') : blocks[0]
           const rect = range.getBoundingClientRect()
           if (rect.width === 0 && rect.height === 0) {
             clear()
@@ -11320,6 +11328,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           savedRangeRef.current = range.cloneRange()
           const next = {
             blockId: block === null ? null : block.getAttribute('data-block'),
+            multi: edit === null || blocks.length > 1,
             top: rect.top,
             left: rect.left + rect.width / 2,
           }
@@ -14761,7 +14770,27 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
                       '×',
                     ),
                   ]
-                : [
+                : selection.multi === true
+                  ? [
+                      h(
+                        'button',
+                        {
+                          key: 'ask',
+                          className: 'nb-toolbar-btn nb-toolbar-ask',
+                          title: t('askAi'),
+                          'aria-label': t('askAi'),
+                          onMouseDown: (event) => event.preventDefault(),
+                          onClick: () => {
+                            const text = captureAskSelection()
+                            if (text.length > 0) setAskSelection(text)
+                            setAskOpen(true)
+                            setSelection(null)
+                          },
+                        },
+                        '✨',
+                      ),
+                    ]
+                  : [
                     ['bold', 'B', t('fmtBold'), 'nb-toolbar-bold'],
                     ['italic', 'I', t('fmtItalic'), 'nb-toolbar-italic'],
                     ['strikeThrough', 'S', t('fmtStrike'), 'nb-toolbar-strike'],
