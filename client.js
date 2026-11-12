@@ -3856,7 +3856,15 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         length = trimmed.length
       }
       if (start < 0) return null
+      // A single `*`/`_` is not "already wrapped" when it is half of a `**`/`__`:
+      // italic on bold text must nest, not no-op.
+      const single = before.length === 1 && before === after
+      const halfOfDouble =
+        single &&
+        (source.slice(Math.max(0, start - 2), start) === `${before}${before}` ||
+          source.slice(start + length, start + length + 2) === `${after}${after}`)
       const already =
+        !halfOfDouble &&
         source.slice(Math.max(0, start - before.length), start) === before &&
         source.slice(start + length, start + length + after.length) === after
       if (already) return source

@@ -693,6 +693,10 @@ check('multi-block formatting wraps the selected text', () => {
   assert(wrapMarkdownSelection('hello world', 'world', '**', '**') === 'hello **world**')
   assert(wrapMarkdownSelection('hello world', '  world ', '[', '](u)') === 'hello [world](u)')
   assert(wrapMarkdownSelection('**bold**', 'bold', '**', '**') === '**bold**', 'already wrapped is a no-op')
+  assert(
+    wrapMarkdownSelection('**bold**', 'bold', '*', '*') === '***bold***',
+    'italic on bold nests instead of being mistaken for wrapped',
+  )
   assert(wrapMarkdownSelection('hello', 'nope', '**', '**') === null, 'missing text is skipped')
   assert(
     wrapMarkdownSelection('a cat a cat', 'a cat', '**', '**', 6) === 'a cat **a cat**',
