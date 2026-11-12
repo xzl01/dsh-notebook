@@ -654,7 +654,19 @@ check('multi-block formatting wraps the selected text', () => {
   assert(wrapMarkdownSelection('hello world', '  world ', '[', '](u)') === 'hello [world](u)')
   assert(wrapMarkdownSelection('**bold**', 'bold', '**', '**') === '**bold**', 'already wrapped is a no-op')
   assert(wrapMarkdownSelection('hello', 'nope', '**', '**') === null, 'missing text is skipped')
-  return 'substring / trimmed / idempotent / missing'
+  assert(
+    wrapMarkdownSelection('a cat a cat', 'a cat', '**', '**', 6) === 'a cat **a cat**',
+    'an explicit offset wraps the second occurrence',
+  )
+  assert(
+    wrapMarkdownSelection('a cat a cat', 'a cat', '**', '**') === '**a cat** a cat',
+    'without an offset the first occurrence wins',
+  )
+  assert(
+    wrapMarkdownSelection('rendered', 'text', '**', '**', 99) === null,
+    'an offset past the end falls back and finds nothing',
+  )
+  return 'substring / trimmed / idempotent / missing / offset'
 })
 
 check('relative .md links resolve to notes in the vault', () => {

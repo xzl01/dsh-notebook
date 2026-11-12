@@ -3836,12 +3836,19 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
      * selection that spans several blocks without rewriting the whole note.
      * Returns null when the substring cannot be located (rendered markup).
      */
-    function wrapMarkdownSelection(text, selected, before, after) {
+    function wrapMarkdownSelection(text, selected, before, after, offset) {
       const source = String(text ?? '')
       const needle = String(selected ?? '')
       if (needle.length === 0) return null
-      let start = source.indexOf(needle)
+      let start = -1
       let length = needle.length
+      // The selection's real offset wins: the same words may appear twice in a
+      // block, and wrapping the first occurrence would edit the wrong sentence.
+      if (Number.isInteger(offset) && offset >= 0 && source.slice(offset, offset + needle.length) === needle) {
+        start = offset
+      } else {
+        start = source.indexOf(needle)
+      }
       if (start < 0) {
         const trimmed = needle.trim()
         if (trimmed.length === 0) return null
@@ -11396,6 +11403,19 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         return Array.from(doc.querySelectorAll('[data-block]')).filter((block) => range.intersectsNode(block))
       }
 
+      /** Character offset of a DOM boundary point inside a block's text. */
+      function selectionOffsetIn(content, container, offset) {
+        if (content === null || !content.contains(container)) return null
+        try {
+          const before = document.createRange()
+          before.selectNodeContents(content)
+          before.setEnd(container, offset)
+          return before.toString().length
+        } catch {
+          return null
+        }
+      }
+
       /** Apply Markdown markers to the selected text of every selected block. */
       function formatSelectionAcrossBlocks(kind, blockEls, range) {
         const pair =
@@ -11422,7 +11442,9 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
           }
           const selected = sub.toString()
           if (selected.length === 0) continue
-          const next = wrapMarkdownSelection(block.text ?? '', selected, pair[0], pair[1])
+          const offset =
+            content === null ? null : selectionOffsetIn(content, sub.startContainer, sub.startOffset)
+          const next = wrapMarkdownSelection(block.text ?? '', selected, pair[0], pair[1], offset)
           if (next === null || next === block.text) continue
           changeText(id, next)
           changed = true
@@ -11506,7 +11528,9 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
             }
             const selected = sub.toString()
             if (selected.length === 0) continue
-            const next = wrapMarkdownSelection(block.text ?? '', selected, '[', `](${url})`)
+            const offset =
+              content === null ? null : selectionOffsetIn(content, sub.startContainer, sub.startOffset)
+            const next = wrapMarkdownSelection(block.text ?? '', selected, '[', `](${url})`, offset)
             if (next === null || next === block.text) continue
             changeText(id, next)
             changed = true
