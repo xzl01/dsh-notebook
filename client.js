@@ -1488,7 +1488,8 @@ window.__ModuleLoader__.load({
 .nb-b a:hover { text-decoration: underline; }
 .nb-b strong { font-weight: 650; }
 .nb-b img, .nb-b .nb-img { max-width: 100%; height: auto; border-radius: var(--nb-radius-m); display: block; margin: 10px 0; box-shadow: var(--nb-shadow-1); }
-.nb-wikitext, .nb-wiki { color: var(--nb-accent); text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
+.nb-wikitext, .nb-wiki { color: var(--nb-accent); text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: color-mix(in srgb, currentColor 32%, transparent); text-underline-offset: 3px; transition: text-decoration-color .14s var(--nb-ease); }
+.nb-wikitext:hover, .nb-wiki:hover { text-decoration-color: currentColor; }
 /* Obsidian Canvas */
 .nb-canvas-shell { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .nb-canvas-head { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--nb-line); }
@@ -4029,6 +4030,13 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       })
     }
 
+    /** Parse one Markdown link token, including `<...>` destinations with `()`. */
+    function parseMarkdownLinkToken(token) {
+      const match = /^\[([^\]]+)\]\((?:<([^>]+)>|([^)]+))\)$/.exec(String(token ?? ''))
+      if (match === null) return null
+      return { label: match[1], url: String(match[2] ?? match[3] ?? '').trim() }
+    }
+
     function renderInline(text, keyPrefix, context) {
       const ctx = context ?? {}
       const depth = Number(ctx.depth) || 0
@@ -4036,7 +4044,7 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
       let last = 0
       let count = 0
       const pattern =
-        /(!\[\[[^\]\n]+\]\])|(!\[[^\]\n]*\]\([^)\n]+\)(?:\{width=\d+%\})?)|(`[^`\n]+`)|(\$\$[^$\n]+\$\$)|(\$[^$\n]+\$)|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(~~[^~\n]+~~)|(==[^=\n]+==)|(%%.*?%%)|(\[\[[^\]\n]+\]\])|(\[[^\]\n]+\]\([^)\n]+\))|(\[\^[^\]\n]+\])|(#([\w\u4e00-\u9fa5][\w\u4e00-\u9fa5/-]*))|(\*[^*\n]+\*)|(_[^_\n]+_)/g
+        /(!\[\[[^\]\n]+\]\])|(!\[[^\]\n]*\]\([^)\n]+\)(?:\{width=\d+%\})?)|(`[^`\n]+`)|(\$\$[^$\n]+\$\$)|(\$[^$\n]+\$)|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(~~[^~\n]+~~)|(==[^=\n]+==)|(%%.*?%%)|(\[\[[^\]\n]+\]\])|(\[[^\]\n]+\]\((?:<[^>\n]+>|[^)\n]+)\))|(\[\^[^\]\n]+\])|(#([\w\u4e00-\u9fa5][\w\u4e00-\u9fa5/-]*))|(\*[^*\n]+\*)|(_[^_\n]+_)/g
       let match
       while ((match = pattern.exec(text)) !== null) {
         if (match.index > last) nodes.push(text.slice(last, match.index))
@@ -4111,8 +4119,8 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         } else if (token.startsWith('[[')) {
           nodes.push(h('span', { key, className: 'nb-wiki' }, token.slice(2, -2)))
         } else if (token.startsWith('[')) {
-          const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token)
-          if (link !== null && isTemplateHref(link[2])) {
+          const parsedLink = parseMarkdownLinkToken(token)
+          if (parsedLink !== null && isTemplateHref(parsedLink.url)) {
             nodes.push(
               h(
                 'button',
@@ -4125,13 +4133,13 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
                     if (typeof ctx.onTemplate === 'function') ctx.onTemplate()
                   },
                 },
-                `＋ ${link[1]}`,
+                `＋ ${parsedLink.label}`,
               ),
             )
           } else {
             const note =
-              link !== null && typeof ctx.notePath === 'string' && ctx.notePath.length > 0
-                ? markdownNoteLink(ctx.notePath, link[2], ctx.notes)
+              parsedLink !== null && typeof ctx.notePath === 'string' && ctx.notePath.length > 0
+                ? markdownNoteLink(ctx.notePath, parsedLink.url, ctx.notes)
                 : null
             if (note !== null) {
               nodes.push(
@@ -4146,15 +4154,17 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
                       if (typeof ctx.onOpen === 'function') ctx.onOpen(note.path)
                     },
                   },
-                  link[1],
+                  parsedLink.label,
                 ),
               )
             } else {
-              const href = link === null ? undefined : safeHref(link[2])
-              if (link === null || href === undefined) {
+              const href = parsedLink === null ? undefined : safeHref(parsedLink.url)
+              if (parsedLink === null || href === undefined) {
                 nodes.push(token)
               } else {
-                nodes.push(h('a', { key, href, target: '_blank', rel: 'noreferrer noopener' }, link[1]))
+                nodes.push(
+                  h('a', { key, href, target: '_blank', rel: 'noreferrer noopener' }, parsedLink.label),
+                )
               }
             }
           }
@@ -16507,6 +16517,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         pagePathFor,
         addTagToList,
         parseWikiLink,
+        parseMarkdownLinkToken,
         folderTargets,
         blockLinkFor,
         outgoingLinks,

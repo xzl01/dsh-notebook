@@ -666,6 +666,18 @@ check('folder home names strip the numeric prefix', () => {
   return 'prefix stripped / plain / path'
 })
 
+check('a note link with parentheses and angle brackets parses correctly', () => {
+  const { parseMarkdownLinkToken } = captured.module.__internal
+  const angled = parseMarkdownLinkToken('[第0x00期 begin()](<第0x00期 begin().md>)')
+  assert(angled !== null, 'angle-bracket link is parsed')
+  assert(angled.label === '第0x00期 begin()', angled.label)
+  assert(angled.url === '第0x00期 begin().md', angled.url)
+  const plain = parseMarkdownLinkToken('[想](想.md)')
+  assert(plain !== null && plain.url === '想.md', 'plain link still works')
+  assert(parseMarkdownLinkToken('[x](y.md') === null, 'unterminated link stays text')
+  return 'angle bracket / plain / malformed'
+})
+
 check('a flash note splits into a card title and excerpt', () => {
   const { flashCardParts } = captured.module.__internal
   const parts = flashCardParts('第一行\n\n第二段\n第三段', 'fallback')
