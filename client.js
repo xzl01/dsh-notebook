@@ -1749,32 +1749,46 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
 .nb-flash-entry-icon { font-size: 14px; }
 .nb-flash-count { margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; background: var(--nb-accent-soft); color: var(--nb-accent); font-size: 11px; font-weight: 600; }
 .nb-flash { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--nb-bg); }
-.nb-flash-head { display: flex; align-items: center; gap: 10px; padding: 18px 24px 10px; flex-wrap: wrap; }
-.nb-flash-title { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
-.nb-flash-sub { font-size: 12px; color: var(--nb-text-2); }
-.nb-flash-head .nb-btn { height: 28px; padding: 0 12px; font-size: 12px; }
-.nb-flash-filters { display: flex; align-items: center; gap: 8px; padding: 0 24px 12px; flex-wrap: wrap; border-bottom: 1px solid var(--nb-line); }
-.nb-flash-tab { border: none; background: transparent; color: var(--nb-text-2); font-size: 12.5px; font-weight: 500; padding: 5px 10px; border-radius: var(--nb-radius-s); cursor: pointer; }
-.nb-flash-tab[data-on="1"] { background: var(--nb-accent-soft); color: var(--nb-accent); }
-.nb-flash-cats { display: flex; gap: 6px; flex-wrap: wrap; }
-.nb-flash-cat-chip { border: 1px solid var(--nb-line-2); background: transparent; color: var(--nb-text-2); font-size: 11.5px; padding: 3px 10px; border-radius: 999px; cursor: pointer; transition: background .14s, border-color .14s, color .14s; }
-.nb-flash-cat-chip[data-on="1"] { border-color: var(--nb-accent); color: var(--nb-accent); background: var(--nb-accent-soft); }
-.nb-flash-search { margin-left: auto; width: 190px; height: 28px; box-sizing: border-box; border: 1px solid var(--nb-line-2); border-radius: var(--nb-radius-s); background: var(--nb-surface); color: var(--nb-text); padding: 0 9px; font-size: 12.5px; outline: none; }
+.nb-flash-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 22px 28px 12px; flex-wrap: wrap; }
+.nb-flash-head-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.nb-flash-head-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.nb-flash-title { font-size: 22px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+.nb-flash-sub { font-size: 12.5px; color: var(--nb-text-3); }
+.nb-flash-head .nb-btn { height: 30px; padding: 0 13px; font-size: 12.5px; }
+.nb-flash-filters { display: flex; align-items: center; gap: 10px; padding: 0 28px 14px; flex-wrap: wrap; border-bottom: 1px solid var(--nb-line); }
+.nb-flash-tabs { display: flex; gap: 2px; padding: 3px; background: var(--nb-panel); border-radius: var(--nb-radius-m); }
+.nb-flash-tab { border: none; background: transparent; color: var(--nb-text-2); font-size: 12.5px; font-weight: 500; padding: 4px 11px; border-radius: 6px; cursor: pointer; transition: background .12s var(--nb-ease), color .12s var(--nb-ease); }
+.nb-flash-tab:hover { color: var(--nb-text); }
+.nb-flash-tab[data-on="1"] { background: var(--nb-card); color: var(--nb-text); font-weight: 600; box-shadow: var(--nb-shadow-1); }
+.nb-flash-cats { display: flex; gap: 4px; flex-wrap: wrap; }
+.nb-flash-cat-chip { border: 1px solid transparent; background: transparent; color: var(--nb-text-2); font-size: 11.5px; padding: 3px 9px; border-radius: 999px; cursor: pointer; transition: background .14s var(--nb-ease), border-color .14s var(--nb-ease), color .14s var(--nb-ease); }
+.nb-flash-cat-chip:hover { background: var(--nb-hover); color: var(--nb-text); }
+.nb-flash-cat-chip[data-on="1"] { border-color: color-mix(in srgb, var(--nb-accent) 35%, transparent); color: var(--nb-accent); background: var(--nb-accent-soft); }
+.nb-flash-search { margin-left: auto; width: 200px; height: 30px; box-sizing: border-box; border: 1px solid var(--nb-line); border-radius: var(--nb-radius-s); background: var(--nb-surface); color: var(--nb-text); padding: 0 10px; font-size: 12.5px; outline: none; }
 .nb-flash-search:focus { border-color: var(--nb-accent); box-shadow: 0 0 0 3px var(--nb-accent-ring); }
-.nb-flash-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 18px 24px 48px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; align-content: start; }
-.nb-flash-card { border: 1px solid var(--nb-line); background: var(--nb-card); border-radius: var(--nb-radius-m); padding: 14px 16px; display: flex; flex-direction: column; gap: 9px; min-height: 172px; transition: border-color .14s var(--nb-ease), box-shadow .16s var(--nb-ease), transform .16s var(--nb-ease-out); }
-.nb-flash-card:hover { border-color: color-mix(in srgb, var(--nb-accent) 35%, var(--nb-line)); box-shadow: 0 6px 18px rgba(16, 24, 40, .07); transform: translateY(-1px); }
-.nb-flash-card.pinned { border-color: color-mix(in srgb, var(--nb-accent) 45%, var(--nb-line)); }
-.nb-flash-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; color: var(--nb-text-2); }
-.nb-flash-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--nb-line-2); }
+.nb-flash-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 20px 28px 48px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; align-content: start; }
+.nb-flash-card { border: 1px solid var(--nb-line); background: var(--nb-card); border-radius: var(--nb-radius-l); padding: 16px 18px; display: flex; flex-direction: column; gap: 9px; min-height: 188px; transition: border-color .14s var(--nb-ease), box-shadow .18s var(--nb-ease), transform .18s var(--nb-ease-out); }
+.nb-flash-card:hover { border-color: color-mix(in srgb, var(--nb-accent) 30%, var(--nb-line)); box-shadow: 0 10px 26px rgba(16, 24, 40, .07); transform: translateY(-1px); }
+.nb-flash-card.pinned { border-color: color-mix(in srgb, var(--nb-accent) 40%, var(--nb-line)); }
+.nb-flash-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--nb-text-3); }
+.nb-flash-cat { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px; background: var(--nb-hover); color: var(--nb-text-2); font-size: 10.5px; font-weight: 600; letter-spacing: .01em; }
+.nb-flash-cat[data-cat="1"] { background: color-mix(in srgb, var(--dsw-alias-state-info-primary, #2f6feb) 12%, transparent); color: var(--dsw-alias-state-info-primary, #2f6feb); }
+.nb-flash-cat[data-cat="2"] { background: color-mix(in srgb, var(--dsw-alias-state-warn-primary, #a15c00) 12%, transparent); color: var(--dsw-alias-state-warn-primary, #a15c00); }
+.nb-flash-cat[data-cat="3"] { background: var(--nb-accent-soft); color: var(--nb-accent); }
+.nb-flash-cat[data-cat="4"] { background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #1a7f4b) 12%, transparent); color: var(--dsw-alias-state-success-primary, #1a7f4b); }
+.nb-flash-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .8; }
 .nb-flash-dot[data-cat="0"] { background: var(--nb-text-3, #8a8f98); }
 .nb-flash-dot[data-cat="1"] { background: var(--dsw-alias-state-info-primary, #2f6feb); }
 .nb-flash-dot[data-cat="2"] { background: var(--dsw-alias-state-warn-primary, #a15c00); }
 .nb-flash-dot[data-cat="3"] { background: var(--nb-accent); }
 .nb-flash-dot[data-cat="4"] { background: var(--dsw-alias-state-success-primary, #1a7f4b); }
-.nb-flash-tag { font-size: 11px; color: var(--nb-text-2); opacity: .85; }
-.nb-flash-text { margin: 0; font-size: 14px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; cursor: pointer; flex: 1 1 auto; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
-.nb-flash-text:hover { color: var(--nb-accent); }
+.nb-flash-chip-dot, .nb-flash-date { color: var(--nb-text-3); }
+.nb-flash-pin { color: var(--dsw-alias-state-warn-primary, #a15c00); font-size: 11px; }
+.nb-flash-tag { font-size: 10.5px; color: var(--nb-text-3); }
+.nb-flash-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1 1 auto; cursor: pointer; }
+.nb-flash-card-title { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.45; letter-spacing: -.005em; color: var(--nb-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.nb-flash-text { margin: 0; font-size: 13px; line-height: 1.65; color: var(--nb-text-2); white-space: pre-wrap; word-break: break-word; flex: 1 1 auto; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.nb-flash-body:hover .nb-flash-card-title { color: var(--nb-accent); }
 .nb-flash-actions { display: flex; gap: 2px; opacity: .55; transition: opacity .14s var(--nb-ease); flex-wrap: wrap; margin-top: auto; }
 .nb-flash-card:hover .nb-flash-actions { opacity: 1; }
 .nb-flash-action { border: none; background: transparent; color: var(--nb-text-2); font-size: 11.5px; padding: 3px 7px; border-radius: 4px; cursor: pointer; }
@@ -8698,6 +8712,14 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
     }
     const FLASH_CATEGORY_ORDER = ['随记', '想法', '待办', '灵感', '摘录']
 
+    /** First line of a flash note is its card title; the rest is the excerpt. */
+    function flashCardParts(text, fallback) {
+      const lines = String(text ?? '').trim().split('\n')
+      const title = ((lines[0] ?? '').trim() || String(fallback ?? '').trim()).slice(0, 120)
+      const excerpt = lines.slice(1).join('\n').trim().slice(0, 600)
+      return { title, excerpt }
+    }
+
     function flashCategoryLabel(t, category) {
       const key = FLASH_CATEGORY_KEYS[category]
       return key === undefined ? String(category ?? '') : t(key)
@@ -8949,18 +8971,26 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
         h(
           'div',
           { className: 'nb-flash-head' },
-          h('div', { className: 'nb-flash-title' }, `⚡ ${t('flashTitle')}`),
-          h('span', { className: 'nb-flash-sub' }, t('flashPending', { count: counts.inbox })),
-          h('button', { className: 'nb-btn nb-btn-primary', onClick: onCapture }, `＋ ${t('flashCapture')}`),
-          h('button', { className: 'nb-btn', onClick: resurface }, `⟲ ${t('flashRandom')}`),
-          h('button', { className: 'nb-icon-btn', onClick: onClose, 'aria-label': t('close') }, '×'),
+          h(
+            'div',
+            { className: 'nb-flash-head-main' },
+            h('div', { className: 'nb-flash-title' }, `⚡ ${t('flashTitle')}`),
+            h('span', { className: 'nb-flash-sub' }, t('flashPending', { count: counts.inbox })),
+          ),
+          h(
+            'div',
+            { className: 'nb-flash-head-actions' },
+            h('button', { className: 'nb-btn', onClick: resurface }, `⟲ ${t('flashRandom')}`),
+            h('button', { className: 'nb-btn nb-btn-primary', onClick: onCapture }, `＋ ${t('flashCapture')}`),
+            h('button', { className: 'nb-icon-btn', onClick: onClose, 'aria-label': t('close') }, '×'),
+          ),
         ),
         h(
           'div',
           { className: 'nb-flash-filters' },
           h(
             'div',
-            { style: { display: 'flex', gap: 2 } },
+            { className: 'nb-flash-tabs' },
             tabs.map(([value, label]) =>
               h(
                 'button',
@@ -9025,9 +9055,14 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
               h(
                 'div',
                 { className: 'nb-flash-meta' },
-                h('span', { className: 'nb-flash-dot', 'data-cat': String(flashCategoryIndex(item.category)) }),
-                h('span', null, flashCategoryLabel(t, item.category)),
-                h('span', null, new Date(item.createdMs).toLocaleString(localeTag)),
+                h(
+                  'span',
+                  { className: 'nb-flash-cat', 'data-cat': String(flashCategoryIndex(item.category)) },
+                  h('span', { className: 'nb-flash-dot', 'data-cat': String(flashCategoryIndex(item.category)) }),
+                  flashCategoryLabel(t, item.category),
+                ),
+                h('span', { className: 'nb-flash-date' }, new Date(item.createdMs).toLocaleDateString(localeTag)),
+                item.pinned ? h('span', { className: 'nb-flash-pin', title: t('flashPinned') }, '★') : null,
                 item.tags.map((tag) => h('span', { key: tag, className: 'nb-flash-tag' }, `#${tag}`)),
               ),
               edit !== null && edit.path === item.path
@@ -9073,11 +9108,17 @@ mark { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #f5
                       ),
                     ),
                   )
-                : h(
-                    'p',
-                    { className: 'nb-flash-text', onClick: () => onOpen(item.path) },
-                    item.preview.length > 0 ? item.preview : item.name,
-                  ),
+                : (() => {
+                    const parts = flashCardParts(item.preview, item.name)
+                    return h(
+                      'div',
+                      { className: 'nb-flash-body', onClick: () => onOpen(item.path) },
+                      h('p', { className: 'nb-flash-card-title' }, parts.title),
+                      parts.excerpt.length > 0
+                        ? h('p', { className: 'nb-flash-text' }, parts.excerpt)
+                        : null,
+                    )
+                  })(),
               h(
                 'div',
                 { className: 'nb-flash-actions' },
@@ -16588,6 +16629,7 @@ img{max-width:100%;border-radius:6px}hr{border:none;border-top:1px solid #ddd;ma
         folderHomeBase,
         folderHomePath,
         flashCategoryLabel,
+        flashCardParts,
         flashCategoryIndex,
         flashErrorLabel,
         requestFlashCapture,

@@ -666,6 +666,15 @@ check('folder home names strip the numeric prefix', () => {
   return 'prefix stripped / plain / path'
 })
 
+check('a flash note splits into a card title and excerpt', () => {
+  const { flashCardParts } = captured.module.__internal
+  const parts = flashCardParts('第一行\n\n第二段\n第三段', 'fallback')
+  assert(parts.title === '第一行', parts.title)
+  assert(parts.excerpt === '第二段\n第三段', parts.excerpt)
+  assert(flashCardParts('', '文件名').title === '文件名', 'empty text falls back to the note name')
+  return 'title / excerpt / fallback'
+})
+
 check('an ask thread becomes a DSH session prompt', () => {
   const { askThreadPrompt } = captured.module.__internal
   const prompt = askThreadPrompt({

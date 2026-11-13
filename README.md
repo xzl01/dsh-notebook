@@ -487,7 +487,7 @@ Agent 也能用 `notebook_sync` 查看状态、测试连接、触发一次同步
 ## 开发与测试
 
 ```bash
-node test/client-smoke.mjs        # Client：工厂、slot 注册、对话笔记卡片、目录页、聚焦/同步判定、问 AI、命令面板、保存视图/条件过滤、嵌入锚点、写作热力网格、跨块格式化/工具栏定位、热力图标签、文件夹主页命名、AI 对话记录、Markdown/HTML/diff 等纯函数，117 项
+node test/client-smoke.mjs        # Client：工厂、slot 注册、对话笔记卡片、目录页、聚焦/同步判定、问 AI、命令面板、保存视图/条件过滤、嵌入锚点、写作热力网格、跨块格式化/工具栏定位、热力图标签、文件夹主页命名、AI 对话记录、闪念卡片切分、Markdown/HTML/diff 等纯函数，118 项
 node test/host-smoke.mjs          # Host：mock ctx + 真实 HTTP server + 临时笔记库 + configEditor mock，73 项（含引用摘要、语义检索、写作统计）
 node test/host-attachments.mjs    # Host：图片上传 / 读取 / 配置 / 安全拒绝，10 项
 node test/host-history.mjs        # Host：版本快照 / 恢复 / 拒绝，8 项
@@ -497,7 +497,7 @@ node test/host-sync-webdav.mjs    # 同步：内存 WebDAV 服务器上跑上传
 node test/host-sync-git.mjs       # 同步：裸仓库 + 两个工作副本，跑初始化/推送/拉取/删除/冲突/仅本地/凭据/超时，14 项
 ```
 
-合计 257 项，全部为不依赖浏览器的 Node 脚本；改动前建议整套跑一遍。
+合计 258 项，全部为不依赖浏览器的 Node 脚本；改动前建议整套跑一遍。
 
 安装（本目录已经是 link 安装）：
 
